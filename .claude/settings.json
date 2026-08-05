@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '\"\\n## Tool failure: \" + (.tool_name // \"unknown\") + \" (\" + (now | strftime(\"%Y-%m-%d %H:%M\")) + \")\\n- Error: `\" + ((.error // .tool_response.error // .message // \"unknown error\") | tostring) + \"`\\n- Input: `\" + (.tool_input | tostring) + \"`\"' >> .claude/knowledge/errors.md 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

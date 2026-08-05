@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PAT}"
+      }
+    },
+    "atlassian": {
+      "command": "uvx",
+      "args": ["mcp-atlassian"],
+      "env": {
+        "JIRA_URL": "https://chinmays188.atlassian.net",
+        "JIRA_USERNAME": "chinmays188@gmail.com",
+        "JIRA_API_TOKEN": "${JIRA_API_TOKEN}",
+        "CONFLUENCE_URL": "https://chinmays188.atlassian.net/wiki",
+        "CONFLUENCE_USERNAME": "chinmays188@gmail.com",
+        "CONFLUENCE_API_TOKEN": "${JIRA_API_TOKEN}"
+      }
+    }
+  }
+}
