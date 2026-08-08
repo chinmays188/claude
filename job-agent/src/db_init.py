@@ -14,6 +14,10 @@ CREATE TABLE IF NOT EXISTS jobs (
     first_seen_at TEXT NOT NULL,
     relevance_score REAL,
     relevance_reason TEXT,
+    job_url TEXT,
+    contact_search_status TEXT NOT NULL DEFAULT 'not_attempted'
+        CHECK (contact_search_status IN
+            ('not_attempted', 'found', 'no_contacts_found', 'company_unverified')),
     status TEXT NOT NULL DEFAULT 'new'
         CHECK (status IN ('new', 'scored', 'tailored', 'digested', 'rejected', 'scoring_failed'))
 );
@@ -61,37 +65,73 @@ def migrate_jobs_table(conn):
     """SQLite can't ALTER a CHECK constraint or add it retroactively, so bring
     an existing jobs table up to the current schema via rebuild-and-copy."""
     cols = [row[1] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()]
-    if "relevance_reason" in cols:
-        return  # already migrated
 
-    conn.executescript("""
-        ALTER TABLE jobs RENAME TO jobs_old;
+    if "relevance_reason" not in cols:
+        conn.executescript("""
+            ALTER TABLE jobs RENAME TO jobs_old;
 
-        CREATE TABLE jobs (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            company TEXT NOT NULL,
-            location TEXT,
-            jd_text TEXT,
-            posted_at TEXT,
-            first_seen_at TEXT NOT NULL,
-            relevance_score REAL,
-            relevance_reason TEXT,
-            status TEXT NOT NULL DEFAULT 'new'
-                CHECK (status IN ('new', 'scored', 'tailored', 'digested', 'rejected', 'scoring_failed'))
-        );
+            CREATE TABLE jobs (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                company TEXT NOT NULL,
+                location TEXT,
+                jd_text TEXT,
+                posted_at TEXT,
+                first_seen_at TEXT NOT NULL,
+                relevance_score REAL,
+                relevance_reason TEXT,
+                status TEXT NOT NULL DEFAULT 'new'
+                    CHECK (status IN ('new', 'scored', 'tailored', 'digested', 'rejected', 'scoring_failed'))
+            );
 
-        INSERT INTO jobs (id, title, company, location, jd_text, posted_at,
-                           first_seen_at, relevance_score, status)
-        SELECT id, title, company, location, jd_text, posted_at,
-               first_seen_at, relevance_score, status
-        FROM jobs_old;
+            INSERT INTO jobs (id, title, company, location, jd_text, posted_at,
+                               first_seen_at, relevance_score, status)
+            SELECT id, title, company, location, jd_text, posted_at,
+                   first_seen_at, relevance_score, status
+            FROM jobs_old;
 
-        DROP TABLE jobs_old;
-        CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
-    """)
-    conn.commit()
-    print("Migrated jobs table: added relevance_reason, added 'scoring_failed' status")
+            DROP TABLE jobs_old;
+            CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+        """)
+        conn.commit()
+        print("Migrated jobs table: added relevance_reason, added 'scoring_failed' status")
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()]
+
+    if "job_url" not in cols:
+        conn.executescript("""
+            ALTER TABLE jobs RENAME TO jobs_old;
+
+            CREATE TABLE jobs (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                company TEXT NOT NULL,
+                location TEXT,
+                jd_text TEXT,
+                posted_at TEXT,
+                first_seen_at TEXT NOT NULL,
+                relevance_score REAL,
+                relevance_reason TEXT,
+                job_url TEXT,
+                contact_search_status TEXT NOT NULL DEFAULT 'not_attempted'
+                    CHECK (contact_search_status IN
+                        ('not_attempted', 'found', 'no_contacts_found', 'company_unverified')),
+                status TEXT NOT NULL DEFAULT 'new'
+                    CHECK (status IN ('new', 'scored', 'tailored', 'digested', 'rejected', 'scoring_failed'))
+            );
+
+            INSERT INTO jobs (id, title, company, location, jd_text, posted_at,
+                               first_seen_at, relevance_score, relevance_reason,
+                               job_url, status)
+            SELECT id, title, company, location, jd_text, posted_at,
+                   first_seen_at, relevance_score, relevance_reason,
+                   'https://www.linkedin.com/jobs/view/' || id || '/', status
+            FROM jobs_old;
+
+            DROP TABLE jobs_old;
+            CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+        """)
+        conn.commit()
+        print("Migrated jobs table: added job_url (backfilled), contact_search_status")
 
 
 def init_db():

@@ -179,73 +179,163 @@ def role_header_row(role):
     return table
 
 
-def render_pdf(master_resume, tailored, output_path):
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    doc = SimpleDocTemplate(
-        str(output_path), pagesize=letter,
-        topMargin=0.5 * inch, bottomMargin=0.5 * inch,
-        leftMargin=0.75 * inch, rightMargin=0.75 * inch,
+def _build_styles(scale):
+    """Font/leading/spacing styles at a given shrink scale (1.0 = defaults).
+    Used to re-render smaller when the first pass overflows one page."""
+    body_size = 10 * scale
+    bullet_style = ParagraphStyle(
+        "BulletStyle", parent=_STYLES["Normal"], fontName=_BASE_FONT,
+        fontSize=body_size, leading=body_size * 1.3, leftIndent=12,
     )
+    body_style = ParagraphStyle(
+        "BodyStyle2", parent=_STYLES["Normal"], fontName=_BASE_FONT,
+        fontSize=body_size, leading=body_size * 1.3,
+    )
+    section_style = ParagraphStyle(
+        "SectionHeading2", parent=_SECTION_HEADING_STYLE, fontSize=11.5 * scale,
+    )
+    role_title_style = ParagraphStyle("RoleTitleStyle2", parent=_ROLE_TITLE_STYLE, fontSize=10.5 * scale)
+    role_date_style = ParagraphStyle("RoleDateStyle2", parent=_ROLE_DATE_STYLE, fontSize=10.5 * scale)
+    return bullet_style, body_style, section_style, role_title_style, role_date_style
+
+
+def _section_heading(text, section_style):
+    table = Table([[Paragraph(text, section_style)]], colWidths=[7 * inch])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), _HEADER_GRAY),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return table
+
+
+def _role_header_row(role, role_title_style, role_date_style):
+    table = Table(
+        [[
+            Paragraph(markdown_bold_to_reportlab(f"{role['title']}, {role['company']}"), role_title_style),
+            Paragraph(f"({role['start_date']} - {role['end_date']})", role_date_style),
+        ]],
+        colWidths=[5 * inch, 2 * inch],
+    )
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), _ROLE_ROW_GRAY),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    return table
+
+
+def _build_story(master_resume, tailored, scale, spacer_scale):
+    bullet_style, body_style, section_style, role_title_style, role_date_style = _build_styles(scale)
     contact = master_resume["contact"]
+
+    def sp(base_pt):
+        return Spacer(1, max(2, base_pt * spacer_scale))
+
     story = [
         Paragraph(master_resume["name"], _NAME_STYLE),
         Paragraph(master_resume["headline"], _HEADLINE_STYLE),
         Paragraph(f"{contact['email']} | {contact['phone']} | {contact['location']}", _CONTACT_STYLE),
-        Spacer(1, 4),
-        section_heading("Career Summary"),
-        Spacer(1, 4),
+        sp(4),
+        _section_heading("Career Summary", section_style),
+        sp(4),
         ListFlowable(
-            [ListItem(Paragraph(markdown_bold_to_reportlab(b), _BULLET_STYLE))
+            [ListItem(Paragraph(markdown_bold_to_reportlab(b), bullet_style))
              for b in tailored["career_summary"]],
             bulletType="bullet",
         ),
-        Spacer(1, 8),
-        section_heading("Professional Experience"),
+        sp(8),
+        _section_heading("Professional Experience", section_style),
     ]
 
     for role in tailored["experience"]:
-        story.append(Spacer(1, 6))
-        story.append(role_header_row(role))
-        story.append(Spacer(1, 3))
+        story.append(sp(6))
+        story.append(_role_header_row(role, role_title_style, role_date_style))
+        story.append(sp(3))
         story.append(ListFlowable(
-            [ListItem(Paragraph(markdown_bold_to_reportlab(b), _BULLET_STYLE)) for b in role["bullets"]],
+            [ListItem(Paragraph(markdown_bold_to_reportlab(b), bullet_style)) for b in role["bullets"]],
             bulletType="bullet",
         ))
 
-    story.append(Spacer(1, 8))
-    story.append(section_heading("Education"))
-    story.append(Spacer(1, 4))
+    story.append(sp(8))
+    story.append(_section_heading("Education", section_style))
+    story.append(sp(4))
     for edu in master_resume["education"]:
         story.append(Paragraph(
-            f"{edu['degree']}, {edu['institution']} ({edu['years']}) — {edu['detail']}", _BODY_STYLE,
+            f"{edu['degree']}, {edu['institution']} ({edu['years']}) — {edu['detail']}", body_style,
         ))
 
-    story.append(Spacer(1, 8))
-    story.append(section_heading("Skills"))
-    story.append(Spacer(1, 4))
+    story.append(sp(8))
+    story.append(_section_heading("Skills", section_style))
+    story.append(sp(4))
     skills = tailored["skills"]
     for label, key in (("Functional", "functional"), ("Interpersonal", "interpersonal"), ("Technical", "technical")):
         if skills.get(key):
-            story.append(Paragraph(f"<b>{label}</b>: {', '.join(skills[key])}", _BODY_STYLE))
+            story.append(Paragraph(f"<b>{label}</b>: {', '.join(skills[key])}", body_style))
 
     if tailored.get("passion_projects"):
-        story.append(Spacer(1, 8))
-        story.append(section_heading("Passion Projects"))
-        story.append(Spacer(1, 4))
+        story.append(sp(8))
+        story.append(_section_heading("Passion Projects", section_style))
+        story.append(sp(4))
         story.append(ListFlowable(
-            [ListItem(Paragraph(markdown_bold_to_reportlab(b), _BULLET_STYLE))
+            [ListItem(Paragraph(markdown_bold_to_reportlab(b), bullet_style))
              for b in tailored["passion_projects"]],
             bulletType="bullet",
         ))
 
-    story.append(Spacer(1, 10))
+    story.append(sp(10))
     story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#999999")))
-    story.append(Spacer(1, 4))
+    story.append(sp(4))
     story.append(Paragraph(
         f"{contact['email']} | Ph:{contact['phone']} | {contact['location']}", _CONTACT_STYLE,
     ))
+    return story
 
-    doc.build(story)
+
+def _shrink_tailored_content(tailored):
+    """Drop the lowest-priority content when even the smallest font/margin
+    pass still overflows one page: career_summary down to 2 bullets, then
+    drop passion_projects entirely (both are the most dispensable sections —
+    experience bullets and skills are the substance a recruiter needs)."""
+    shrunk = json.loads(json.dumps(tailored))  # deep copy
+    if len(shrunk.get("career_summary", [])) > 2:
+        shrunk["career_summary"] = shrunk["career_summary"][:2]
+    elif shrunk.get("passion_projects"):
+        shrunk["passion_projects"] = []
+    return shrunk
+
+
+def render_pdf(master_resume, tailored, output_path):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Progressively shrink font/spacing, then trim content, until the resume
+    # fits strictly on one page — the candidate's master resume is a one-pager
+    # and every tailored version must match that constraint.
+    attempts = [
+        (1.0, 1.0, 0.5 * inch, 0.5 * inch),
+        (0.93, 0.85, 0.4 * inch, 0.4 * inch),
+        (0.87, 0.7, 0.35 * inch, 0.35 * inch),
+    ]
+    content = tailored
+    for content_pass in range(3):  # original content, then up to 2 content-trim passes
+        for scale, spacer_scale, top_margin, bottom_margin in attempts:
+            doc = SimpleDocTemplate(
+                str(output_path), pagesize=letter,
+                topMargin=top_margin, bottomMargin=bottom_margin,
+                leftMargin=0.75 * inch, rightMargin=0.75 * inch,
+            )
+            story = _build_story(master_resume, content, scale, spacer_scale)
+            doc.build(story)
+            if doc.page <= 1:
+                return
+        content = _shrink_tailored_content(content)
+
+    # Exhausted every shrink/trim step — leave the smallest-font, most-trimmed
+    # render in place rather than raise; a slightly-over-budget PDF still
+    # ships, and this should be rare given the trims above.
 
 
 def run_tailoring():

@@ -47,8 +47,8 @@ def job_exists(conn, job_id):
 def insert_job(conn, job):
     conn.execute(
         """INSERT OR IGNORE INTO jobs
-           (id, title, company, location, jd_text, posted_at, first_seen_at, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'new')""",
+           (id, title, company, location, jd_text, posted_at, first_seen_at, job_url, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new')""",
         (
             job["id"],
             job["title"],
@@ -57,6 +57,7 @@ def insert_job(conn, job):
             job.get("jd_text"),
             job.get("posted_at"),
             datetime.now().isoformat(),
+            f"https://www.linkedin.com/jobs/view/{job['id']}/",
         ),
     )
     conn.commit()

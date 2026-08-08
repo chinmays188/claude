@@ -240,24 +240,38 @@ def parse_people_from_search(search_result):
 async def find_company_contacts(client, job, remaining_budget):
     """Resolve + verify the company, then try the People-you-may-know widget
     first (cheap) and fall back to search_people (broader coverage, needs
-    the company URN) if the widget returns nothing."""
+    the company URN) if the widget returns nothing.
+
+    Returns (people, status, reason) — status matches jobs.contact_search_status
+    so the caller can persist why a job had no contacts, not just that it did."""
     search_result = await client.search_companies(keywords=job["company"])
     slug = resolve_company_slug(search_result)
-    if not slug or client.calls_made >= remaining_budget:
-        return []
+    if not slug:
+        return [], "company_unverified", f"could not find a LinkedIn company page for '{job['company']}'"
+    if client.calls_made >= remaining_budget:
+        return [], "company_unverified", "daily MCP call budget exhausted before company could be verified"
 
     profile_result = await client.get_company_profile(company_name=slug)
     verified, urn = verify_company_and_get_urn(profile_result, job["company"])
-    if not verified or client.calls_made >= remaining_budget:
-        return []
+    if not verified:
+        return [], "company_unverified", f"resolved company page did not match '{job['company']}'"
+    if client.calls_made >= remaining_budget:
+        return [], "company_unverified", "daily MCP call budget exhausted before employees could be searched"
 
     employees_result = await client.get_company_employees(company_name=slug)
     people = parse_employees_from_widget(employees_result)
-    if people or not urn or client.calls_made >= remaining_budget:
-        return people
+    if people:
+        return people, "found", ""
+    if not urn:
+        return [], "no_contacts_found", "no employees found via widget, and no company URN to search further"
+    if client.calls_made >= remaining_budget:
+        return [], "no_contacts_found", "no employees found via widget; budget exhausted before broader search"
 
     search_people_result = await client.search_people(keywords="Product Manager", current_company=urn)
-    return parse_people_from_search(search_people_result)
+    people = parse_people_from_search(search_people_result)
+    if people:
+        return people, "found", ""
+    return [], "no_contacts_found", "no matching employees found via widget or people search"
 
 
 async def run_contact_discovery():
@@ -285,8 +299,13 @@ async def run_contact_discovery():
                     break
                 job = dict(job)
 
-                people = await find_company_contacts(client, job, remaining_budget)
+                people, status, reason = await find_company_contacts(client, job, remaining_budget)
                 ranked = rank_contacts(people, priority_order, max_contacts)
+                if status == "found" and not ranked:
+                    # Widget/search returned people but none survived ranking
+                    # (e.g. none matched any priority category) — still worth
+                    # explaining in the digest, distinct from "found".
+                    status, reason = "no_contacts_found", "contacts were found but none matched a priority title category"
 
                 for i, person in enumerate(ranked, start=1):
                     if client.calls_made >= remaining_budget:
@@ -295,8 +314,14 @@ async def run_contact_discovery():
                     person["detail"] = profile
                     insert_contact(conn, job["id"], person, i)
 
+                conn.execute(
+                    "UPDATE jobs SET contact_search_status = ? WHERE id = ?",
+                    (status, job["id"]),
+                )
+                conn.commit()
+
                 processed_companies += 1
-                results.append((job["id"], len(ranked)))
+                results.append((job["id"], len(ranked), status, reason))
             calls_made = client.calls_made
         clear_backoff()
     except Exception as e:

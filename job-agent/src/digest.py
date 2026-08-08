@@ -5,6 +5,15 @@ from pathlib import Path
 
 from state import DB_PATH, load_config, ROOT
 
+# Human-readable fallback per contact_search_status, shown in the digest when
+# no contacts were found — status alone ("no_contacts_found") doesn't tell
+# the reader whether it's worth manually searching or a dead end.
+_CONTACT_STATUS_EXPLANATIONS = {
+    "not_attempted": "Contact search was not yet run for this job.",
+    "company_unverified": "Could not confirm this company's LinkedIn page, so contact search was skipped.",
+    "no_contacts_found": "Company was verified but no matching employees were found via LinkedIn.",
+}
+
 
 def build_digest_for_job(conn, job):
     contacts = conn.execute(
@@ -13,16 +22,25 @@ def build_digest_for_job(conn, job):
 
     lines = [
         f"Job: {job['title']} at {job['company']} ({job['location']})",
+        f"Job posting: {job['job_url']}",
         f"Relevance score: {job['relevance_score']:.2f}",
+        f"Why this score: {job['relevance_reason'] or 'n/a'}",
         f"Posted: {job.get('posted_at', 'n/a')}",
         "",
-        "Ranked contacts and drafted outreach (nothing is sent until you approve each one):",
-        "",
     ]
-    for c in contacts:
-        lines.append(f"{c['rank']}. {c['name']} — {c['title']}")
-        lines.append(f"   Profile: {c['profile_url']}")
-        lines.append(f"   Draft: {c['message_draft']}")
+    if contacts:
+        lines.append("Ranked contacts and drafted outreach (nothing is sent until you approve each one):")
+        lines.append("")
+        for c in contacts:
+            lines.append(f"{c['rank']}. {c['name']} — {c['title']}")
+            lines.append(f"   Profile: {c['profile_url']}")
+            lines.append(f"   Draft: {c['message_draft']}")
+            lines.append("")
+    else:
+        explanation = _CONTACT_STATUS_EXPLANATIONS.get(
+            job["contact_search_status"], job["contact_search_status"],
+        )
+        lines.append(f"No contacts found. Reason: {explanation}")
         lines.append("")
 
     tailored_resume = list((ROOT / "resume" / "tailored").glob(f"{job['id']}_*.pdf"))
