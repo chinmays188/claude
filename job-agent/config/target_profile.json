@@ -1,0 +1,30 @@
+{
+  "roles": [
+    "AI Product Manager",
+    "Product Manager - AI",
+    "Product Manager - Voice AI",
+    "Product Manager - Conversational AI",
+    "Product Manager - Customer Experience",
+    "Senior Product Manager - AI"
+  ],
+  "domains": [
+    "Voice AI",
+    "Conversational AI",
+    "Customer Experience",
+    "Chatbot",
+    "Agent Assist"
+  ],
+  "locations": [
+    "Bangalore",
+    "New Delhi",
+    "Gurgaon",
+    "Noida"
+  ],
+  "seniority": {
+    "level": "mid-to-senior",
+    "min_years_experience": 5
+  },
+  "excluded_companies": [],
+  "excluded_industries": [],
+  "relevance_threshold": 0.7
+}

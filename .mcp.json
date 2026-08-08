@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "mcp-server-linkedin": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "mcp-server-linkedin@latest"
+      ],
+      "env": {}
+    },
     "github": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],

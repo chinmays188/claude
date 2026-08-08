@@ -1,0 +1,4 @@
+mcp
+anthropic
+python-docx
+python-dotenv

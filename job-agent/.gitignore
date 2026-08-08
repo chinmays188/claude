@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+config/.env
+data/*.db
+data/runtime_state.json
+resume/tailored/
+resume/master_resume.*
+logs/*

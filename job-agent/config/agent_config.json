@@ -1,0 +1,21 @@
+{
+  "polling_interval_minutes": 240,
+  "jitter_seconds_min": 30,
+  "jitter_seconds_max": 90,
+  "daily_mcp_call_ceiling": 150,
+  "max_contacts_per_company": 5,
+  "contact_priority_order": [
+    "hiring_manager",
+    "recruiter_ta",
+    "same_title_peer",
+    "function_leadership"
+  ],
+  "max_companies_per_cycle": 3,
+  "backoff": {
+    "start_minutes": 5,
+    "cap_minutes": 120
+  },
+  "kill_switch": false,
+  "digest_channel": "email",
+  "digest_email_to": "chinmays188@gmail.com"
+}
