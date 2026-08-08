@@ -56,8 +56,13 @@ def run_scoring_stage():
 def run_tailoring_stage():
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return None
-    tailored = tailoring.run_tailoring()
-    return f"{len(tailored)} resumes tailored"
+    # Only generates diffs + emails them for review; no PDF is rendered here.
+    # A human must run `python3 tailoring.py --approve <job_id>` (or
+    # --approve-all) before contacts/outreach/digest have any 'tailored'
+    # jobs to work with — those stages will simply find nothing to do until
+    # that happens, which is expected, not a failure.
+    pending = tailoring.run_tailoring()
+    return f"{len(pending)} resume diff(s) generated and sent for review — approve before contacts/digest can proceed"
 
 
 def run_contacts_stage():

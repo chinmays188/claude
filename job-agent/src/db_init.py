@@ -18,8 +18,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     contact_search_status TEXT NOT NULL DEFAULT 'not_attempted'
         CHECK (contact_search_status IN
             ('not_attempted', 'found', 'no_contacts_found', 'company_unverified')),
+    tailoring_diff TEXT,
     status TEXT NOT NULL DEFAULT 'new'
-        CHECK (status IN ('new', 'scored', 'tailored', 'digested', 'rejected', 'scoring_failed'))
+        CHECK (status IN ('new', 'scored', 'tailor_pending_review', 'tailored', 'digested', 'rejected', 'scoring_failed'))
 );
 
 CREATE TABLE IF NOT EXISTS contacts (
@@ -132,6 +133,44 @@ def migrate_jobs_table(conn):
         """)
         conn.commit()
         print("Migrated jobs table: added job_url (backfilled), contact_search_status")
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()]
+
+    if "tailoring_diff" not in cols:
+        conn.executescript("""
+            ALTER TABLE jobs RENAME TO jobs_old;
+
+            CREATE TABLE jobs (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                company TEXT NOT NULL,
+                location TEXT,
+                jd_text TEXT,
+                posted_at TEXT,
+                first_seen_at TEXT NOT NULL,
+                relevance_score REAL,
+                relevance_reason TEXT,
+                job_url TEXT,
+                contact_search_status TEXT NOT NULL DEFAULT 'not_attempted'
+                    CHECK (contact_search_status IN
+                        ('not_attempted', 'found', 'no_contacts_found', 'company_unverified')),
+                tailoring_diff TEXT,
+                status TEXT NOT NULL DEFAULT 'new'
+                    CHECK (status IN ('new', 'scored', 'tailor_pending_review', 'tailored', 'digested', 'rejected', 'scoring_failed'))
+            );
+
+            INSERT INTO jobs (id, title, company, location, jd_text, posted_at,
+                               first_seen_at, relevance_score, relevance_reason,
+                               job_url, contact_search_status, status)
+            SELECT id, title, company, location, jd_text, posted_at,
+                   first_seen_at, relevance_score, relevance_reason,
+                   job_url, contact_search_status, status
+            FROM jobs_old;
+
+            DROP TABLE jobs_old;
+            CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+        """)
+        conn.commit()
+        print("Migrated jobs table: added tailoring_diff, widened status to include 'tailor_pending_review'")
 
 
 def init_db():
