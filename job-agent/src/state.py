@@ -110,3 +110,49 @@ def preflight():
     if remaining <= 0:
         raise DailyCeilingReached("0 calls remaining today")
     return remaining
+
+
+STAGES = ["discovery", "scoring", "tailoring", "contacts", "outreach_digest"]
+
+
+def new_run_id():
+    return datetime.now().strftime("%Y%m%dT%H%M%S")
+
+
+def start_stage(run_id, stage):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "INSERT INTO stage_runs (run_id, stage, status, started_at) VALUES (?, ?, 'running', ?)",
+        (run_id, stage, datetime.now().isoformat()),
+    )
+    conn.commit()
+    stage_run_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    conn.close()
+    return stage_run_id
+
+
+def finish_stage(stage_run_id, status, result_summary=None, error=None):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "UPDATE stage_runs SET status = ?, finished_at = ?, result_summary = ?, error = ? WHERE id = ?",
+        (status, datetime.now().isoformat(), result_summary, error, stage_run_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def last_run_stage_status(run_id):
+    """{stage: status} for a given run_id, to support resuming from the last incomplete stage."""
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT stage, status FROM stage_runs WHERE run_id = ? ORDER BY id", (run_id,)
+    ).fetchall()
+    conn.close()
+    return dict(rows)
+
+
+def most_recent_run_id():
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute("SELECT run_id FROM stage_runs ORDER BY id DESC LIMIT 1").fetchone()
+    conn.close()
+    return row[0] if row else None

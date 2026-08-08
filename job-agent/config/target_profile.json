@@ -18,6 +18,7 @@
     "Bangalore",
     "New Delhi",
     "Gurgaon",
+    "Gurugram",
     "Noida"
   ],
   "seniority": {
@@ -26,5 +27,12 @@
   },
   "excluded_companies": [],
   "excluded_industries": [],
-  "relevance_threshold": 0.7
+  "auto_include_keywords": [
+    "agentic ai",
+    "agentic",
+    "\\bai\\b",
+    "\\bcx\\b",
+    "customer experience"
+  ],
+  "relevance_threshold": 0.6
 }

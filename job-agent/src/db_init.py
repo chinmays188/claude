@@ -13,8 +13,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     posted_at TEXT,
     first_seen_at TEXT NOT NULL,
     relevance_score REAL,
+    relevance_reason TEXT,
     status TEXT NOT NULL DEFAULT 'new'
-        CHECK (status IN ('new', 'scored', 'tailored', 'digested', 'rejected'))
+        CHECK (status IN ('new', 'scored', 'tailored', 'digested', 'rejected', 'scoring_failed'))
 );
 
 CREATE TABLE IF NOT EXISTS contacts (
@@ -37,9 +38,60 @@ CREATE TABLE IF NOT EXISTS run_log (
     backoff_state TEXT
 );
 
+CREATE TABLE IF NOT EXISTS stage_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    stage TEXT NOT NULL
+        CHECK (stage IN ('discovery', 'scoring', 'tailoring', 'contacts', 'outreach_digest')),
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'running', 'completed', 'failed', 'skipped')),
+    started_at TEXT,
+    finished_at TEXT,
+    result_summary TEXT,
+    error TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_contacts_job_id ON contacts(job_id);
+CREATE INDEX IF NOT EXISTS idx_stage_runs_run_id ON stage_runs(run_id);
 """
+
+
+def migrate_jobs_table(conn):
+    """SQLite can't ALTER a CHECK constraint or add it retroactively, so bring
+    an existing jobs table up to the current schema via rebuild-and-copy."""
+    cols = [row[1] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()]
+    if "relevance_reason" in cols:
+        return  # already migrated
+
+    conn.executescript("""
+        ALTER TABLE jobs RENAME TO jobs_old;
+
+        CREATE TABLE jobs (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            company TEXT NOT NULL,
+            location TEXT,
+            jd_text TEXT,
+            posted_at TEXT,
+            first_seen_at TEXT NOT NULL,
+            relevance_score REAL,
+            relevance_reason TEXT,
+            status TEXT NOT NULL DEFAULT 'new'
+                CHECK (status IN ('new', 'scored', 'tailored', 'digested', 'rejected', 'scoring_failed'))
+        );
+
+        INSERT INTO jobs (id, title, company, location, jd_text, posted_at,
+                           first_seen_at, relevance_score, status)
+        SELECT id, title, company, location, jd_text, posted_at,
+               first_seen_at, relevance_score, status
+        FROM jobs_old;
+
+        DROP TABLE jobs_old;
+        CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+    """)
+    conn.commit()
+    print("Migrated jobs table: added relevance_reason, added 'scoring_failed' status")
 
 
 def init_db():
@@ -47,6 +99,7 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     conn.executescript(SCHEMA)
     conn.commit()
+    migrate_jobs_table(conn)
     conn.close()
     print(f"DB initialized at {DB_PATH}")
 

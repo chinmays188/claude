@@ -60,8 +60,11 @@ class LinkedInMCPClient:
         self.calls_made += 1
         return parse_tool_result(result)
 
-    async def search_jobs(self, keywords: str, location: str):
-        return await self.call("search_jobs", {"keywords": keywords, "location": location})
+    async def search_jobs(self, keywords: str, location: str, date_posted: str | None = None):
+        args = {"keywords": keywords, "location": location}
+        if date_posted:
+            args["date_posted"] = date_posted
+        return await self.call("search_jobs", args)
 
     async def get_job_details(self, job_id: str):
         return await self.call("get_job_details", {"job_id": job_id})
@@ -69,11 +72,30 @@ class LinkedInMCPClient:
     async def search_companies(self, keywords: str):
         return await self.call("search_companies", {"keywords": keywords})
 
+    async def get_company_profile(self, company_name: str, sections: str | None = None):
+        args = {"company_name": company_name}
+        if sections:
+            args["sections"] = sections
+        return await self.call("get_company_profile", args)
+
     async def get_company_employees(self, company_name: str, keywords: str | None = None):
         args = {"company_name": company_name}
         if keywords:
             args["keywords"] = keywords
         return await self.call("get_company_employees", args)
+
+    async def search_people(
+        self, keywords: str, location: str | None = None,
+        network: list[str] | None = None, current_company: str | None = None,
+    ):
+        args = {"keywords": keywords}
+        if location:
+            args["location"] = location
+        if network:
+            args["network"] = network
+        if current_company:
+            args["current_company"] = current_company
+        return await self.call("search_people", args)
 
     async def get_person_profile(self, linkedin_username: str, sections: str | None = None):
         args = {"linkedin_username": linkedin_username}

@@ -11,6 +11,11 @@ from state import DB_PATH, ROOT, log_run, preflight, trigger_backoff, clear_back
 CONFIG_PATH = ROOT / "config" / "target_profile.json"
 AGENT_CONFIG_PATH = ROOT / "config" / "agent_config.json"
 
+# Pilot phase runs the full pipeline once/day, so only jobs LinkedIn itself
+# reports as posted in the last 24h are worth fetching — filtering server-side
+# also avoids spending calls scraping jobs we'd discard anyway.
+DATE_POSTED_FILTER = "past_24_hours"
+
 # search_jobs/get_job_details return raw scraped page text, not structured
 # fields. Job cards in "sections.search_results" repeat as:
 #   <Title>
@@ -91,7 +96,9 @@ async def run_discovery():
                 for location in profile["locations"]:
                     if client.calls_made >= remaining_budget:
                         break
-                    result = await client.search_jobs(keywords=role, location=location)
+                    result = await client.search_jobs(
+                        keywords=role, location=location, date_posted=DATE_POSTED_FILTER,
+                    )
                     if not isinstance(result, dict):
                         continue
 
@@ -105,7 +112,7 @@ async def run_discovery():
                         if client.calls_made >= remaining_budget:
                             new_jobs.append({
                                 "id": job_id, "title": card["title"],
-                                "company": card["company"], "location": location,
+                                "company": card["company"], "location": card["location"],
                                 "pending_details": True,
                             })
                             continue
@@ -118,7 +125,7 @@ async def run_discovery():
                             "id": job_id,
                             "title": card["title"],
                             "company": card["company"],
-                            "location": location,
+                            "location": card["location"],  # real scraped location, not the search term
                             "jd_text": jd_text,
                         })
                         new_jobs.append({"id": job_id, "title": card["title"]})

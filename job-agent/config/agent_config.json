@@ -2,7 +2,7 @@
   "polling_interval_minutes": 240,
   "jitter_seconds_min": 30,
   "jitter_seconds_max": 90,
-  "daily_mcp_call_ceiling": 150,
+  "daily_mcp_call_ceiling": 200,
   "max_contacts_per_company": 5,
   "contact_priority_order": [
     "hiring_manager",

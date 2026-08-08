@@ -25,7 +25,7 @@ def build_digest_for_job(conn, job):
         lines.append(f"   Draft: {c['message_draft']}")
         lines.append("")
 
-    tailored_resume = list((ROOT / "resume" / "tailored").glob(f"{job['id']}_*.docx"))
+    tailored_resume = list((ROOT / "resume" / "tailored").glob(f"{job['id']}_*.pdf"))
     resume_path = str(tailored_resume[0]) if tailored_resume else None
 
     return "\n".join(lines), resume_path
@@ -60,7 +60,7 @@ def send_digest_email(subject, body, resume_path, gmail_address, gmail_app_passw
         msg.add_attachment(
             data,
             maintype="application",
-            subtype="vnd.openxmlformats-officedocument.wordprocessingml.document",
+            subtype="pdf",
             filename=Path(resume_path).name,
         )
 

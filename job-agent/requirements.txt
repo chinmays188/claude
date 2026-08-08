@@ -1,4 +1,4 @@
 mcp
 anthropic
-python-docx
+reportlab
 python-dotenv
