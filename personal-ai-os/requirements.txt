@@ -1,0 +1,8 @@
+google-genai
+pydantic
+python-dotenv
+pytest
+sentence-transformers
+faiss-cpu
+numpy
+rank-bm25
