@@ -269,3 +269,83 @@ Spec: `Project/Personal AI Operating System.md`.
   history or personal context from ever leaking into another customer's session, by
   construction rather than by convention — the difference matters a lot in an audit
   or incident review ("could this have leaked" vs. "this cannot leak by design").
+
+### specs/ (folder, not a single file)
+
+- One markdown file per milestone (17 total), each specifying behavior as concrete
+  input → expected-output examples plus explicit edge cases and failure cases — never
+  vague prose like "the system shall handle errors gracefully." PM lesson: this is
+  spec-by-example, which is much closer to acceptance criteria in a PRD than to
+  engineering pseudocode — worth adopting as a habit generally. Writing "when a
+  customer sends an empty message, the bot should ask them to rephrase" as a concrete
+  example is more useful (and testable) than "the bot should be robust to bad input."
+
+### evals/ (folder, not a single file)
+
+- **evals/golden/basic_routing.json** — A labeled dataset of "known good" cases (input
+  + expected agent + expected tools) that the system should always get right, run via
+  `app/evaluation/golden.py`. PM lesson: this is the regression safety net — before
+  tweaking a prompt or a routing threshold, run this and know immediately if something
+  that used to work just broke, instead of finding out from a customer complaint days
+  later. The same discipline as a pre-release QA checklist, just automated and instant.
+- **evals/adversarial/failure_matrix.md** — A table mapping every known failure mode
+  (malformed JSON, tool hallucination, infinite loops, prompt injection, data leakage,
+  etc.) to how it's detected and recovered, with honest "not implemented" rows for real
+  gaps (e.g. no network-dependent tools exist yet, so tool-timeout recovery isn't
+  built). PM lesson: this is a risk register for the AI system, same spirit as a
+  security/compliance checklist. The honesty about what's NOT done is the important
+  part — it would have been easy to just omit unfinished rows, but leaving them in
+  visibly is what makes the document trustworthy as a status report rather than
+  marketing copy.
+
+**How the two folders relate:** `specs/` says what *should* happen, in plain examples.
+`evals/` is the actual data/mechanism that checks whether it *does* happen, every time
+something changes.
+
+### app/config.py
+
+- Loads `.env` and exposes API keys/model name as one class (`Config.GEMINI_MODEL`,
+  etc.); `require_gemini_key()` fails with a clear error if the key is missing rather
+  than surfacing a cryptic API error later. PM lesson: this is the single source of
+  truth for "which model are we actually running right now" — and in practice, this
+  is the exact file where the model got swapped mid-project after hitting a quota
+  issue on the originally planned model. This file is the audit trail for "what has
+  this bot actually been running on, and when did that change."
+
+### app/main.py
+
+- The actual entry point — reads command-line input, hands it to the orchestrator,
+  prints the JSON response. ~12 lines of real logic. PM lesson: a thin entry point
+  like this is a good sign, not a shortcut — it means the real intelligence lives in
+  properly separated, tested modules, not crammed into the "front door" file. A
+  bloated main file with business logic stuffed into it is usually a red flag when
+  reviewing engineering quality, even without reading every other file.
+
+### app/context/
+
+- **builder.py** — Assembles named context sections (system, memory, retrieved
+  content, tool results, history, user) in a configurable order; drops empty
+  sections; under a token budget, drops lowest-priority sections first rather than
+  truncating randomly. PM lesson: this is where cost and quality directly compete,
+  made explicit and priority-driven — every extra bit of context costs money and can
+  dilute the answer, but too little context gives a wrong answer. If a customer
+  conversation runs long, this is the mechanism that decides what the bot still
+  "remembers" vs. what it lets go of, rather than silently breaking.
+- **lost_in_middle.py** — A test harness for placing a critical fact at the start,
+  middle, or end of filler content, to measure whether an LLM weighs information
+  differently based on position alone (a documented quirk: mid-prompt info gets
+  under-weighted vs. start/end). PM lesson: the concrete answer to "more context isn't
+  always better" — if a customer's correct answer is buried in the middle of a long
+  policy doc, this is the exact failure mode that could produce a wrong answer even
+  though the right information was technically available to the model.
+
+### app/utils/json_extract.py
+
+- `extract_json()` strips a JSON object out of surrounding text; `loads_lenient()`
+  repairs a specific, very common LLM mistake (unescaped literal newlines inside a
+  JSON string value) before parsing. PM lesson: this small file is literally the fix
+  for the real production bug found and fixed live during Milestone 5 testing, where
+  a broken JSON parse caused the bot to leak raw, ugly text to the user instead of a
+  clean answer. General lesson worth carrying forward: LLMs will not always follow
+  the format you asked for, even when prompted carefully — the parsing/repair layer
+  around the model matters as much as the prompt itself.
