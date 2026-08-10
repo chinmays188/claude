@@ -1,0 +1,37 @@
+[
+  {
+    "id": "research_001",
+    "input": "Explain RAG.",
+    "expected_agent": "research_agent",
+    "expected_capabilities": ["definition", "example", "limitations"],
+    "expected_tools": []
+  },
+  {
+    "id": "research_002",
+    "input": "What is 47 * 12?",
+    "expected_agent": "research_agent",
+    "expected_capabilities": ["numeric_answer"],
+    "expected_tools": ["calculator"]
+  },
+  {
+    "id": "analysis_001",
+    "input": "Compare RAG, fine-tuning and long-context prompting.",
+    "expected_agent": "analyst_agent",
+    "expected_capabilities": ["comparison", "recommendation"],
+    "expected_tools": []
+  },
+  {
+    "id": "planning_001",
+    "input": "Create a 30-day plan for learning Docker.",
+    "expected_agent": "planner_agent",
+    "expected_capabilities": ["sequenced_steps", "milestones"],
+    "expected_tools": []
+  },
+  {
+    "id": "ambiguous_001",
+    "input": "Do something useful.",
+    "expected_agent": null,
+    "expected_capabilities": ["clarification_request"],
+    "expected_tools": []
+  }
+]

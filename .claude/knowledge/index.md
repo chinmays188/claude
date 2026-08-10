@@ -10,3 +10,4 @@
 | [projects.md](projects.md) | Active AI projects being explored (travel agent, etc.) |
 | [errors.md](errors.md) | Errors encountered and conclusions |
 | [ideas.md](ideas.md) | Raw ideas → scoped concepts → production-ready projects |
+| [takeaways.md](takeaways.md) | PM takeaways from code walkthroughs, by project |
