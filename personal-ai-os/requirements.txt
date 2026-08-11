@@ -6,3 +6,8 @@ sentence-transformers
 faiss-cpu
 numpy
 rank-bm25
+fastapi
+uvicorn
+httpx
+pypdf
+python-docx
