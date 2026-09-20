@@ -29,6 +29,9 @@ cp .env.example .env   # fill in GEMINI_API_KEY (only required key)
 pytest                              # 682 tests, offline, no API key needed
 python -m app.main "Explain RAG."   # CLI entry point (Phase 1)
 uvicorn app.api.voice_api:app --reload   # voice interface (Phase 2), then open http://localhost:8000
+
+python scripts/seed_demo_data.py    # populate demo data for the dashboard
+streamlit run dashboard_app.py      # dashboard UI, then open http://localhost:8501
 ```
 
 ---
@@ -227,6 +230,31 @@ checklist against this codebase's actual state — the closing artifact of the
 entire project, and the actual answer to Phase 5's key question.
 
 **Specs:** [`production_architecture_and_docker.md`](specs/production_architecture_and_docker.md) · [`platform_jobs_auth_tenancy.md`](specs/platform_jobs_auth_tenancy.md) · [`production_platform.md`](specs/production_platform.md)
+
+**Docker verification is a parked, known next step** — Docker isn't installed
+in the environment this project was built in, so `docker build` has never
+actually been run (see the honest-gap table above). Installing a container
+runtime (Colima is the lighter, CLI-only option) and running the build +
+`docker compose up` + a real endpoint check is the concrete next step toward
+closing that gap.
+
+---
+
+## Dashboard
+
+A Streamlit UI (`dashboard_app.py`) sits on top of the dashboard data-layer
+functions built across Phases 2-4 — no new backend logic, just rendering.
+Six pages: Overview, Career, PM, Finance, Learning, Chief of Staff.
+
+```bash
+python scripts/seed_demo_data.py   # fabricated demo data, same synthetic-only convention as Phase 3
+streamlit run dashboard_app.py     # http://localhost:8501
+```
+
+Built as a portfolio-facing MVP first, but reads the real SQLite stores
+directly — real usage of the CLI/voice interface extends the seeded demo
+data rather than requiring a separate "real" version later. Spec:
+[`dashboard_ui.md`](specs/dashboard_ui.md).
 
 ---
 

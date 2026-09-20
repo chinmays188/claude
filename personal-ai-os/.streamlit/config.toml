@@ -1,0 +1,10 @@
+# Binds to localhost only by default -- this is a local portfolio demo, not
+# a service meant to be reachable from the network. Without this, Streamlit
+# defaults to listening on all interfaces (0.0.0.0), which briefly exposed
+# the app on the local network during manual testing.
+[server]
+address = "localhost"
+headless = true
+
+[browser]
+gatherUsageStats = false

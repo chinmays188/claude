@@ -11,3 +11,4 @@ uvicorn
 httpx
 pypdf
 python-docx
+streamlit
