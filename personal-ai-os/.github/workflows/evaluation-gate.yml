@@ -1,0 +1,58 @@
+# Milestone 53: Evaluation CI/CD.
+# Real GitHub Actions workflow — runs the actual pytest suite (which includes
+# golden-set/regression logic, per Milestones 11/28) on every push and PR to
+# main, blocking a merge if anything fails. This is a genuine CI gate, not a
+# design document: it will actually execute in GitHub Actions once pushed.
+#
+# Honest scope note: this gate runs the *offline* test suite (fake providers,
+# no live API calls — by design, per this project's own test conventions) as
+# the blocking check. Running the full suite against the LIVE Gemini API in
+# CI would require a real API key stored as a repo secret and would make CI
+# runs cost money and depend on an external service's uptime; that's a
+# deliberate scope boundary, not an oversight — CI enforces what's
+# deterministically testable, and live-API verification remains a manual
+# step (as it has been throughout every phase of this project).
+
+name: Evaluation Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: personal-ai-os
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('personal-ai-os/requirements.txt') }}
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run test suite (evaluation gate)
+        run: PYTHONPATH=. pytest -q
+
+      - name: Report domain golden case counts
+        if: always()
+        run: |
+          python -c "
+          from app.evaluation.domain_golden import count_cases_by_domain
+          for domain, count in count_cases_by_domain().items():
+              print(f'{domain}: {count} golden cases')
+          "

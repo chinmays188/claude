@@ -1,0 +1,12 @@
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.env
+data/*.db
+.git
+tests/
+# Only exclude root-level docs/phase notes, not specs/*.md which is a real
+# COPY source in the Dockerfile.
+/*.md
+docs/
