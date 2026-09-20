@@ -62,6 +62,16 @@ def optimize_resume(
     )
 
 
+def _normalize_excerpt_id(excerpt_id: str) -> str:
+    """The model sometimes echoes an excerpt id back wrapped in the same
+    brackets the prompt displays it in (e.g. "[doc::chunk0]" instead of
+    "doc::chunk0") — a formatting quirk, not a fabricated id. Caught via a
+    real live trace against a real resume: the achievement content was
+    genuine, but the exact-match check below flagged it as ungrounded
+    purely because of the stray brackets."""
+    return excerpt_id.strip().strip("[]").strip()
+
+
 def check_resume_suggestions_grounded(
     result: ResumeOptimizationResult, valid_excerpt_ids: set[str]
 ) -> bool:
@@ -71,7 +81,11 @@ def check_resume_suggestions_grounded(
     candidate's real achievements."""
     if not result.grounding_achievement_ids:
         return len(result.suggested_bullet_changes) == 0
-    return all(gid in valid_excerpt_ids for gid in result.grounding_achievement_ids)
+    normalized_valid_ids = {_normalize_excerpt_id(vid) for vid in valid_excerpt_ids}
+    return all(
+        _normalize_excerpt_id(gid) in normalized_valid_ids
+        for gid in result.grounding_achievement_ids
+    )
 
 
 def check_outcome_grounded(outcome: ResumeOptimizationOutcome) -> bool:

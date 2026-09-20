@@ -66,6 +66,23 @@ def test_check_grounded_fails_for_fabricated_id():
     assert not check_outcome_grounded(outcome)
 
 
+def test_check_grounded_passes_for_bracket_wrapped_valid_id():
+    """Regression test: found via a real live trace (scripts/trace_resume.py)
+    against a real resume, where Gemini echoed a valid excerpt id back
+    wrapped in brackets (e.g. "[achv1::c0]" instead of "achv1::c0") -- a
+    formatting quirk, not a fabricated achievement. The grounding check must
+    still pass for this, since the underlying achievement is real."""
+    llm = ScriptedProvider(
+        ['{"missing_keywords": [], "suggested_bullet_changes": ["Emphasize the refund flow launch"], '
+         '"grounding_achievement_ids": ["[achv1::c0]"]}']
+    )
+    retriever = _retriever_with_achievements()
+
+    outcome = optimize_resume(llm, "some JD", retriever, requester_id="alice", requester_tenant_id="t1")
+
+    assert check_outcome_grounded(outcome)
+
+
 def test_check_grounded_passes_when_no_suggestions_made():
     llm = ScriptedProvider(['{"missing_keywords": [], "suggested_bullet_changes": [], "grounding_achievement_ids": []}'])
     retriever = _retriever_with_achievements()
