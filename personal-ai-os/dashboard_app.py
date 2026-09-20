@@ -44,18 +44,32 @@ DB_PATH = "data/personal_ai.db"
 
 
 @st.cache_resource
-def get_stores():
+def ensure_seeded() -> bool:
     # Streamlit Community Cloud only runs this file -- there's no separate
     # manual step to run scripts/seed_demo_data.py first the way local dev
     # has. Auto-seed on first load if the DB doesn't exist yet, so a fresh
-    # deploy isn't just empty pages.
-    db_is_new = not os.path.exists(DB_PATH)
-    conn = get_connection(DB_PATH)
-    if db_is_new:
+    # deploy isn't just empty pages. Cached so this only runs once per app
+    # instance, not once per page load -- but it does NOT cache the
+    # connection itself (see get_stores below).
+    if not os.path.exists(DB_PATH):
         from scripts.seed_demo_data import seed_all
 
+        conn = get_connection(DB_PATH)
         seed_all(conn)
+        conn.close()
+    return True
 
+
+def get_stores():
+    # Deliberately NOT @st.cache_resource: sqlite3 connections default to
+    # check_same_thread=True, but Streamlit Cloud serves different sessions
+    # on different threads, so a single cached connection shared across
+    # threads crashed with sqlite3.ProgrammingError in production (caught
+    # via a real deployed-app error, not assumed). Opening a fresh
+    # connection per script run avoids the threading issue entirely --
+    # cheap here since the dashboard only does a handful of small reads.
+    ensure_seeded()
+    conn = get_connection(DB_PATH)
     return {
         "memory": PersistentMemoryStore(conn),
         "graph": GraphStore(conn),
