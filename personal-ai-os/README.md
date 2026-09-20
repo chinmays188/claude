@@ -1,6 +1,10 @@
-# Personal AI OS — Phase 1
+# Personal AI OS
 
-An AI engineering learning lab, built milestone by milestone. See `../Personal AI Operating System.md` for the full spec and `../phase1-milestone1-plan.md` for the Milestone 1 plan.
+An AI engineering learning lab, built milestone by milestone.
+Phase 1 spec: `../Personal AI Operating System.md` (plan: `../phase1-milestone1-plan.md`).
+Phase 2 spec: `../phase-2.md`.
+
+# Phase 1 — AI Engineering Foundation
 
 - **Milestone 1**: Basic Agent (text → agent → response)
 - **Milestone 2**: Multi-Agent Orchestration (text → classifier → Research/Analyst/Planner agent)
@@ -92,3 +96,141 @@ straight to the user. Fixed in two places:
 Both fixes are covered by tests (`tests/test_json_extract.py`,
 `tests/test_tool_agent.py::test_decision_json_with_literal_newlines_in_answer_is_recovered`)
 and re-verified against the live Gemini API.
+
+---
+
+# Phase 2 — Personal Intelligence Layer
+
+Turns the Phase 1 generic AI runtime into a personal intelligence system: personal
+knowledge ingestion, long-term memory, personal RAG, multimodal understanding,
+real-world integrations, human-approved actions, long-running tasks, and a
+personal decision graph.
+
+- **Milestone 18**: Voice Interface (FastAPI + browser Web Speech API, session continuity, latency measurement)
+- **Milestone 19**: Personal Knowledge Ingestion (PDF/DOCX/TXT/MD/CSV/JSON parsers, metadata, owner/tenant/sensitivity-scoped access control)
+- **Milestone 20**: Long-Term Memory (SQLite-backed, 9 memory types, write policy pipeline, multi-factor retrieval ranking)
+- **Milestone 21**: Personal RAG (memory + documents combined, citations, personal eval metrics)
+- **Milestone 22**: Multimodal Understanding (images/screenshots/PDFs via Gemini, adversarial image-injection checks)
+- **Milestone 23**: Personal Context Engine (item-level relevance/importance/freshness/confidence scoring, experiment comparator)
+- **Milestone 24**: Real-World Integrations (real read-only GitHub client, stub Calendar/Email with the same interface)
+- **Milestone 25**: Human Approval & Action Layer (READ/WRITE/ACT classes, propose→approve→execute→verify→audit pipeline)
+- **Milestone 26**: Long-Running Tasks (SQLite-backed state machine, checkpointing, pause/resume/retry/cancel)
+- **Milestone 27**: Personal Event & Decision Graph (SQLite-backed nodes/edges, "why did I make this decision?")
+- **Milestone 28**: Personal OS Evaluation (career/learning/PM/personal-knowledge golden sets, actionability/trustworthiness scoring)
+- **Milestone 29**: Personal AI Dashboard — data layer only, per project scope decision (no Streamlit UI built; see `specs/dashboard.md`)
+
+## Setup (additional)
+
+Phase 2 adds new dependencies (`fastapi`, `uvicorn`, `httpx`, `pypdf`, `python-docx`) —
+already in `requirements.txt`, so the same `pip install -r requirements.txt` from
+Phase 1 covers both phases.
+
+## Run the voice interface
+
+```bash
+.venv/bin/uvicorn app.api.voice_api:app --reload
+```
+
+Then open `http://localhost:8000` in Chrome (Web Speech API support varies by browser).
+
+## Scope decisions made for Phase 2
+
+Three explicit scope calls were made before building, all confirmed with the project owner:
+
+1. **Voice (M18)**: built as a real FastAPI backend + browser page using the Web
+   Speech API — not skipped like Phase 1, since Phase 2 needs a genuine
+   interaction surface, but STT/TTS themselves still run entirely client-side
+   (Section 5's stack table), no server-side speech model.
+2. **Integrations (M24)**: GitHub is a real, read-only integration (`httpx`
+   against the actual GitHub REST API). Calendar and Email are stub clients with
+   the identical read-only interface a real OAuth-backed integration would
+   expose, backed by caller-supplied fixed data — no credentials/setup required.
+   Slack/Teams not implemented.
+3. **Dashboard (M29)**: data layer only (`app/dashboard/data.py`) — the queryable
+   functions producing Section 38's exact metrics shape, but no Streamlit/web UI.
+4. **Persistence**: Milestones 20 (memory), 26 (tasks), and 27 (decision graph)
+   are backed by real SQLite (`app/db/connection.py`), not Phase 1's in-memory-only
+   patterns — durability across process restarts is the actual point of "long-term"
+   memory/tasks/decisions, verified by tests that read data back via a fresh store
+   instance wrapping the same connection.
+
+## Design notes (Phase 2)
+
+- `app/voice/session.py` (`VoiceSession`/`VoiceSessionStore`) and
+  `app/api/voice_api.py` (FastAPI) implement Section 8: session continuity across
+  separate HTTP requests (the browser round-trips a `session_id`), and per-turn
+  latency broken into `stt_latency_ms`/`agent_latency_ms`/`total_latency_ms` —
+  three numbers, not one blended figure. `app/evaluation/voice_eval.py` compares
+  voice vs. text interaction quality independently rather than assuming parity.
+- `app/knowledge/` implements Section 9's ingestion pipeline (parser → cleaner →
+  metadata → chunking, reusing Phase 1's `chunk_document`) and Section 10's
+  security model: every `PersonalDocumentMetadata` carries `owner_id`/`tenant_id`/
+  `sensitivity`/`permissions`, and `SecureRetriever` enforces access control in
+  code, before results ever reach a prompt — "the LLM must never be responsible
+  for enforcing access control" is a structural guarantee here, not a prompt
+  instruction.
+- `app/memory/models.py`/`persistent_store.py`/`write_policy.py`/`retrieval.py`
+  implement Sections 11-13: the 9 memory types, a real write-policy pipeline
+  (classify → importance threshold → duplicate check → approval gate — not every
+  conversation becomes memory), and multi-factor retrieval ranking (similarity +
+  recency + importance + confirmation).
+- `app/personal_rag/pipeline.py` implements Section 14: memory and document
+  retrieval as two separate, distinguishable context sections (never merged
+  before reaching the LLM), reusing `SecureRetriever` so access control holds
+  inside personal RAG too. `app/evaluation/personal_rag_eval.py` adds Section 16's
+  personal metrics (memory precision/recall, personalization, temporal correctness)
+  on top of Phase 1's document-retrieval eval pattern.
+- `app/multimodal/` is a provider-family abstraction (`MultimodalProvider`,
+  mirroring Section 6's `EmbeddingProvider`/`VoiceProvider` pattern) plus a Gemini
+  implementation for images/screenshots/PDFs. `app/evaluation/multimodal_eval.py`
+  includes Section 18's "image containing prompt injection" adversarial case,
+  reusing Phase 1's injection detector since extracted image text is still
+  untrusted external content regardless of modality.
+- `app/context/personal_context_engine.py` scores individual context items
+  (not whole sections) on relevance/importance/freshness/source/confidence/
+  token_cost per Section 20 — `NONE`-importance items are always excluded
+  regardless of score. Sits one layer below Phase 1's section-level
+  `ContextBuilder`, composing rather than duplicating it.
+  `app/context/experiments.py` provides Section 21's generic ordering/
+  compression/budget experiment comparator.
+- `app/integrations/github_client.py` is real (via `httpx`, tested offline with
+  `MockTransport`) and read-only by construction (no write methods exist at all).
+  `app/integrations/github_summary.py` produces a deterministic, non-LLM-generated
+  activity listing so `app/evaluation/integration_eval.py`'s
+  `check_no_fabricated_activity()` can verify every commit sha/PR number an LLM
+  summary references actually came from the API. Calendar/Email
+  (`app/integrations/calendar_client.py`/`email_client.py`) are stub clients with
+  the same read-only shape. All three wrap into Phase 1 `Tool` subclasses
+  (`app/tools/github_tool.py`/`calendar_tool.py`/`email_tool.py`).
+- `app/actions/` implements Section 26-28 end to end: `ActionClassifier` maps
+  tool names to READ/WRITE/ACT (unknown tools default to `WRITE`, never `READ`,
+  so a new tool can't silently skip approval); `PolicyEngine` runs propose →
+  permission check → risk assessment → approval → execute → verify → audit;
+  `AuditLog` is SQLite-backed so every action — including auto-approved READs —
+  leaves a durable record. Human approval is necessary but not sufficient:
+  permission checks (Milestone 16) still apply after a human approves.
+- `app/tasks/` implements Section 29-31: an explicit, adjacency-list-validated
+  state machine (`PENDING → COMPLETED` directly is rejected) with SQLite
+  checkpointing, pause/resume, and a bounded retry budget (mirrors Milestone 5's
+  `AgentBudget` guardrail philosophy — retries are never infinite).
+- `app/graph/` implements Section 32-33: SQLite-backed nodes/edges for
+  People/Projects/Goals/Decisions/etc., with a dedicated `Decision` record
+  matching Section 33's exact schema and a `why()` query that directly answers
+  "why did I make this decision?"
+- `app/evaluation/personal_golden.py`/`personal_metrics.py`/`personal_human_eval.py`
+  extend Phase 1's evaluation framework to Section 34's four personal-workload
+  categories (career/learning/PM/personal-knowledge) with independent per-category
+  pass rates, add Section 35's remaining two metrics (actionability,
+  trustworthiness — the other four were already built in Milestone 21), and add
+  Section 36's exact 5-field human rating (`correctness, personalization, trust,
+  usefulness, citations`), distinct from Phase 1's 6-field `HumanRating`.
+  Regression testing and judge/human correlation are reused from Phase 1 as-is —
+  already generic enough to apply here without modification.
+- `app/dashboard/data.py` shapes already-computed data (traces, audit log, task
+  store, memory store, graph store, eval results) into Section 38's exact
+  dashboard schema (`TodaysActivity`/`MemorySummary`/`AiHealth`). It runs no
+  evaluations itself; `regression_status` defaults to `"UNKNOWN"`, never `"PASS"`,
+  so an unmeasured system never *looks* healthy by default.
+
+All Phase 2 milestones have a spec-by-example file under `specs/` and pytest
+coverage (380 tests total across both phases, no API key needed to run them).
