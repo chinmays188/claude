@@ -1,0 +1,20 @@
+[
+  {
+    "id": "career_001",
+    "category": "jd_analysis",
+    "input": "We are hiring a Senior AI PM to own our post-sales AI roadmap, including customer support automation. Requires strong AI/ML background and cross-functional leadership experience.",
+    "expected_capabilities": ["fit_scores", "gap_analysis", "interview_risks"]
+  },
+  {
+    "id": "career_002",
+    "category": "interview_prep",
+    "input": "Give me a conflict-management story.",
+    "expected_capabilities": ["star_structure", "grounded_in_real_experience"]
+  },
+  {
+    "id": "career_003",
+    "category": "resume_optimization",
+    "input": "Optimize my resume for a refund-automation PM role.",
+    "expected_capabilities": ["grounded_suggestions", "missing_keywords"]
+  }
+]

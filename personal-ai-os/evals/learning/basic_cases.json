@@ -1,0 +1,14 @@
+[
+  {
+    "id": "learning_001",
+    "category": "explain_concept",
+    "input": "Docker",
+    "expected_capabilities": ["factual_tagging"]
+  },
+  {
+    "id": "learning_002",
+    "category": "adaptive_evaluation",
+    "input": "What does a Dockerfile do?",
+    "expected_capabilities": ["five_dimension_scoring", "knowledge_gap_identification"]
+  }
+]

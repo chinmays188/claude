@@ -1,0 +1,20 @@
+[
+  {
+    "id": "pm_001",
+    "category": "feedback_intelligence",
+    "input": ["My refund is taking forever.", "Refunds are too slow.", "Support was helpful but refunds need work."],
+    "expected_capabilities": ["theme_clustering", "grounded_themes"]
+  },
+  {
+    "id": "pm_002",
+    "category": "stakeholder_request",
+    "input": "Can we add automated refunds?",
+    "expected_capabilities": ["recommendation", "reasoning"]
+  },
+  {
+    "id": "pm_003",
+    "category": "prd_generation",
+    "input": "Build an AI agent to automatically approve refunds under $50.",
+    "expected_capabilities": ["critic_challenge", "verdict"]
+  }
+]

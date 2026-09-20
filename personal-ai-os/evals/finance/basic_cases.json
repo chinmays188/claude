@@ -1,0 +1,14 @@
+[
+  {
+    "id": "finance_001",
+    "category": "portfolio_analysis",
+    "input": {"holdings": [{"asset": "Index Fund A", "asset_class": "equity", "quantity": 100, "cost_basis": 8000, "current_value": 9500}]},
+    "expected_capabilities": ["fact_tagged_totals", "calculation_tagged_derivations"]
+  },
+  {
+    "id": "finance_002",
+    "category": "scenario_analysis",
+    "input": {"shock_pct": -0.20},
+    "expected_capabilities": ["deterministic_loss_calculation", "no_llm_arithmetic"]
+  }
+]

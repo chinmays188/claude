@@ -1,0 +1,12 @@
+[
+  {
+    "id": "cross_001",
+    "input": "Should I learn Kubernetes for my career?",
+    "expected_domains": ["CAREER", "LEARNING"]
+  },
+  {
+    "id": "cross_002",
+    "input": "Should I spend this weekend preparing for interviews or learning Kubernetes?",
+    "expected_domains": ["CAREER", "LEARNING"]
+  }
+]
