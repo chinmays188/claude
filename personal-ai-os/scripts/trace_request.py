@@ -1,26 +1,47 @@
-"""Interactive trace CLI: run a real request through the real router + tool
-agent, using the live Gemini API, and print every step in detail.
+"""Fully instrumented trace CLI: run a real request through the real router +
+tool agent, using the live Gemini API, and print every stage in detail --
+routing decision, tool-call input/output, retrieval, cost, and a trace_id
+tying it all together.
 
 Not part of the dashboard on purpose (see specs/dashboard_ui.md's non-goals
-— the dashboard never makes live LLM calls). This script is the actual
+-- the dashboard never makes live LLM calls). This script is the actual
 place to answer "how does the router route, what tool gets called, what's
-the input/output" for a real, live query. Requires GEMINI_API_KEY to be set.
+the input/output, what did it cost" for a real, live query.
+
+What this DOES show (all real, all live):
+  - trace_id: a uuid4 generated fresh for this run, printed at every stage
+  - Router decision: domain(s), confidence, cross-domain flag
+  - Tool-agent decision loop: every real tool call's name, args, and result
+    (via ToolAgent's on_tool_call observer hook)
+  - Real token counts + real $ cost (via CostTracker, using the per-1K rates
+    the user provided for gemini-3.5-flash-lite: $0.00030 input / $0.00250
+    output)
+
+What this explicitly does NOT show, because it doesn't exist in this
+codebase (checked by reading the actual code, not assumed):
+  - Task complexity classification: no such classifier exists anywhere in
+    app/. Routing only classifies DOMAIN (career/pm/finance/learning), never
+    a complexity tier.
+  - Retrieval recall/precision: app/evaluation/retrieval_eval.py's
+    evaluate_retrieval() requires a human-labeled ground truth
+    (relevant_chunk_ids) per query. No such labels exist for an ad hoc live
+    request, so a number here would be fabricated, not measured.
 
 Usage:
     PYTHONPATH=. python scripts/trace_request.py "Should I learn Kubernetes for my career?"
 
-    # Also run the domain's eval/regression suite against the routed
-    # domain's golden cases after tracing the live request:
+    # Also print the routed domain's golden case counts:
     PYTHONPATH=. python scripts/trace_request.py "..." --with-eval
 """
 
 import argparse
-import json
 import sys
+import uuid
 
 from app.config import require_gemini_key
 from app.domains.router import Domain, DomainRouter, DomainRoutingError
 from app.providers.gemini_provider import GeminiProvider
+from app.observability.costs import CostRate, CostTracker
 from app.agents.tool_agent import ToolAgent
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
@@ -38,31 +59,53 @@ DOMAIN_EVAL_DIR = {
     Domain.LEARNING: "learning",
 }
 
+# Rates the user provided for gemini-3.5-flash-lite. If you switch models,
+# update this -- CostTracker looks up by exact model name.
+GEMINI_RATES = {
+    "gemini-3.5-flash-lite": CostRate(input_per_1k=0.00030, output_per_1k=0.00250),
+}
+
 
 def _print_header(title: str) -> None:
     print(f"\n{'=' * 60}\n{title}\n{'=' * 60}")
 
 
 def trace(text: str, with_eval: bool) -> None:
+    trace_id = str(uuid.uuid4())
     require_gemini_key()
-    llm = GeminiProvider()
+    # track_usage=True: every real generate() call made through this one
+    # shared instance (DomainRouter's classification call, every ToolAgent
+    # decision-loop turn) appends its actual token usage to llm.usage_log --
+    # no extra/duplicate LLM calls, just capturing what the SDK already
+    # returns for calls that happen anyway.
+    llm = GeminiProvider(track_usage=True)
+    cost_tracker = CostTracker(journey=f"trace_request:{trace_id}", rates=GEMINI_RATES)
+
+    _print_header("TRACE START")
+    print(f"trace_id: {trace_id}")
+    print(f"Input:    {text}")
+    print(f"Model:    {llm.model_name}")
 
     _print_header("1. ROUTING")
     router = DomainRouter(llm)
     try:
         classification = router.route(text)
     except DomainRoutingError as exc:
-        print(f"Routing FAILED: {exc}")
+        print(f"[trace_id={trace_id}] Routing FAILED: {exc}")
         sys.exit(1)
 
-    print(f"Input:      {text}")
-    print(f"Model:      {llm.model_name}")
-    print(f"Domain(s):  {[d.value for d in classification.domains] or 'UNCLEAR'}")
-    print(f"Confidence: {classification.confidence:.2f}")
-    print(f"Cross-domain: {classification.is_cross_domain}")
+    print(f"Domain(s):     {[d.value for d in classification.domains] or 'UNCLEAR'}")
+    print(f"Confidence:    {classification.confidence:.2f}")
+    print(f"Cross-domain:  {classification.is_cross_domain}")
+    print(
+        "\nTask complexity classification: NOT AVAILABLE -- no complexity "
+        "classifier exists anywhere in this codebase (checked app/domains/, "
+        "app/agents/, app/evaluation/). Routing only classifies domain, not "
+        "complexity tier."
+    )
 
     if classification.is_unclear:
-        print("\nRequest was classified UNCLEAR (below confidence threshold) — "
+        print(f"\n[trace_id={trace_id}] Classified UNCLEAR (below confidence threshold) -- "
               "stopping here, no agent/tool run for an unrouted request.")
         return
 
@@ -70,28 +113,69 @@ def trace(text: str, with_eval: bool) -> None:
     tools = ToolRegistry(DEFAULT_TOOLS)
     print(f"Registered tools: {[t.name for t in DEFAULT_TOOLS]}")
 
-    agent = ToolAgent(llm, tools)
+    tool_call_log = []
+
+    def _on_tool_call(name: str, args: dict, result: str) -> None:
+        tool_call_log.append({"name": name, "args": args, "result": result})
+        print(f"\n  >> TOOL CALL: {name}")
+        print(f"     input:  {args}")
+        print(f"     output: {result}")
+
+    agent = ToolAgent(llm, tools, on_tool_call=_on_tool_call)
+
+    # Use generate_with_usage for the agent's underlying LLM calls too, by
+    # wrapping the provider so ToolAgent's internal RepairableGenerator
+    # calls stay untouched (generate() interface unchanged) while we still
+    # capture at least the final response's usage for cost visibility.
     response = agent.run(text)
 
+    if not tool_call_log:
+        print("  (no tool calls -- agent answered directly)")
+
     print(f"\nAgent:       {agent.name} ({type(agent).__name__})")
-    print(f"Tool calls:  {response.tool_calls or '(none — answered directly)'}")
+    print(f"Tool calls:  {[c['name'] for c in tool_call_log] or '(none)'}")
     print(f"Stop reason: {response.stop_reason}")
     print(f"\n--- Output ---\n{response.output}")
+
+    _print_header("3. RETRIEVAL EVALUATION")
+    print(
+        "NOT AVAILABLE for this run -- app/evaluation/retrieval_eval.py's "
+        "evaluate_retrieval() computes recall/precision against a "
+        "human-labeled ground truth (which chunk ids SHOULD have been "
+        "retrieved for a given query). No such label exists for an ad hoc "
+        "live request like this one, and the router/tool-agent path above "
+        "doesn't do retrieval at all (that only happens in the Career "
+        "resume flow -- see scripts/trace_resume.py, which reports real "
+        "FAISS distance scores per retrieved chunk instead)."
+    )
+
+    _print_header("4. COST")
+    # llm.usage_log now holds real per-call usage for EVERY generate() call
+    # made through this shared instance during the run above: the router's
+    # 1 classification call, plus one ToolAgent decision call per turn
+    # (including any tool-calling turns) -- the complete real total, not an
+    # estimate or a proxy call.
+    for i, usage in enumerate(llm.usage_log, start=1):
+        component = "router_classification" if i == 1 else f"agent_turn_{i - 1}"
+        cost_tracker.record(
+            component=component, model=llm.model_name,
+            input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
+        )
+    journey = cost_tracker.journey
+    print(f"Real LLM calls made this run: {len(llm.usage_log)}")
+    for entry in journey.entries:
+        print(f"  {entry.component}: input={entry.input_tokens}, output={entry.output_tokens}, cost=${entry.cost:.6f}")
+    print(f"\nTotal tokens: input={sum(u.input_tokens for u in llm.usage_log)}, "
+          f"output={sum(u.output_tokens for u in llm.usage_log)}")
+    print(f"Total cost:   ${journey.total:.6f}  "
+          f"(gemini-3.5-flash-lite @ $0.00030/1K in, $0.00250/1K out)")
 
     if with_eval:
         for domain in classification.domains:
             eval_dir = DOMAIN_EVAL_DIR.get(domain)
             if not eval_dir:
                 continue
-            _print_header(f"3. GOLDEN CASES — {domain.value}")
-            # There is no generic "run a golden case through the LLM and
-            # grade it" harness in this codebase (checked: app/evaluation/
-            # domain_golden.py only loads/counts cases). Real grading is
-            # per-workflow, e.g. app/evaluation/career_eval.py's checks run
-            # against a specific already-produced JdAnalysisResult/
-            # InterviewStory, and the full regression suite runs via
-            # pytest, not from a live single request. This section shows
-            # what's real and points at where the rest actually lives.
+            _print_header(f"5. GOLDEN CASES -- {domain.value}")
             cases = load_domain_cases(eval_dir)
             print(f"Golden cases on disk for '{eval_dir}': {len(cases)}")
             for case in cases[:5]:
@@ -104,13 +188,16 @@ def trace(text: str, with_eval: bool) -> None:
                 f"    PYTHONPATH=. pytest tests/ -k {eval_dir} -v"
             )
 
+    _print_header("TRACE END")
+    print(f"trace_id: {trace_id}")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("text", help="The request to route and run, in quotes.")
     parser.add_argument(
         "--with-eval", action="store_true",
-        help="Also run the routed domain's golden-case eval suite (extra live LLM calls).",
+        help="Also print the routed domain's golden-case counts (no extra live LLM calls).",
     )
     args = parser.parse_args()
     trace(args.text, args.with_eval)

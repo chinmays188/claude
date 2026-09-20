@@ -55,6 +55,44 @@ def test_calls_calculator_when_needed():
     assert result.stop_reason == StopReason.TASK_COMPLETED.value
 
 
+def test_on_tool_call_observer_receives_real_args_and_result():
+    """The optional on_tool_call hook (added for scripts/trace_request.py's
+    tool-call I/O visibility) must fire with the actual args and result of
+    each real tool invocation, and must not fire when no tool is called."""
+    observed = []
+    llm = ScriptedProvider(
+        [
+            '{"action": "call_tool", "tool": "calculator", "args": {"expression": "47 * 12"}}',
+            '{"action": "final_answer", "answer": "47 times 12 is 564."}',
+        ]
+    )
+    agent = ToolAgent(
+        llm, tools=ToolRegistry([CalculatorTool()]),
+        on_tool_call=lambda name, args, result: observed.append((name, args, result)),
+    )
+
+    agent.run("What is 47 * 12?")
+
+    assert len(observed) == 1
+    name, args, result = observed[0]
+    assert name == "calculator"
+    assert args == {"expression": "47 * 12"}
+    assert result == "564"
+
+
+def test_on_tool_call_observer_not_called_when_no_tool_used():
+    observed = []
+    agent = ToolAgent(
+        ScriptedProvider(['{"action": "final_answer", "answer": "No tool needed."}']),
+        tools=ToolRegistry([CalculatorTool()]),
+        on_tool_call=lambda name, args, result: observed.append((name, args, result)),
+    )
+
+    agent.run("Just say hi.")
+
+    assert observed == []
+
+
 def test_skips_tool_when_not_needed():
     agent = _agent(['{"action": "final_answer", "answer": "RAG combines retrieval with generation."}'])
 

@@ -33,10 +33,23 @@ class AgentDecision(BaseModel):
 
 
 class ToolAgent(Agent):
-    def __init__(self, llm: LLMProvider, tools: ToolRegistry, budget: AgentBudget | None = None):
+    def __init__(
+        self,
+        llm: LLMProvider,
+        tools: ToolRegistry,
+        budget: AgentBudget | None = None,
+        on_tool_call=None,
+    ):
         super().__init__(llm)
         self._tools = tools
         self._budget = budget or AgentBudget()
+        # Optional observer: called as on_tool_call(tool_name, args, result)
+        # after each real tool invocation. Additive/backward-compatible --
+        # existing callers passing no observer see no behavior change.
+        # Exists so callers that need real tool-call input/output visibility
+        # (e.g. scripts/trace_request.py) can observe the actual production
+        # decision loop rather than reimplementing it separately.
+        self._on_tool_call = on_tool_call
 
     def run(self, text: str) -> AgentResponse:
         if not text or not text.strip():
@@ -68,6 +81,8 @@ class ToolAgent(Agent):
                 tool_result = tool.call(decision.args)
                 tool_calls.append(tool.name)
                 history.append(f"Called {tool.name} -> {tool_result}")
+                if self._on_tool_call:
+                    self._on_tool_call(tool.name, decision.args, tool_result)
 
             except BudgetExceededError as exc:
                 return self._response(
