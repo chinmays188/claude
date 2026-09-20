@@ -67,6 +67,39 @@ Expected:
   `.streamlit/config.toml` present (the fix was verified against the actual
   problem it fixes, not assumed)
 
+## Example 4 — Traces page reads real, persisted live-request traces
+
+Input: `scripts/trace_request.py "<request>"`, followed by opening the
+dashboard's Traces page.
+
+Expected:
+- `trace_request.py` now wraps its real run (router + tool agent, live
+  Gemini calls) in `app/observability/traces.py`'s `TraceRecorder`, and
+  persists the resulting `Trace` (routing decision, real tool-call
+  input/output as span metadata, real per-call token usage, real summed
+  cost) to `data/personal_ai.db` via the new `app/observability/trace_store.py`
+  (`TraceStore`), keyed by `trace.execution_id` (the trace_id printed at the
+  end of the run)
+- The dashboard's Traces page lists every saved trace_id in the sidebar
+  (newest first) and lets a trace_id be pasted directly into a search box;
+  selecting one renders its full stored trace — status, latency, cost,
+  token counts, and every span (with tool-call args/results as span
+  metadata) — with no live LLM call made by the dashboard itself
+- Verified live end-to-end: ran `trace_request.py` against a real request,
+  confirmed the trace persisted with correct spans/cost via `TraceStore`
+  directly, then confirmed the dashboard's listing + lookup-by-id logic
+  returns the same data
+
+**Deployment scope, decided explicitly with the user**: this page is a
+local dev/demo feature only. Streamlit Community Cloud's filesystem is
+ephemeral and separate from your local machine's `data/personal_ai.db`, and
+the public deployment intentionally has no `GEMINI_API_KEY` configured (see
+Non-goals below) — so traces run locally will only ever show up when the
+dashboard is also run locally against the same DB file. No Gemini key was
+added to the public deployment to enable this; that would reopen the
+"dashboard never makes live LLM calls" decision for a public, cost-exposed
+app.
+
 ## Non-goals for this MVP
 
 - No interactivity beyond viewing — no in-UI action approval, no

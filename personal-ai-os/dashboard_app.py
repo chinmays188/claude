@@ -30,6 +30,7 @@ from app.db.connection import get_connection
 from app.domains.cross_domain.goal_store import GoalStore
 from app.graph.store import GraphStore
 from app.memory.persistent_store import PersistentMemoryStore
+from app.observability.trace_store import TraceNotFoundError, TraceStore
 from app.proactive.commitments import CommitmentStore
 from app.proactive.outcome_tracking import OutcomeStore
 from app.tasks.store import TaskStore
@@ -78,6 +79,7 @@ def get_stores():
         "goals": GoalStore(conn),
         "commitments": CommitmentStore(conn),
         "outcomes": OutcomeStore(conn),
+        "traces": TraceStore(conn),
     }
 
 
@@ -201,6 +203,85 @@ def render_chief_of_staff(stores: dict) -> None:
     col4.metric("Outcome success rate", success_rate_display)
 
 
+def _render_span(span, indent: int = 0) -> None:
+    prefix = "  " * indent + "└─ " if indent else ""
+    duration = f"{span.duration_ms:.0f}ms" if span.duration_ms is not None else "?"
+    status_icon = "✅" if span.status == "success" else "❌"
+    st.text(f"{prefix}{status_icon} [{span.kind}] {span.name}  ({duration})")
+    if span.metadata:
+        st.json(span.metadata, expanded=False)
+    if span.error:
+        st.error(span.error)
+    for child in span.children:
+        _render_span(child, indent=indent + 1)
+
+
+def render_traces(stores: dict) -> None:
+    st.header("Traces")
+    st.caption(
+        "Real, live trace_ids saved by scripts/trace_request.py (not the dashboard itself — "
+        "this page is read-only, no live LLM calls happen here). Run a request via that "
+        "script, then find it here by trace_id."
+    )
+
+    trace_store = stores["traces"]
+    summaries = trace_store.list_summaries(limit=200)
+
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Trace IDs")
+    if not summaries:
+        st.sidebar.caption("No traces saved yet — run scripts/trace_request.py first.")
+        selected_id = None
+    else:
+        options = {
+            f"{s['execution_id'][:8]}… · {s['status']} · {s['created_at'][:19]}": s["execution_id"]
+            for s in summaries
+        }
+        chosen_label = st.sidebar.radio("Newest first", list(options.keys()), key="trace_sidebar_pick")
+        selected_id = options[chosen_label]
+
+    search_id = st.text_input(
+        "Or paste a trace_id directly",
+        value=selected_id or "",
+        help="Full trace_id (execution_id) as printed by scripts/trace_request.py.",
+    )
+
+    if not search_id:
+        if summaries:
+            st.info("Select a trace from the sidebar, or paste a trace_id above.")
+        return
+
+    try:
+        full_trace = trace_store.get(search_id)
+    except TraceNotFoundError:
+        st.error(f"No trace found for trace_id: {search_id}")
+        return
+
+    summary = next((s for s in summaries if s["execution_id"] == search_id), None)
+
+    st.subheader(f"Trace: {full_trace.execution_id}")
+    if summary:
+        st.caption(f"Input: {summary['input_text']}")
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Status", full_trace.status)
+    col2.metric("Latency", f"{full_trace.latency_ms:.0f} ms")
+    col3.metric("Tool calls", full_trace.tool_calls)
+    col4.metric("Cost", f"${full_trace.cost:.6f}")
+
+    col5, col6 = st.columns(2)
+    col5.metric("Input tokens", full_trace.input_tokens)
+    col6.metric("Output tokens", full_trace.output_tokens)
+
+    st.markdown(f"**Model:** {full_trace.model}  ·  **Agent:** {full_trace.agent}")
+
+    st.subheader("Spans")
+    if not full_trace.spans:
+        st.caption("No spans recorded for this trace.")
+    for span in full_trace.spans:
+        _render_span(span)
+
+
 def main() -> None:
     st.title("🧭 Personal AI OS")
     st.caption(
@@ -218,6 +299,7 @@ def main() -> None:
         "Finance": render_finance,
         "Learning": render_learning,
         "Chief of Staff": render_chief_of_staff,
+        "Traces": render_traces,
     }
     page = st.sidebar.radio("View", list(pages.keys()))
     st.sidebar.markdown("---")
