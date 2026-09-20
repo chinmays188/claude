@@ -1,0 +1,259 @@
+[
+  {
+    "input_text": "What's the weather like today?",
+    "trace_json": {
+      "execution_id": "c4028713f8104def947417ab88a70f32",
+      "session_id": "cli_trace",
+      "user_id": "cli_user",
+      "agent": "trace_request",
+      "model": "gemini-3.5-flash-lite",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "tool_calls": 0,
+      "retrieval_calls": 0,
+      "latency_ms": 3667.968125002517,
+      "cost": 0.0,
+      "status": "success",
+      "spans": [
+        {
+          "span_id": "6a19970d3965",
+          "name": "domain_routing",
+          "kind": "classification",
+          "started_at": 48502.888757875,
+          "ended_at": 48506.534737833,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "What's the weather like today?",
+            "domains": [],
+            "confidence": 1.0
+          },
+          "children": []
+        }
+      ]
+    }
+  },
+  {
+    "input_text": "What's a good way to structure my learning plan for system design interviews?",
+    "trace_json": {
+      "execution_id": "3ac6e63452d847258bc013c8c4b3f8e7",
+      "session_id": "cli_trace",
+      "user_id": "cli_user",
+      "agent": "trace_request",
+      "model": "gemini-3.5-flash-lite",
+      "input_tokens": 455,
+      "output_tokens": 731,
+      "tool_calls": 0,
+      "retrieval_calls": 0,
+      "latency_ms": 5106.367749998753,
+      "cost": 0.001964,
+      "status": "success",
+      "spans": [
+        {
+          "span_id": "eff71d74f7f1",
+          "name": "domain_routing",
+          "kind": "classification",
+          "started_at": 48492.067789416,
+          "ended_at": 48493.621670958,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "What's a good way to structure my learning plan for system design interviews?",
+            "domains": [
+              "CAREER",
+              "LEARNING"
+            ],
+            "confidence": 0.95
+          },
+          "children": []
+        },
+        {
+          "span_id": "729c7804611b",
+          "name": "agent_run",
+          "kind": "agent",
+          "started_at": 48493.621727291,
+          "ended_at": 48497.151986666,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "What's a good way to structure my learning plan for system design interviews?",
+            "output": "Structuring a learning plan for system design interviews requires a balanced approach combining foundational concepts, pattern recognition, and practical application. Here is a recommended 4-to-6-week roadmap:\n\n### Week 1: Foundations & Non-Functional Requirements\n*   **Core Concepts:** Scalability, availability, latency vs. throughput, consistency models (CAP theorem, PACELC), and trade-offs.\n*   **Networking & Protocols:** DNS, TCP/UDP, HTTP/HTTPS, WebSockets, gRPC, and long-polling.\n*   **Storage Fundamentals:** SQL vs. NoSQL, indexing (B-trees, LSM trees), caching strategies (LRU, Redis/Memcached, cache-aside, write-through), and replication/partitioning (sharding).\n\n### Week 2: Scalability Components & Patterns\n*   **Load Balancing:** Algorithms (Round Robin, Least Connections), layers (L4 vs. L7), and hardware/software solutions (Nginx, HAProxy).\n*   **Asynchronous Processing:** Message queues (Kafka, RabbitMQ), pub/sub models, task queues (Celery), and event-driven architecture.\n*   **Storage Scaling:** Master-slave replication, multi-master setups, consistent hashing, and distributed file systems.\n\n### Week 3: Common Architectural Patterns & Classic Problems\n*   Study and practice classic system design problems to recognize recurring patterns:\n    *   *URL Shortener* (Hashing, redirects, database design)\n    *   *Pastebin / Read-heavy storage* (Object storage, caching)\n    *   *Chat System / WhatsApp* (WebSockets, state management, message delivery)\n    *   *News Feed / Twitter* (Fan-out on write vs. read, timeline generation)\n    *   *Ride-sharing / Uber* (Geospatial indexing, Quadtrees, real-time location tracking)\n\n### Week 4: Advanced Topics & Reliability\n*   **Distributed Systems:** Consensus algorithms (Raft, Paxos), distributed locking (Redlock), rate limiting (Token Bucket, Leaky Bucket).\n*   **Observability:** Logging, metrics, tracing, and handling cascading failures (circuit breakers, retries with exponential backoff, rate limiting).\n\n### Weeks 5-6: Mock Interviews & Practice\n*   Apply the **4-step interview framework** during practice:\n    1.  **Clarify Requirements & Scope** (Functional & Non-functional, scale estimates).\n    2.  **High-Level Design** (Core APIs, database schema, major components).\n    3.  **Deep Dive** (Bottlenecks, scaling specific components, failure handling).\n    4.  **Wrap Up** (Trade-offs, monitoring, summary).\n*   Conduct mock interviews with peers or platforms like Pramp or Interviewing.io.\n\n### Recommended Resources\n*   **Books:** *Designing Data-Intensive Applications* (DDIA) by Martin Kleppmann (the holy grail), *System Design Interview \u2013 An Insider's Guide* (Volumes 1 & 2) by Alex Xu.\n*   **Online Platforms:** ByteByteGo, System Design Primer (GitHub by donnemartin).",
+            "stop_reason": "task_completed"
+          },
+          "children": []
+        }
+      ]
+    }
+  },
+  {
+    "input_text": "How do I write better user stories for my product backlog?",
+    "trace_json": {
+      "execution_id": "96b7ef6a1f764f9596520457f5c7e0fa",
+      "session_id": "cli_trace",
+      "user_id": "cli_user",
+      "agent": "trace_request",
+      "model": "gemini-3.5-flash-lite",
+      "input_tokens": 447,
+      "output_tokens": 629,
+      "tool_calls": 0,
+      "retrieval_calls": 0,
+      "latency_ms": 4129.883665998932,
+      "cost": 0.0017066,
+      "status": "success",
+      "spans": [
+        {
+          "span_id": "88816181b297",
+          "name": "domain_routing",
+          "kind": "classification",
+          "started_at": 48482.813351875,
+          "ended_at": 48483.931349666,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "How do I write better user stories for my product backlog?",
+            "domains": [
+              "PM"
+            ],
+            "confidence": 1.0
+          },
+          "children": []
+        },
+        {
+          "span_id": "1e193adfa103",
+          "name": "agent_run",
+          "kind": "agent",
+          "started_at": 48483.93146075,
+          "ended_at": 48486.919900791,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "How do I write better user stories for my product backlog?",
+            "output": "Writing better user stories is essential for aligning your team and delivering real value to your users. Here is a practical guide to writing effective user stories for your product backlog:\n\n### 1. Use the Standard Template\nStick to the classic Mike Cohn formula, which puts the user at the center:\n> **As a** [type of user], \n> **I want to** [some goal or action], \n> **So that** [some benefit or value].\n\n*Example:* As a frequent shopper, I want to save items to a wishlist so that I can purchase them later without searching for them again.\n\n### 2. Follow the INVEST Criteria\nA good user story should meet the INVEST framework:\n* **I**ndependent: Stories should be self-contained so they can be prioritized and delivered in any order.\n* **N**egotiable: A story is not a rigid contract; it's an invitation for a conversation about the implementation.\n* **V**aluable: It must deliver clear value to the end-user or the business.\n* **E**stimable: The team must be able to understand it well enough to estimate the effort required.\n* **S**mall: It should be small enough to fit within a single sprint (often called 'INVESTing' in vertical slices).\n* **T**estable: It must have clear acceptance criteria so everyone knows when it is 'done'.\n\n### 3. Define Clear Acceptance Criteria\nAcceptance criteria define the boundaries of a user story and act as the checklist for completion. Use the **Given-When-Then** format (Behavior-Driven Development) to make them precise:\n* **Given** [the starting context],\n* **When** [the user performs an action],\n* **Then** [the expected outcome occurs].\n\n*Example:* \n* *Given* I am logged into my account, \n* *When* I click the 'Add to Wishlist' button on a product page, \n* *Then* the item should appear in my Wishlist dashboard and the button should update to 'Added'.\n\n### 4. Focus on Vertical Slices, Not Layers\nAvoid splitting user stories by technical architecture (e.g., \"Create database table,\" then \"Write API,\" then \"Build frontend\"). Instead, slice vertically to deliver a tiny, working piece of end-to-end functionality in every story.\n\n### 5. Keep Them Collaborative\nRemember that user stories are placeholders for conversations. The written text is just a summary of what you discuss with your designers, developers, and stakeholders. Refine your backlog regularly (Backlog Grooming/Refinement) with the team to ensure everyone shares the same understanding.",
+            "stop_reason": "task_completed"
+          },
+          "children": []
+        }
+      ]
+    }
+  },
+  {
+    "input_text": "For my emergency fund finance goal, if I save 15000 per month, what will my savings be after 6 months? Calculate 15000 * 6.",
+    "trace_json": {
+      "execution_id": "36093142c9ee456fb5c12e503eeedf07",
+      "session_id": "cli_trace",
+      "user_id": "cli_user",
+      "agent": "trace_request",
+      "model": "gemini-3.5-flash-lite",
+      "input_tokens": 717,
+      "output_tokens": 91,
+      "tool_calls": 1,
+      "retrieval_calls": 0,
+      "latency_ms": 8032.614709001791,
+      "cost": 0.00044259999999999997,
+      "status": "success",
+      "spans": [
+        {
+          "span_id": "6e2fdf254801",
+          "name": "domain_routing",
+          "kind": "classification",
+          "started_at": 48468.234509,
+          "ended_at": 48469.783716333,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "For my emergency fund finance goal, if I save 15000 per month, what will my savings be after 6 months? Calculate 15000 * 6.",
+            "domains": [
+              "FINANCE"
+            ],
+            "confidence": 1.0
+          },
+          "children": []
+        },
+        {
+          "span_id": "2772a6a42164",
+          "name": "agent_run",
+          "kind": "agent",
+          "started_at": 48469.783832458,
+          "ended_at": 48476.251620041,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "For my emergency fund finance goal, if I save 15000 per month, what will my savings be after 6 months? Calculate 15000 * 6.",
+            "output": "After 6 months of saving 15000 per month, your emergency fund savings will be 90000.",
+            "stop_reason": "task_completed"
+          },
+          "children": [
+            {
+              "span_id": "058f96d27295",
+              "name": "tool:calculator",
+              "kind": "tool",
+              "started_at": 48470.967469416,
+              "ended_at": 48470.967530375,
+              "status": "success",
+              "error": null,
+              "metadata": {
+                "args": {
+                  "expression": "15000 * 6"
+                },
+                "result": "90000"
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "input_text": "Should I learn Kubernetes to help my career?",
+    "trace_json": {
+      "execution_id": "76c890aea80741e9950181bbc18fe0f4",
+      "session_id": "cli_trace",
+      "user_id": "cli_user",
+      "agent": "trace_request",
+      "model": "gemini-3.5-flash-lite",
+      "input_tokens": 441,
+      "output_tokens": 422,
+      "tool_calls": 0,
+      "retrieval_calls": 0,
+      "latency_ms": 4742.33408299915,
+      "cost": 0.0011872999999999999,
+      "status": "success",
+      "spans": [
+        {
+          "span_id": "236c177e503f",
+          "name": "domain_routing",
+          "kind": "classification",
+          "started_at": 48454.920883875,
+          "ended_at": 48456.410544375,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "Should I learn Kubernetes to help my career?",
+            "domains": [
+              "CAREER",
+              "LEARNING"
+            ],
+            "confidence": 1.0
+          },
+          "children": []
+        },
+        {
+          "span_id": "46a6c978fe5c",
+          "name": "agent_run",
+          "kind": "agent",
+          "started_at": 48456.410632958,
+          "ended_at": 48459.638990291,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "Should I learn Kubernetes to help my career?",
+            "output": "Yes, learning Kubernetes is generally a very strong move for your career if you are in software engineering, DevOps, cloud architecture, or Site Reliability Engineering (SRE). \n\nHere is a breakdown of why it's worth it, along with a few considerations:\n\n### Why Learn Kubernetes?\n1. **Industry Standard:** It is the de facto standard for container orchestration. Most mid-to-large tech companies and enterprises use it to manage their applications.\n2. **High Demand & Compensation:** DevOps and backend engineering roles that list Kubernetes (K8s) as a requirement often command higher salaries due to the complexity and specialization required.\n3. **Portability:** Kubernetes abstracts underlying cloud providers (AWS, GCP, Azure, on-premise), making skills transferable across different tech stacks.\n4. **Scalability & Reliability:** Understanding K8s teaches you modern architectural patterns for resilience, scaling, and microservices.\n\n### When Might You Skip or Delay It?\n* **Beginners:** If you are brand new to programming, Linux, and Docker, you should master those fundamentals first. Trying to learn Kubernetes without understanding containers (Docker) and basic networking/Linux is overwhelming.\n* **Small Startups / Monoliths:** If you work exclusively with small teams building traditional monolithic apps hosted on fully managed platforms (like Heroku, Vercel, or AWS App Runner), Kubernetes might be complete overkill.\n\n### Recommendation\nIf you want to future-proof your career in infrastructure, cloud, or backend development, learning Kubernetes is a great investment of your time. Start by getting comfortable with **Docker and containers**, then move on to the basics of Kubernetes (Pods, Deployments, Services) and certifications like the **CKA (Certified Kubernetes Administrator)** or **CKAD (Certified Kubernetes Application Developer)**.",
+            "stop_reason": "task_completed"
+          },
+          "children": []
+        }
+      ]
+    }
+  }
+]

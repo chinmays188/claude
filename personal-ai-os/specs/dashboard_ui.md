@@ -90,15 +90,34 @@ Expected:
   directly, then confirmed the dashboard's listing + lookup-by-id logic
   returns the same data
 
-**Deployment scope, decided explicitly with the user**: this page is a
-local dev/demo feature only. Streamlit Community Cloud's filesystem is
-ephemeral and separate from your local machine's `data/personal_ai.db`, and
-the public deployment intentionally has no `GEMINI_API_KEY` configured (see
-Non-goals below) — so traces run locally will only ever show up when the
-dashboard is also run locally against the same DB file. No Gemini key was
-added to the public deployment to enable this; that would reopen the
-"dashboard never makes live LLM calls" decision for a public, cost-exposed
-app.
+## Example 5 — Traces page shows real content on the public deployment too, without a live key
+
+The user asked for the Traces page to appear on the actual public
+deployment, not just locally. Adding a live "run a trace" box to the public
+dashboard was considered and explicitly rejected (it would need
+`GEMINI_API_KEY` in Streamlit Cloud's secrets, exposing the key to the
+public app's runtime, plus real per-visitor API cost with no rate limiting)
+in favor of:
+
+- `app/dashboard_ui/example_traces.json` + `example_traces.py`: 5 REAL
+  trace records, captured once by actually running `scripts/trace_request.py`
+  locally against varied inputs (CAREER+LEARNING cross-domain, PM, FINANCE
+  with a real calculator tool call, a second CAREER+LEARNING example, and
+  one UNCLEAR routing) — not fabricated, but a fixed snapshot of real
+  Gemini/router/agent behavior from one specific run. `seed_all()` now also
+  calls `seed_example_traces()`, so every fresh deploy (including Streamlit
+  Community Cloud's first-load auto-seed) gets these 5 traces with zero
+  Gemini key required at seed time
+- Verified: seeding runs successfully with `GEMINI_API_KEY=""` (confirmed
+  via a real test with the env var unset), and every seeded trace round-trips
+  through `TraceStore` correctly — including the nested tool-call span's
+  exact real args/result
+- Explicitly disclosed limitation: these 5 traces are static. The public
+  dashboard's Traces page will always show the same 5 example traces; it
+  does not let a public visitor submit their own live query (that would be
+  the rejected "add a key to Streamlit secrets" path above). Anyone wanting
+  to trace their own real input still runs `scripts/trace_request.py`
+  locally.
 
 ## Non-goals for this MVP
 

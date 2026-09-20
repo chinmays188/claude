@@ -19,6 +19,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from app.actions.audit_log import AuditLog
 from app.actions.models import ActionClass, ActionProposal, ApprovalStatus, AuditRecord, RiskLevel
+from app.dashboard_ui.example_traces import seed_example_traces
 from app.db.connection import get_connection
 from app.domains.cross_domain.goal_store import GoalStore
 from app.domains.cross_domain.models import Goal, GoalStatus
@@ -27,6 +28,7 @@ from app.graph.models import Decision, GraphNode, NodeType
 from app.graph.store import GraphStore
 from app.memory.models import MemoryRecord, MemoryType
 from app.memory.persistent_store import PersistentMemoryStore
+from app.observability.trace_store import TraceStore
 from app.proactive.commitments import Commitment, CommitmentOwner, CommitmentStatus, CommitmentStore
 from app.proactive.outcome_tracking import Outcome, OutcomeStatus, OutcomeStore
 from app.tasks.models import LongRunningTask, TaskState
@@ -188,6 +190,7 @@ def seed_all(conn) -> None:
     seed_audit_log(AuditLog(conn))
     seed_commitments(CommitmentStore(conn))
     seed_outcomes(OutcomeStore(conn))
+    seed_example_traces(TraceStore(conn))
 
 
 def main(db_path: str) -> None:
