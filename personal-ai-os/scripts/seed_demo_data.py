@@ -174,9 +174,13 @@ def seed_outcomes(store: OutcomeStore) -> None:
     store.resolve(resolved.outcome_id, OutcomeStatus.ACHIEVED, "PRD approved after Critic Agent review; moved to sprint planning.")
 
 
-def main(db_path: str) -> None:
-    conn = get_connection(db_path)
+def seed_all(conn) -> None:
+    """Seed every store against an already-open connection.
 
+    Factored out from main() so dashboard_app.py can call this directly on
+    first load (e.g. on Streamlit Community Cloud, where there's no separate
+    manual step to run this script before the app starts).
+    """
     seed_memories(PersistentMemoryStore(conn))
     seed_goals(GoalStore(conn))
     seed_graph(GraphStore(conn))
@@ -185,6 +189,10 @@ def main(db_path: str) -> None:
     seed_commitments(CommitmentStore(conn))
     seed_outcomes(OutcomeStore(conn))
 
+
+def main(db_path: str) -> None:
+    conn = get_connection(db_path)
+    seed_all(conn)
     print(f"Seeded demo data into {db_path} for tenant='{TENANT_ID}', user='{USER_ID}'.")
 
 

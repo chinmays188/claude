@@ -12,6 +12,8 @@ First run: seed demo data so every page has something to show —
     PYTHONPATH=. python scripts/seed_demo_data.py
 """
 
+import os
+
 import streamlit as st
 
 from app.actions.audit_log import AuditLog
@@ -38,9 +40,22 @@ USER_ID = "demo_user"
 st.set_page_config(page_title="Personal AI OS", page_icon="🧭", layout="wide")
 
 
+DB_PATH = "data/personal_ai.db"
+
+
 @st.cache_resource
 def get_stores():
-    conn = get_connection("data/personal_ai.db")
+    # Streamlit Community Cloud only runs this file -- there's no separate
+    # manual step to run scripts/seed_demo_data.py first the way local dev
+    # has. Auto-seed on first load if the DB doesn't exist yet, so a fresh
+    # deploy isn't just empty pages.
+    db_is_new = not os.path.exists(DB_PATH)
+    conn = get_connection(DB_PATH)
+    if db_is_new:
+        from scripts.seed_demo_data import seed_all
+
+        seed_all(conn)
+
     return {
         "memory": PersistentMemoryStore(conn),
         "graph": GraphStore(conn),
