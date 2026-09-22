@@ -16,8 +16,8 @@ class ResearchAgent(ToolAgent):
         "relevant information; cite sources by their chunk id when you do."
     )
 
-    def __init__(self, llm: LLMProvider, store: VectorStore | None = None):
+    def __init__(self, llm: LLMProvider, store: VectorStore | None = None, on_tool_call=None):
         tools = [CalculatorTool()]
         if store is not None:
             tools.append(RetrievalTool(store))
-        super().__init__(llm, tools=ToolRegistry(tools))
+        super().__init__(llm, tools=ToolRegistry(tools), on_tool_call=on_tool_call)

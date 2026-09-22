@@ -25,15 +25,19 @@ from app.dashboard.domain_data import (
     get_learning_dashboard,
     get_pm_dashboard,
 )
+from app.dashboard_ui.architecture_diagram import ARCHITECTURE_DIAGRAM
 from app.dashboard_ui.demo_workflow_outputs import CAREER_DEMO, FINANCE_DEMO, LEARNING_DEMO, PM_DEMO
 from app.db.connection import get_connection
 from app.domains.cross_domain.goal_store import GoalStore
+from app.evaluation.domain_golden import count_cases_by_domain
 from app.graph.store import GraphStore
 from app.memory.persistent_store import PersistentMemoryStore
 from app.observability.trace_store import TraceNotFoundError, TraceStore
 from app.proactive.commitments import CommitmentStore
 from app.proactive.outcome_tracking import OutcomeStore
 from app.tasks.store import TaskStore
+from app.tools.calculator import CalculatorTool
+from app.tools.retrieval_tool import RetrievalTool
 
 TENANT_ID = "demo_tenant"
 USER_ID = "demo_user"
@@ -282,6 +286,88 @@ def render_traces(stores: dict) -> None:
         _render_span(span)
 
 
+def render_architecture(stores: dict) -> None:
+    st.header("Architecture")
+    st.caption(
+        "How this system actually routes, calls tools, retrieves, and remembers -- "
+        "every box below traces to real code, verified by reading it directly. "
+        "See specs/dashboard_ui.md for how each fact was checked."
+    )
+
+    st.warning(
+        "⚠️ Two real, separate routers exist and neither calls the other: "
+        "**DomainRouter** (career/pm/finance/learning) and **TaskClassifier + "
+        "Orchestrator** (research/analysis/planning). Production code "
+        "(`app/main.py`, `app/api/voice_api.py`) uses only the second one. "
+        "`scripts/trace_request.py` runs a request through BOTH so you can see "
+        "them independently, rather than picking one silently."
+    )
+
+    st.html(
+        f"""
+        <div class="mermaid">{ARCHITECTURE_DIAGRAM}</div>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+        <script>mermaid.initialize({{ startOnLoad: true, theme: 'neutral' }});</script>
+        """,
+        unsafe_allow_javascript=True,
+    )
+
+    st.subheader("Live counts (real, queried right now)")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("**Registered tools (5 total)**")
+        tools_info = [
+            ("calculator", CalculatorTool.description, "no credentials needed"),
+            ("retrieve", RetrievalTool.description, "no credentials needed"),
+            ("calendar_day", "Look up meetings/conflicts for a day.", "needs real CalendarClient"),
+            ("email_summary", "Fetch and classify emails.", "needs real EmailClient"),
+            ("github_activity", "Summarize GitHub activity.", "needs real GitHubClient"),
+        ]
+        for name, desc, note in tools_info:
+            st.text(f"• {name}  ({note})")
+
+    with col2:
+        st.markdown("**Goals defined (GoalStore, live)**")
+        goals = stores["goals"].list_by_owner(USER_ID)
+        if goals:
+            for g in goals:
+                st.text(f"• [{g.domain.value}] {g.title} — {g.progress:.0%}")
+        else:
+            st.caption("No goals seeded yet.")
+
+    with col3:
+        st.markdown("**Eval/synthetic data on disk (live count)**")
+        counts = count_cases_by_domain()
+        for domain, count in counts.items():
+            st.text(f"• {domain}: {count} case(s)")
+        st.caption("Static JSON golden cases — no live grading harness runs them automatically.")
+
+    st.subheader("Chief of Staff: how it actually 'listens'")
+    st.info(
+        "**Pull-based, not always-on.** `ChiefOfStaffOrchestrator.process(events)` "
+        "processes a list of events handed to it by a caller — there is no real "
+        "background poller or scheduler anywhere in this codebase (confirmed by "
+        "reading the code, not assumed). It reacts to events it's given, on demand, "
+        "rather than continuously monitoring anything in real time."
+    )
+
+    st.subheader("Retrieval: where embeddings are actually used")
+    st.markdown(
+        "- **`retrieve` tool** (ResearchAgent, via `trace_request.py --index-file`): "
+        "indexes whatever text file you point it at, real FAISS + "
+        "sentence-transformers embeddings.\n"
+        "- **Career domain workflows** (`resume_optimization.py`, `interview_prep.py`, "
+        "`jd_analysis.py`) and **PM domain workflows** (`prd.py`, "
+        "`stakeholder_request.py`): retrieve from a `SecureRetriever`-wrapped "
+        "`VectorStore`, permission-filtered before results ever reach the LLM.\n"
+        "- **Memory** (`PersistentMemoryStore`) is explicitly **not** embedding-based — "
+        "`naive_relevance.py` does plain keyword-overlap matching, shown per-trace "
+        "as 'Memory Considered' in the Traces page."
+    )
+
+
 def main() -> None:
     st.title("🧭 Personal AI OS")
     st.caption(
@@ -300,6 +386,7 @@ def main() -> None:
         "Learning": render_learning,
         "Chief of Staff": render_chief_of_staff,
         "Traces": render_traces,
+        "Architecture": render_architecture,
     }
     page = st.sidebar.radio("View", list(pages.keys()))
     st.sidebar.markdown("---")

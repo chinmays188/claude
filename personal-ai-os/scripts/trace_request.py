@@ -1,27 +1,48 @@
-"""Fully instrumented trace CLI: run a real request through the real router +
-tool agent, using the live Gemini API, and print every stage in detail --
-routing decision, tool-call input/output, retrieval, cost, and a trace_id
-tying it all together.
+"""Fully instrumented trace CLI: run a real request through BOTH of this
+codebase's real, independent routers, using the live Gemini API, and print
+every stage in detail -- routing decisions, tool-call input/output,
+memory considered, retrieval, cost, and a trace_id tying it all together.
 
 Not part of the dashboard on purpose (see specs/dashboard_ui.md's non-goals
 -- the dashboard never makes live LLM calls). This script is the actual
 place to answer "how does the router route, what tool gets called, what's
 the input/output, what did it cost" for a real, live query.
 
+IMPORTANT, found while building this: there are TWO separate, disconnected
+routers in this codebase, not one:
+  1. DomainRouter (app/domains/router.py): classifies into
+     CAREER/PM/FINANCE/LEARNING/UNCLEAR. Used by nothing except this script
+     and tests -- no other production entry point calls it.
+  2. TaskClassifier + Orchestrator (app/routing/classifier.py,
+     app/agents/orchestrator.py): classifies into
+     RESEARCH/ANALYSIS/PLANNING/UNCLEAR and dispatches to ResearchAgent /
+     AnalystAgent / PlannerAgent. This is what app/main.py and
+     app/api/voice_api.py actually use.
+Neither router calls the other, and nothing combines their outputs. This
+script runs the request through BOTH, independently, so you can see both
+real classifications side by side rather than only one being silently
+picked.
+
 What this DOES show (all real, all live):
-  - trace_id: a uuid4 generated fresh for this run, printed at every stage
-  - Router decision: domain(s), confidence, cross-domain flag
-  - Tool-agent decision loop: every real tool call's name, args, and result
-    (via ToolAgent's on_tool_call observer hook)
+  - trace_id: TraceRecorder's own execution_id for this run
+  - BOTH router decisions (domain classification AND task-type
+    classification), independently, since they're genuinely separate paths
+  - Tool-agent decision loop (whichever path actually runs an agent): every
+    real tool call's name, args, and result (via on_tool_call observer
+    hooks on ToolAgent/ResearchAgent/Orchestrator)
   - Real token counts + real $ cost (via CostTracker, using the per-1K rates
     the user provided for gemini-3.5-flash-lite: $0.00030 input / $0.00250
     output)
+  - Real memory considered: naive keyword-overlap matching (NOT semantic
+    search -- no vector index over memories exists) against
+    PersistentMemoryStore's seeded memories, showing which memories shared
+    keywords with the request
 
 What this explicitly does NOT show, because it doesn't exist in this
 codebase (checked by reading the actual code, not assumed):
   - Task complexity classification: no such classifier exists anywhere in
-    app/. Routing only classifies DOMAIN (career/pm/finance/learning), never
-    a complexity tier.
+    app/. TaskClassifier only classifies RESEARCH/ANALYSIS/PLANNING/UNCLEAR,
+    never a complexity tier (easy/medium/hard).
   - Retrieval recall/precision: app/evaluation/retrieval_eval.py's
     evaluate_retrieval() requires a human-labeled ground truth
     (relevant_chunk_ids) per query. No such labels exist for an ad hoc live
@@ -32,31 +53,48 @@ Usage:
 
     # Also print the routed domain's golden case counts:
     PYTHONPATH=. python scripts/trace_request.py "..." --with-eval
+
+    # Give the research path something real to retrieve against:
+    PYTHONPATH=. python scripts/trace_request.py "What is Kubernetes?" --index-file notes.txt
 """
 
 import argparse
 import sys
+from datetime import datetime, timezone
 
+from app.agents.orchestrator import ClarificationNeeded, Orchestrator
 from app.config import require_gemini_key
 from app.db.connection import get_connection
 from app.domains.router import Domain, DomainRouter, DomainRoutingError
-from app.providers.gemini_provider import GeminiProvider
-from app.observability.costs import CostRate, CostTracker
-from app.observability.traces import TraceRecorder
-from app.observability.trace_store import TraceStore
-from app.agents.tool_agent import ToolAgent
-from app.tools.calculator import CalculatorTool
-from app.tools.registry import ToolRegistry
 from app.evaluation.domain_golden import load_domain_cases
+from app.memory.naive_relevance import find_relevant_memories
+from app.memory.persistent_store import PersistentMemoryStore
+from app.observability.costs import CostRate, CostTracker
+from app.observability.trace_store import TraceStore
+from app.observability.traces import TraceRecorder
+from app.providers.gemini_provider import GeminiProvider
+from app.retrieval.chunking import chunk_document
+from app.retrieval.document import Document
+from app.retrieval.embeddings import SentenceTransformerEmbedding
+from app.retrieval.vector_search import VectorStore
+from app.tools.calculator import CalculatorTool
 
 DB_PATH = "data/personal_ai.db"
 SESSION_ID = "cli_trace"
-USER_ID = "cli_user"
+# Matches scripts/seed_demo_data.py's USER_ID/TENANT_ID exactly, so
+# find_relevant_memories() below can actually find the seeded memories
+# instead of silently looking under the wrong user/tenant and always
+# coming up empty.
+USER_ID = "demo_user"
+TENANT_ID = "demo_tenant"
 
 # Only tools that are safe to actually invoke live, with no external
 # credentials/side effects, are wired in here (calendar/email/github tools
 # need real integration credentials this script doesn't assume you have).
-DEFAULT_TOOLS = [CalculatorTool()]
+# 'retrieve' is added only when --index-file gives it something real to
+# search -- an empty/absent index would make the tool always return "no
+# relevant documents found," which isn't worth offering the agent.
+BASE_TOOLS = [CalculatorTool()]
 
 DOMAIN_EVAL_DIR = {
     Domain.CAREER: "career",
@@ -76,15 +114,25 @@ def _print_header(title: str) -> None:
     print(f"\n{'=' * 60}\n{title}\n{'=' * 60}")
 
 
-def trace(text: str, with_eval: bool) -> None:
+def _build_retrieval_store(index_file: str | None) -> VectorStore | None:
+    if not index_file:
+        return None
+    text = open(index_file).read()
+    now = datetime.now(timezone.utc)
+    doc = Document(id="cli_index_doc", text=text, source=index_file, created_at=now, updated_at=now)
+    chunks = chunk_document(doc, chunk_size=150, overlap=30)
+    store = VectorStore(SentenceTransformerEmbedding())
+    store.add(chunks)
+    return store
+
+
+def trace(text: str, with_eval: bool, index_file: str | None) -> None:
     require_gemini_key()
     recorder = TraceRecorder(session_id=SESSION_ID, user_id=USER_ID)
-    trace_id = recorder.trace.execution_id  # this run's trace_id/execution_id, generated by TraceRecorder itself
-    # track_usage=True: every real generate() call made through this one
-    # shared instance (DomainRouter's classification call, every ToolAgent
-    # decision-loop turn) appends its actual token usage to llm.usage_log --
-    # no extra/duplicate LLM calls, just capturing what the SDK already
-    # returns for calls that happen anyway.
+    trace_id = recorder.trace.execution_id
+    # track_usage=True: every real generate() call made through this shared
+    # instance appends its actual token usage to llm.usage_log -- no extra
+    # LLM calls, just capturing what the SDK already returns.
     llm = GeminiProvider(track_usage=True)
     cost_tracker = CostTracker(journey=f"trace_request:{trace_id}", rates=GEMINI_RATES)
     recorder.trace.model = llm.model_name
@@ -95,39 +143,53 @@ def trace(text: str, with_eval: bool) -> None:
     print(f"Input:    {text}")
     print(f"Model:    {llm.model_name}")
 
-    _print_header("1. ROUTING")
-    router = DomainRouter(llm)
+    # ---- Memory considered (naive keyword overlap, NOT semantic search) ----
+    _print_header("0. MEMORY CONSIDERED")
+    conn = get_connection(DB_PATH)
+    memory_store = PersistentMemoryStore(conn)
+    with recorder.span("memory_lookup", kind="retrieval", input_text=text) as mem_span:
+        relevant_memories = find_relevant_memories(memory_store, TENANT_ID, USER_ID, text)
+        mem_span.metadata["memories_considered"] = [
+            {"memory_id": m.memory_id, "type": m.type.value, "overlap_words": count}
+            for m, count in relevant_memories
+        ]
+    if relevant_memories:
+        print(f"{len(relevant_memories)} memory record(s) shared keywords with this request "
+              "(naive keyword overlap, not semantic search -- no vector index over memories exists):")
+        for memory, overlap in relevant_memories:
+            print(f"  [{memory.memory_id} | {memory.type.value} | overlap={overlap}] {memory.content}")
+    else:
+        print("No stored memory shared keywords with this request (or none seeded/matching).")
+    conn.close()
+
+    # ---- Router 1: DomainRouter (career/pm/finance/learning) ----
+    _print_header("1a. ROUTER: DomainRouter (domain classification)")
+    domain_router = DomainRouter(llm)
     try:
         with recorder.span("domain_routing", kind="classification", input_text=text) as span:
-            classification = router.route(text)
-            span.metadata["domains"] = [d.value for d in classification.domains]
-            span.metadata["confidence"] = classification.confidence
+            domain_classification = domain_router.route(text)
+            span.metadata["domains"] = [d.value for d in domain_classification.domains]
+            span.metadata["confidence"] = domain_classification.confidence
+        print(f"Domain(s):    {[d.value for d in domain_classification.domains] or 'UNCLEAR'}")
+        print(f"Confidence:   {domain_classification.confidence:.2f}")
+        print(f"Cross-domain: {domain_classification.is_cross_domain}")
     except DomainRoutingError as exc:
-        recorder.finish(status="error")
-        _persist_trace(recorder.trace, text)
-        print(f"[trace_id={trace_id}] Routing FAILED: {exc}")
-        sys.exit(1)
+        domain_classification = None
+        print(f"DomainRouter FAILED: {exc}")
 
-    print(f"Domain(s):     {[d.value for d in classification.domains] or 'UNCLEAR'}")
-    print(f"Confidence:    {classification.confidence:.2f}")
-    print(f"Cross-domain:  {classification.is_cross_domain}")
+    # ---- Router 2: TaskClassifier + Orchestrator (research/analysis/planning) ----
+    _print_header("1b. ROUTER: TaskClassifier + Orchestrator (task-type classification)")
     print(
-        "\nTask complexity classification: NOT AVAILABLE -- no complexity "
-        "classifier exists anywhere in this codebase (checked app/domains/, "
-        "app/agents/, app/evaluation/). Routing only classifies domain, not "
-        "complexity tier."
+        "NOTE: this is a SEPARATE, independent router from DomainRouter above "
+        "-- neither calls the other. app/main.py and app/api/voice_api.py use "
+        "THIS one; nothing in production uses DomainRouter."
     )
 
-    if classification.is_unclear:
-        recorder.finish(status="success")
-        _persist_trace(recorder.trace, text)
-        print(f"\n[trace_id={trace_id}] Classified UNCLEAR (below confidence threshold) -- "
-              "stopping here, no agent/tool run for an unrouted request.")
-        return
-
-    _print_header("2. AGENT + TOOL CALLS")
-    tools = ToolRegistry(DEFAULT_TOOLS)
-    print(f"Registered tools: {[t.name for t in DEFAULT_TOOLS]}")
+    retrieval_store = _build_retrieval_store(index_file)
+    if index_file:
+        print(f"Indexed {index_file} for the 'retrieve' tool ({len(retrieval_store)} chunks).")
+    else:
+        print("No --index-file given -- ResearchAgent's 'retrieve' tool is not available this run.")
 
     tool_call_log = []
 
@@ -139,47 +201,59 @@ def trace(text: str, with_eval: bool) -> None:
         with recorder.span(f"tool:{name}", kind="tool", args=args, result=result):
             pass
 
-    agent = ToolAgent(llm, tools, on_tool_call=_on_tool_call)
+    orchestrator = Orchestrator(llm, retrieval_store=retrieval_store, on_tool_call=_on_tool_call)
 
-    with recorder.span("agent_run", kind="agent", input_text=text) as agent_span:
-        response = agent.run(text)
-        agent_span.metadata["output"] = response.output
-        agent_span.metadata["stop_reason"] = response.stop_reason
+    with recorder.span("orchestrator_run", kind="agent", input_text=text) as orch_span:
+        result = orchestrator.handle(text)
+        if isinstance(result, ClarificationNeeded):
+            orch_span.metadata["task_type"] = "UNCLEAR"
+            print("Task type:    UNCLEAR (below confidence threshold)")
+            print(f"Clarification: {result.message}")
+        else:
+            orch_span.metadata["agent"] = result.agent
+            orch_span.metadata["output"] = result.output
+            orch_span.metadata["stop_reason"] = result.stop_reason
+            print(f"Routed to:    {result.agent}")
+            print(f"Tool calls:   {result.tool_calls or '(none)'}")
+            print(f"Stop reason:  {result.stop_reason}")
+            print(f"\n--- Orchestrator output ---\n{result.output}")
 
-    if not tool_call_log:
-        print("  (no tool calls -- agent answered directly)")
+    print(f"\nRegistered tools (this run): {[t.name for t in BASE_TOOLS]}"
+          + (" + retrieve" if retrieval_store is not None else ""))
 
-    print(f"\nAgent:       {agent.name} ({type(agent).__name__})")
-    print(f"Tool calls:  {[c['name'] for c in tool_call_log] or '(none)'}")
-    print(f"Stop reason: {response.stop_reason}")
-    print(f"\n--- Output ---\n{response.output}")
-
-    _print_header("3. RETRIEVAL EVALUATION")
     print(
-        "NOT AVAILABLE for this run -- app/evaluation/retrieval_eval.py's "
-        "evaluate_retrieval() computes recall/precision against a "
-        "human-labeled ground truth (which chunk ids SHOULD have been "
-        "retrieved for a given query). No such label exists for an ad hoc "
-        "live request like this one, and the router/tool-agent path above "
-        "doesn't do retrieval at all (that only happens in the Career "
-        "resume flow -- see scripts/trace_resume.py, which reports real "
-        "FAISS distance scores per retrieved chunk instead)."
+        "\nTask complexity classification: NOT AVAILABLE -- no complexity "
+        "classifier exists anywhere in this codebase (checked app/domains/, "
+        "app/agents/, app/routing/, app/evaluation/). Both routers above "
+        "classify domain/task-type only, never a complexity tier."
     )
 
-    _print_header("4. COST")
-    # llm.usage_log now holds real per-call usage for EVERY generate() call
-    # made through this shared instance during the run above: the router's
-    # 1 classification call, plus one ToolAgent decision call per turn
-    # (including any tool-calling turns) -- the complete real total, not an
-    # estimate or a proxy call.
+    # ---- Retrieval evaluation ----
+    _print_header("2. RETRIEVAL EVALUATION")
+    if tool_call_log and any(c["name"] == "retrieve" for c in tool_call_log):
+        print("A real retrieve tool call happened above (see input/output). Recall/precision "
+              "specifically are still NOT AVAILABLE for it: app/evaluation/retrieval_eval.py's "
+              "evaluate_retrieval() requires a human-labeled ground truth (which chunk ids SHOULD "
+              "have been retrieved), which doesn't exist for an ad hoc live request.")
+    else:
+        print(
+            "NOT AVAILABLE for this run -- no retrieve tool call happened (pass --index-file to "
+            "give the research agent something to retrieve against). Recall/precision would still "
+            "require human-labeled ground truth, which doesn't exist for an ad hoc live request. "
+            "See scripts/trace_resume.py for a path that does report real FAISS distance scores "
+            "per retrieved chunk."
+        )
+
+    # ---- Cost ----
+    _print_header("3. COST")
     for i, usage in enumerate(llm.usage_log, start=1):
-        component = "router_classification" if i == 1 else f"agent_turn_{i - 1}"
         cost_tracker.record(
-            component=component, model=llm.model_name,
+            component=f"llm_call_{i}", model=llm.model_name,
             input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
         )
     journey = cost_tracker.journey
-    print(f"Real LLM calls made this run: {len(llm.usage_log)}")
+    print(f"Real LLM calls made this run: {len(llm.usage_log)}  "
+          "(DomainRouter classification + TaskClassifier classification + Orchestrator's agent turns)")
     for entry in journey.entries:
         print(f"  {entry.component}: input={entry.input_tokens}, output={entry.output_tokens}, cost=${entry.cost:.6f}")
     print(f"\nTotal tokens: input={sum(u.input_tokens for u in llm.usage_log)}, "
@@ -191,12 +265,12 @@ def trace(text: str, with_eval: bool) -> None:
     recorder.trace.output_tokens = sum(u.output_tokens for u in llm.usage_log)
     recorder.trace.cost = journey.total
 
-    if with_eval:
-        for domain in classification.domains:
+    if with_eval and domain_classification and not domain_classification.is_unclear:
+        for domain in domain_classification.domains:
             eval_dir = DOMAIN_EVAL_DIR.get(domain)
             if not eval_dir:
                 continue
-            _print_header(f"5. GOLDEN CASES -- {domain.value}")
+            _print_header(f"4. GOLDEN CASES -- {domain.value}")
             cases = load_domain_cases(eval_dir)
             print(f"Golden cases on disk for '{eval_dir}': {len(cases)}")
             for case in cases[:5]:
@@ -214,7 +288,7 @@ def trace(text: str, with_eval: bool) -> None:
 
     _print_header("TRACE END")
     print(f"trace_id: {trace_id}")
-    print("Saved to data/personal_ai.db -- viewable in the dashboard's Traces page.")
+    print(f"Saved to {DB_PATH} -- viewable in the dashboard's Traces page.")
 
 
 def _persist_trace(trace, input_text: str) -> None:
@@ -228,10 +302,15 @@ def main() -> None:
     parser.add_argument("text", help="The request to route and run, in quotes.")
     parser.add_argument(
         "--with-eval", action="store_true",
-        help="Also print the routed domain's golden-case counts (no extra live LLM calls).",
+        help="Also print the DomainRouter-routed domain's golden-case counts (no extra live LLM calls).",
+    )
+    parser.add_argument(
+        "--index-file", default=None,
+        help="Path to a text file to index for the research path's 'retrieve' tool "
+             "(real chunking + real embeddings, same as scripts/trace_resume.py).",
     )
     args = parser.parse_args()
-    trace(args.text, args.with_eval)
+    trace(args.text, args.with_eval, args.index_file)
 
 
 if __name__ == "__main__":

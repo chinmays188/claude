@@ -1,8 +1,13 @@
+from datetime import datetime, timezone
+
 import pytest
 
 from app.agents.base import AgentResponse
 from app.agents.orchestrator import ClarificationNeeded, Orchestrator
 from app.providers.base import LLMProvider
+from app.retrieval.document import Chunk
+from app.retrieval.vector_search import VectorStore
+from tests.fakes.fake_embedding import FakeEmbeddingModel
 
 
 class ScriptedProvider(LLMProvider):
@@ -87,3 +92,65 @@ def test_empty_input_raises_before_classification():
 
     with pytest.raises(ValueError):
         orchestrator.handle("")
+
+
+def test_retrieval_store_none_by_default_matches_prior_behavior():
+    """Regression guard: retrieval_store defaults to None, so ResearchAgent
+    gets no retrieve tool -- identical to Orchestrator's behavior before
+    this parameter existed."""
+    llm = ScriptedProvider(
+        [
+            '{"task_type": "research", "confidence": 0.9}',
+            '{"action": "final_answer", "answer": "no retrieval needed"}',
+        ]
+    )
+    orchestrator = Orchestrator(llm)
+
+    result = orchestrator.handle("Explain something.")
+
+    assert result.tool_calls == []  # no retrieve tool was ever available to call
+
+
+def test_retrieval_store_passed_through_to_research_agent():
+    now = datetime.now(timezone.utc)
+    store = VectorStore(FakeEmbeddingModel())
+    store.add([Chunk(id="doc1::c0", document_id="doc1", text="Kubernetes is a container orchestrator.",
+                      source="notes", created_at=now, updated_at=now, chunk_index=0)])
+
+    llm = ScriptedProvider(
+        [
+            '{"task_type": "research", "confidence": 0.9}',
+            '{"action": "call_tool", "tool": "retrieve", "args": {"query": "Kubernetes"}}',
+            '{"action": "final_answer", "answer": "Kubernetes orchestrates containers."}',
+        ]
+    )
+    orchestrator = Orchestrator(llm, retrieval_store=store)
+
+    result = orchestrator.handle("What is Kubernetes?")
+
+    assert "retrieve" in result.tool_calls
+
+
+def test_on_tool_call_forwarded_to_research_agent():
+    observed = []
+    now = datetime.now(timezone.utc)
+    store = VectorStore(FakeEmbeddingModel())
+    store.add([Chunk(id="doc1::c0", document_id="doc1", text="Kubernetes is a container orchestrator.",
+                      source="notes", created_at=now, updated_at=now, chunk_index=0)])
+
+    llm = ScriptedProvider(
+        [
+            '{"task_type": "research", "confidence": 0.9}',
+            '{"action": "call_tool", "tool": "retrieve", "args": {"query": "Kubernetes"}}',
+            '{"action": "final_answer", "answer": "done"}',
+        ]
+    )
+    orchestrator = Orchestrator(
+        llm, retrieval_store=store,
+        on_tool_call=lambda name, args, result: observed.append((name, args, result)),
+    )
+
+    orchestrator.handle("What is Kubernetes?")
+
+    assert len(observed) == 1
+    assert observed[0][0] == "retrieve"

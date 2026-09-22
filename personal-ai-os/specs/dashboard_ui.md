@@ -119,6 +119,69 @@ in favor of:
   to trace their own real input still runs `scripts/trace_request.py`
   locally.
 
+## Example 6 — Architecture page + trace_request.py's dual-router instrumentation
+
+The user asked 7 specific questions after using the Traces page: whether the
+router routes to domain OS vs. research/planner/analyst agents, what tools
+exist, what documents are embedded, what synthetic/eval data exists, memory
+usage per trace, what goals GoalAgent has defined, and how Chief of Staff
+"listens." Answering these required reading the actual code end to end
+rather than assuming, which surfaced a real, previously-undocumented
+architectural fact:
+
+**There are two separate, disconnected routers.** `DomainRouter`
+(CAREER/PM/FINANCE/LEARNING/UNCLEAR) is used only by `scripts/trace_request.py`
+and tests — no production entry point calls it. `TaskClassifier` +
+`Orchestrator` (RESEARCH/ANALYSIS/PLANNING/UNCLEAR, dispatching to
+`ResearchAgent`/`AnalystAgent`/`PlannerAgent`) is what `app/main.py` and
+`app/api/voice_api.py` actually use. Neither calls the other; nothing
+combines their outputs.
+
+Changes made, in response:
+
+- `app/agents/orchestrator.py`: `Orchestrator.__init__` gained optional
+  `retrieval_store` and `on_tool_call` params (default `None`, fully
+  backward-compatible — verified with a regression test asserting identical
+  behavior to before the change). Lets `ResearchAgent`'s `retrieve` tool
+  actually work when wired through `Orchestrator`, and lets a caller observe
+  real tool-call I/O through this path too.
+- `app/agents/research_agent.py`: forwards `on_tool_call` to its `ToolAgent`
+  base (was previously dropped).
+- `app/memory/naive_relevance.py`: new, explicitly-labeled-as-naive
+  keyword-overlap matching against `PersistentMemoryStore` — NOT semantic
+  search (no vector index over memories exists anywhere in this codebase).
+  Built specifically to give an honest answer to "how much memory is used
+  per trace," since neither router previously consulted memory at all.
+- `scripts/trace_request.py`: rewritten to run a request through BOTH real
+  routers independently (not picking one), report which stored memories
+  shared keywords with the request, support `--index-file` to give the
+  research path's `retrieve` tool something real to search (real chunking +
+  real embeddings), and record all of it as trace spans exactly as before.
+- `app/dashboard_ui/architecture_diagram.py` + a new dashboard
+  **Architecture** page: a Mermaid diagram (rendered via `st.html(...,
+  unsafe_allow_javascript=True)` loading Mermaid.js from
+  `cdnjs.cloudflare.com` — no new Python/system dependency, since Streamlit
+  has no native Mermaid support and the `graphviz_chart` alternative needs a
+  system `dot` binary not guaranteed present on Streamlit Cloud) showing the
+  router disconnect, all 5 real tools, where retrieval/embeddings are
+  actually used, and Chief of Staff's real pull-based (not always-on)
+  design — plus live counts (goals from `GoalStore`, eval case counts from
+  `count_cases_by_domain()`) queried fresh on page load, still with no live
+  LLM call.
+- The 5 committed example traces (`app/dashboard_ui/example_traces.json`)
+  were regenerated against the new `trace_request.py` to reflect the dual
+  routing + memory-lookup spans, including one real example that
+  demonstrates the router disconnect directly: `DomainRouter` classifies
+  "What's the weather like today?" as UNCLEAR, while `Orchestrator`
+  independently routes the same input to `research_agent`.
+
+Verified: the Mermaid diagram source was validated by actually rendering it
+with `@mermaid-js/mermaid-cli` (via `npx`) to a real PNG and visually
+inspecting the output, not assumed correct from syntax alone. All new/changed
+code paths (`Orchestrator` params, `naive_relevance.py`,
+`trace_request.py`'s dual-router run, `--index-file`) were run live against
+the real Gemini API at least once. 702 tests passing (was 693).
+
 ## Non-goals for this MVP
 
 - No interactivity beyond viewing — no in-UI action approval, no

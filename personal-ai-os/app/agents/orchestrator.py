@@ -5,6 +5,7 @@ from app.agents.base import AgentResponse
 from app.agents.planner_agent import PlannerAgent
 from app.agents.research_agent import ResearchAgent
 from app.providers.base import LLMProvider
+from app.retrieval.vector_search import VectorStore
 from app.routing.classifier import TaskClassifier, TaskType
 
 
@@ -14,10 +15,17 @@ class ClarificationNeeded(BaseModel):
 
 
 class Orchestrator:
-    def __init__(self, llm: LLMProvider):
+    def __init__(self, llm: LLMProvider, retrieval_store: VectorStore | None = None, on_tool_call=None):
+        # retrieval_store is optional and additive: passing None (the
+        # default, matching every existing caller's behavior exactly)
+        # constructs ResearchAgent without a retrieve tool, same as before.
+        # Passing a real VectorStore lets ResearchAgent's retrieve tool
+        # actually ground answers in indexed documents. on_tool_call is
+        # forwarded to ResearchAgent (the only agent here with a tool loop)
+        # for callers that need real tool-call I/O visibility.
         self._classifier = TaskClassifier(llm)
         self._agents = {
-            TaskType.RESEARCH: ResearchAgent(llm),
+            TaskType.RESEARCH: ResearchAgent(llm, store=retrieval_store, on_tool_call=on_tool_call),
             TaskType.ANALYSIS: AnalystAgent(llm),
             TaskType.PLANNING: PlannerAgent(llm),
         }

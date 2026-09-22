@@ -1,83 +1,70 @@
 [
   {
-    "input_text": "What's the weather like today?",
+    "input_text": "Should I learn Kubernetes for my career?",
     "trace_json": {
-      "execution_id": "c4028713f8104def947417ab88a70f32",
+      "execution_id": "b82df872859e46bc9b8b00a6928812a7",
       "session_id": "cli_trace",
-      "user_id": "cli_user",
+      "user_id": "demo_user",
       "agent": "trace_request",
       "model": "gemini-3.5-flash-lite",
-      "input_tokens": 0,
-      "output_tokens": 0,
+      "input_tokens": 440,
+      "output_tokens": 744,
       "tool_calls": 0,
-      "retrieval_calls": 0,
-      "latency_ms": 3667.968125002517,
-      "cost": 0.0,
+      "retrieval_calls": 1,
+      "latency_ms": 6265.789083998243,
+      "cost": 0.001992,
       "status": "success",
       "spans": [
         {
-          "span_id": "6a19970d3965",
-          "name": "domain_routing",
-          "kind": "classification",
-          "started_at": 48502.888757875,
-          "ended_at": 48506.534737833,
+          "span_id": "8ff3121a525e",
+          "name": "memory_lookup",
+          "kind": "retrieval",
+          "started_at": 63903.135537166,
+          "ended_at": 63903.135642875,
           "status": "success",
           "error": null,
           "metadata": {
-            "input_text": "What's the weather like today?",
-            "domains": [],
-            "confidence": 1.0
-          },
-          "children": []
-        }
-      ]
-    }
-  },
-  {
-    "input_text": "What's a good way to structure my learning plan for system design interviews?",
-    "trace_json": {
-      "execution_id": "3ac6e63452d847258bc013c8c4b3f8e7",
-      "session_id": "cli_trace",
-      "user_id": "cli_user",
-      "agent": "trace_request",
-      "model": "gemini-3.5-flash-lite",
-      "input_tokens": 455,
-      "output_tokens": 731,
-      "tool_calls": 0,
-      "retrieval_calls": 0,
-      "latency_ms": 5106.367749998753,
-      "cost": 0.001964,
-      "status": "success",
-      "spans": [
-        {
-          "span_id": "eff71d74f7f1",
-          "name": "domain_routing",
-          "kind": "classification",
-          "started_at": 48492.067789416,
-          "ended_at": 48493.621670958,
-          "status": "success",
-          "error": null,
-          "metadata": {
-            "input_text": "What's a good way to structure my learning plan for system design interviews?",
-            "domains": [
-              "CAREER",
-              "LEARNING"
-            ],
-            "confidence": 0.95
+            "input_text": "Should I learn Kubernetes for my career?",
+            "memories_considered": [
+              {
+                "memory_id": "mem_learning_1",
+                "type": "learning",
+                "overlap_words": 1
+              }
+            ]
           },
           "children": []
         },
         {
-          "span_id": "729c7804611b",
-          "name": "agent_run",
-          "kind": "agent",
-          "started_at": 48493.621727291,
-          "ended_at": 48497.151986666,
+          "span_id": "337c70789727",
+          "name": "domain_routing",
+          "kind": "classification",
+          "started_at": 63903.135678125,
+          "ended_at": 63904.294243666,
           "status": "success",
           "error": null,
           "metadata": {
-            "input_text": "What's a good way to structure my learning plan for system design interviews?",
-            "output": "Structuring a learning plan for system design interviews requires a balanced approach combining foundational concepts, pattern recognition, and practical application. Here is a recommended 4-to-6-week roadmap:\n\n### Week 1: Foundations & Non-Functional Requirements\n*   **Core Concepts:** Scalability, availability, latency vs. throughput, consistency models (CAP theorem, PACELC), and trade-offs.\n*   **Networking & Protocols:** DNS, TCP/UDP, HTTP/HTTPS, WebSockets, gRPC, and long-polling.\n*   **Storage Fundamentals:** SQL vs. NoSQL, indexing (B-trees, LSM trees), caching strategies (LRU, Redis/Memcached, cache-aside, write-through), and replication/partitioning (sharding).\n\n### Week 2: Scalability Components & Patterns\n*   **Load Balancing:** Algorithms (Round Robin, Least Connections), layers (L4 vs. L7), and hardware/software solutions (Nginx, HAProxy).\n*   **Asynchronous Processing:** Message queues (Kafka, RabbitMQ), pub/sub models, task queues (Celery), and event-driven architecture.\n*   **Storage Scaling:** Master-slave replication, multi-master setups, consistent hashing, and distributed file systems.\n\n### Week 3: Common Architectural Patterns & Classic Problems\n*   Study and practice classic system design problems to recognize recurring patterns:\n    *   *URL Shortener* (Hashing, redirects, database design)\n    *   *Pastebin / Read-heavy storage* (Object storage, caching)\n    *   *Chat System / WhatsApp* (WebSockets, state management, message delivery)\n    *   *News Feed / Twitter* (Fan-out on write vs. read, timeline generation)\n    *   *Ride-sharing / Uber* (Geospatial indexing, Quadtrees, real-time location tracking)\n\n### Week 4: Advanced Topics & Reliability\n*   **Distributed Systems:** Consensus algorithms (Raft, Paxos), distributed locking (Redlock), rate limiting (Token Bucket, Leaky Bucket).\n*   **Observability:** Logging, metrics, tracing, and handling cascading failures (circuit breakers, retries with exponential backoff, rate limiting).\n\n### Weeks 5-6: Mock Interviews & Practice\n*   Apply the **4-step interview framework** during practice:\n    1.  **Clarify Requirements & Scope** (Functional & Non-functional, scale estimates).\n    2.  **High-Level Design** (Core APIs, database schema, major components).\n    3.  **Deep Dive** (Bottlenecks, scaling specific components, failure handling).\n    4.  **Wrap Up** (Trade-offs, monitoring, summary).\n*   Conduct mock interviews with peers or platforms like Pramp or Interviewing.io.\n\n### Recommended Resources\n*   **Books:** *Designing Data-Intensive Applications* (DDIA) by Martin Kleppmann (the holy grail), *System Design Interview \u2013 An Insider's Guide* (Volumes 1 & 2) by Alex Xu.\n*   **Online Platforms:** ByteByteGo, System Design Primer (GitHub by donnemartin).",
+            "input_text": "Should I learn Kubernetes for my career?",
+            "domains": [
+              "CAREER",
+              "LEARNING"
+            ],
+            "confidence": 1.0
+          },
+          "children": []
+        },
+        {
+          "span_id": "6d5125815563",
+          "name": "orchestrator_run",
+          "kind": "agent",
+          "started_at": 63904.294358583,
+          "ended_at": 63909.37942975,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "Should I learn Kubernetes for my career?",
+            "agent": "analyst_agent",
+            "output": "As an analyst agent, I have evaluated the decision to learn Kubernetes (K8s) across four critical career dimensions: **Market Demand & ROI (Cost/Value), Complexity & Learning Curve, Career Mobility, and Future-Proofing.** \n\nHere is the comparative analysis followed by a definitive recommendation.\n\n---\n\n### Dimensional Comparison\n\n| Dimension | Learning Kubernetes | Staying with Traditional/PaaS Deployments |\n| :--- | :--- | :--- |\n| **Cost (Time/Effort)** | **High.** Steep learning curve; requires understanding networking, YAML, storage, and Linux fundamentals. | **Low to Moderate.** Faster path to shipping applications using managed platforms (Heroku, Vercel, AWS Elastic Beanstalk). |\n| **Quality (Skill Leverage)** | **High.** Unlocks the ability to design resilient, highly scalable, and cloud-agnostic architectures. | **Moderate.** Sufficient for small-to-medium apps, but often hits scaling and orchestration bottlenecks. |\n| **Complexity** | **Very High.** Day-2 operations (debugging, security, upgrades) are notoriously difficult and frustrating for beginners. | **Low.** Abstraction layers hide infrastructure complexity, allowing focus purely on application code. |\n| **Career Mobility & Salary** | **High.** A resume differentiator for Mid-to-Senior Engineers, DevOps, and Platform roles, often commanding higher salaries. | **Moderate.** Standard for general software engineering, but limits upward mobility into architecture and infrastructure domains. |\n\n---\n\n### The Verdict: Should You Learn It?\n\n**Conditional Yes.** Whether you should learn Kubernetes depends entirely on your current career stage and target role.\n\n#### 1. LEARN IT IF:\n* **You are a DevOps, SRE, or Platform Engineer:** It is non-negotiable. Kubernetes is the de facto operating system of the cloud.\n* **You are a Mid-to-Senior Backend Engineer:** Understanding K8s helps you design systems that align with modern infrastructure, making you a more effective collaborator and architect.\n* **You work in (or target) mid-to-large enterprises:** Most companies at scale use K8s (or manage products built on top of it).\n\n#### 2. SKIP IT (FOR NOW) IF:\n* **You are a complete beginner to tech/coding:** Learn Git, Linux, networking, and a programming language first. Kubernetes will only create cognitive overload.\n* **You build primarily serverless/frontend apps:** If your stack relies heavily on Vercel, AWS Lambda, or Firebase, Kubernetes is massive overkill.\n* **You are an early-stage startup generalist:** Speed to market matters more than microservices orchestration. PaaS solutions will serve you better.\n\n---\n\n### Tradeoffs & Recommendation\n\n* **The Core Tradeoff:** You are trading **immediate productivity and low stress** for **long-term earning potential and architectural capability**. \n* **Analyst Recommendation:** **Do not start with Kubernetes.** Start with Docker and containerization concepts. Once you can comfortably containerize an application, *then* introduce Kubernetes. \n* **Actionable Next Step:** Don't try to become a certified K8s administrator (CKA) on day one. Instead, learn **Minikube** or **K3s** locally, deploy a simple multi-container app, and evaluate if distributed systems infrastructure genuinely interests you.",
             "stop_reason": "task_completed"
           },
           "children": []
@@ -86,49 +73,70 @@
     }
   },
   {
-    "input_text": "How do I write better user stories for my product backlog?",
+    "input_text": "What is Kubernetes and how does it help with scaling?",
     "trace_json": {
-      "execution_id": "96b7ef6a1f764f9596520457f5c7e0fa",
+      "execution_id": "b9f644f7dcba4f60beaee015d44dfef0",
       "session_id": "cli_trace",
-      "user_id": "cli_user",
+      "user_id": "demo_user",
       "agent": "trace_request",
       "model": "gemini-3.5-flash-lite",
-      "input_tokens": 447,
-      "output_tokens": 629,
+      "input_tokens": 2186,
+      "output_tokens": 1514,
       "tool_calls": 0,
-      "retrieval_calls": 0,
-      "latency_ms": 4129.883665998932,
-      "cost": 0.0017066,
+      "retrieval_calls": 1,
+      "latency_ms": 23370.579291993636,
+      "cost": 0.0044408,
       "status": "success",
       "spans": [
         {
-          "span_id": "88816181b297",
-          "name": "domain_routing",
-          "kind": "classification",
-          "started_at": 48482.813351875,
-          "ended_at": 48483.931349666,
+          "span_id": "a0c965c98532",
+          "name": "memory_lookup",
+          "kind": "retrieval",
+          "started_at": 63914.536194541,
+          "ended_at": 63914.536285791,
           "status": "success",
           "error": null,
           "metadata": {
-            "input_text": "How do I write better user stories for my product backlog?",
+            "input_text": "What is Kubernetes and how does it help with scaling?",
+            "memories_considered": [
+              {
+                "memory_id": "mem_learning_1",
+                "type": "learning",
+                "overlap_words": 1
+              }
+            ]
+          },
+          "children": []
+        },
+        {
+          "span_id": "67aff6b53cc0",
+          "name": "domain_routing",
+          "kind": "classification",
+          "started_at": 63914.536324375,
+          "ended_at": 63915.625176333,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "What is Kubernetes and how does it help with scaling?",
             "domains": [
-              "PM"
+              "LEARNING"
             ],
             "confidence": 1.0
           },
           "children": []
         },
         {
-          "span_id": "1e193adfa103",
-          "name": "agent_run",
+          "span_id": "693d62bacd4d",
+          "name": "orchestrator_run",
           "kind": "agent",
-          "started_at": 48483.93146075,
-          "ended_at": 48486.919900791,
+          "started_at": 63924.570093041,
+          "ended_at": 63937.883703125,
           "status": "success",
           "error": null,
           "metadata": {
-            "input_text": "How do I write better user stories for my product backlog?",
-            "output": "Writing better user stories is essential for aligning your team and delivering real value to your users. Here is a practical guide to writing effective user stories for your product backlog:\n\n### 1. Use the Standard Template\nStick to the classic Mike Cohn formula, which puts the user at the center:\n> **As a** [type of user], \n> **I want to** [some goal or action], \n> **So that** [some benefit or value].\n\n*Example:* As a frequent shopper, I want to save items to a wishlist so that I can purchase them later without searching for them again.\n\n### 2. Follow the INVEST Criteria\nA good user story should meet the INVEST framework:\n* **I**ndependent: Stories should be self-contained so they can be prioritized and delivered in any order.\n* **N**egotiable: A story is not a rigid contract; it's an invitation for a conversation about the implementation.\n* **V**aluable: It must deliver clear value to the end-user or the business.\n* **E**stimable: The team must be able to understand it well enough to estimate the effort required.\n* **S**mall: It should be small enough to fit within a single sprint (often called 'INVESTing' in vertical slices).\n* **T**estable: It must have clear acceptance criteria so everyone knows when it is 'done'.\n\n### 3. Define Clear Acceptance Criteria\nAcceptance criteria define the boundaries of a user story and act as the checklist for completion. Use the **Given-When-Then** format (Behavior-Driven Development) to make them precise:\n* **Given** [the starting context],\n* **When** [the user performs an action],\n* **Then** [the expected outcome occurs].\n\n*Example:* \n* *Given* I am logged into my account, \n* *When* I click the 'Add to Wishlist' button on a product page, \n* *Then* the item should appear in my Wishlist dashboard and the button should update to 'Added'.\n\n### 4. Focus on Vertical Slices, Not Layers\nAvoid splitting user stories by technical architecture (e.g., \"Create database table,\" then \"Write API,\" then \"Build frontend\"). Instead, slice vertically to deliver a tiny, working piece of end-to-end functionality in every story.\n\n### 5. Keep Them Collaborative\nRemember that user stories are placeholders for conversations. The written text is just a summary of what you discuss with your designers, developers, and stakeholders. Refine your backlog regularly (Backlog Grooming/Refinement) with the team to ensure everyone shares the same understanding.",
+            "input_text": "What is Kubernetes and how does it help with scaling?",
+            "agent": "research_agent",
+            "output": "### What is Kubernetes?\n\n**Kubernetes** (often abbreviated as **K8s**) is an open-source container orchestration platform designed to automate the deployment, scaling, and management of containerized applications. Originally developed by Google and now maintained by the Cloud Native Computing Foundation (CNCF), Kubernetes groups containers that make up an application into logical units (pods) for easy management and discovery.\n\n### How Kubernetes Helps with Scaling\n\nKubernetes provides powerful native mechanisms for scaling applications to meet varying traffic demands:\n\n1. **Manual Scaling:** Administrators can explicitly declare the desired number of container replicas (instances) running in a cluster using a single command or configuration update.\n2. **Horizontal Pod Autoscaler (HPA):** Kubernetes can automatically scale the number of pods up or down based on observed metrics, such as CPU utilization, memory consumption, or custom application metrics. For instance, if traffic surges and CPU usage exceeds a target threshold, the HPA automatically adds more pods.\n3. **Cluster Autoscaler:** Beyond scaling individual application instances, Kubernetes can interact with underlying cloud providers to add or remove physical or virtual worker nodes (servers) when the cluster runs out of resources or has excess capacity.\n4. **Load Balancing:** Kubernetes automatically distributes network traffic across all running replicas of an application, ensuring that no single container becomes a bottleneck.\n\n---\n\n### Concrete Example\n\nImagine you run an e-commerce website packaged inside a Docker container. On a normal day, 3 container replicas are enough to handle the traffic. You configure a Horizontal Pod Autoscaler with a target CPU utilization of 70%.\n\n* **Normal Load:** Average CPU is at 40%. Kubernetes maintains **3 pods**.\n* **Flash Sale Begins:** Traffic spikes. CPU utilization across your pods shoots up to 85%.\n* **Scaling Action:** The HPA detects this breach and instructs the deployment controller to spin up **7 new pods** (bringing the total to 10 pods) to absorb the incoming traffic.\n* **Sale Ends:** Traffic drops back to normal. CPU utilization falls to 30%, and Kubernetes gradually terminates the extra pods, scaling back down to **3 pods** to save computing resources.\n\n---\n\n### Important Limitations and Caveats\n\n* **Complexity and Learning Curve:** Kubernetes has a steep learning curve. Setting up, securing, and maintaining a cluster requires specialized knowledge (often called \"Day 2 operations\"). For smaller teams or simpler apps, managed services or platforms like Docker Swarm or PaaS (e.g., Heroku, AWS App Runner) may be more efficient.\n* **Overhead:** Kubernetes itself consumes cluster resources (CPU and memory) to run its control plane components (like the API server, etcd database, and controller managers). For tiny workloads, this overhead can be disproportionately high.\n* **Application Design (Statelessness):** Kubernetes scaling works best for *stateless* applications where any instance can handle any request. Scaling *stateful* applications (like databases) introduces complexity around data persistence, replication, and synchronization.\n* **Debugging and Troubleshooting:** Because of the abstraction layers (pods, services, ingress controllers, network policies), diagnosing network failures or performance bottlenecks can be challenging compared to running apps directly on traditional servers.",
             "stop_reason": "task_completed"
           },
           "children": []
@@ -139,25 +147,45 @@
   {
     "input_text": "For my emergency fund finance goal, if I save 15000 per month, what will my savings be after 6 months? Calculate 15000 * 6.",
     "trace_json": {
-      "execution_id": "36093142c9ee456fb5c12e503eeedf07",
+      "execution_id": "c9953963754a4f8ba40280c773e3b050",
       "session_id": "cli_trace",
-      "user_id": "cli_user",
+      "user_id": "demo_user",
       "agent": "trace_request",
       "model": "gemini-3.5-flash-lite",
-      "input_tokens": 717,
-      "output_tokens": 91,
+      "input_tokens": 1007,
+      "output_tokens": 411,
       "tool_calls": 1,
-      "retrieval_calls": 0,
-      "latency_ms": 8032.614709001791,
-      "cost": 0.00044259999999999997,
+      "retrieval_calls": 1,
+      "latency_ms": 12932.380250000278,
+      "cost": 0.0013296,
       "status": "success",
       "spans": [
         {
-          "span_id": "6e2fdf254801",
+          "span_id": "00a8f74f5910",
+          "name": "memory_lookup",
+          "kind": "retrieval",
+          "started_at": 63996.765737791,
+          "ended_at": 63996.765832541,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "For my emergency fund finance goal, if I save 15000 per month, what will my savings be after 6 months? Calculate 15000 * 6.",
+            "memories_considered": [
+              {
+                "memory_id": "mem_goal_1",
+                "type": "goal",
+                "overlap_words": 1
+              }
+            ]
+          },
+          "children": []
+        },
+        {
+          "span_id": "57be1c579cd1",
           "name": "domain_routing",
           "kind": "classification",
-          "started_at": 48468.234509,
-          "ended_at": 48469.783716333,
+          "started_at": 63996.765869041,
+          "ended_at": 63998.475023208,
           "status": "success",
           "error": null,
           "metadata": {
@@ -170,25 +198,26 @@
           "children": []
         },
         {
-          "span_id": "2772a6a42164",
-          "name": "agent_run",
+          "span_id": "a799de68d087",
+          "name": "orchestrator_run",
           "kind": "agent",
-          "started_at": 48469.783832458,
-          "ended_at": 48476.251620041,
+          "started_at": 63998.47516025,
+          "ended_at": 64009.672660583,
           "status": "success",
           "error": null,
           "metadata": {
             "input_text": "For my emergency fund finance goal, if I save 15000 per month, what will my savings be after 6 months? Calculate 15000 * 6.",
-            "output": "After 6 months of saving 15000 per month, your emergency fund savings will be 90000.",
+            "agent": "research_agent",
+            "output": "If you save 15,000 per month for 6 months, your total emergency fund savings will be 90,000.\n\n### Explanation\nAn emergency fund is a pool of liquid financial reserves set aside specifically to cover unexpected expenses, such as sudden medical bills, urgent home or car repairs, or a temporary loss of income. Consistently setting aside a fixed amount each month (like 15,000) is a disciplined way to build this financial safety net.\n\n### Concrete Example\nSuppose your monthly savings goal is 15,000. By multiplying your monthly contribution by the time horizon of 6 months, your total accumulated savings amount to 90,000. This lump sum can then be kept in a high-yield savings account or a readily accessible money market account so it is both safe and liquid.\n\n### Important Limitations & Caveats\n- **Inflation and Purchasing Power:** If your emergency fund sits in a standard account with a very low interest rate, inflation may gradually erode its purchasing power over time.\n- **Opportunity Cost:** While emergency funds must be liquid and safe rather than invested in volatile assets (like stocks), keeping *too* much cash idle means you might miss out on higher long-term investment returns.\n- **Variable Expenses:** Life is unpredictable; emergencies can happen before you reach your 6-month milestone, or you might have months where you are unable to save the full 15,000 due to unforeseen living costs.",
             "stop_reason": "task_completed"
           },
           "children": [
             {
-              "span_id": "058f96d27295",
+              "span_id": "f0c3b66586aa",
               "name": "tool:calculator",
               "kind": "tool",
-              "started_at": 48470.967469416,
-              "ended_at": 48470.967530375,
+              "started_at": 64007.207482166,
+              "ended_at": 64007.207547041,
               "status": "success",
               "error": null,
               "metadata": {
@@ -205,50 +234,135 @@
     }
   },
   {
-    "input_text": "Should I learn Kubernetes to help my career?",
+    "input_text": "Create a 30-day plan for me to master system design interviews.",
     "trace_json": {
-      "execution_id": "76c890aea80741e9950181bbc18fe0f4",
+      "execution_id": "8e2815f5ed8847c2924f0852069b25b8",
       "session_id": "cli_trace",
-      "user_id": "cli_user",
+      "user_id": "demo_user",
       "agent": "trace_request",
       "model": "gemini-3.5-flash-lite",
-      "input_tokens": 441,
-      "output_tokens": 422,
+      "input_tokens": 460,
+      "output_tokens": 2097,
       "tool_calls": 0,
-      "retrieval_calls": 0,
-      "latency_ms": 4742.33408299915,
-      "cost": 0.0011872999999999999,
+      "retrieval_calls": 1,
+      "latency_ms": 12444.922542003042,
+      "cost": 0.0053805,
       "status": "success",
       "spans": [
         {
-          "span_id": "236c177e503f",
-          "name": "domain_routing",
-          "kind": "classification",
-          "started_at": 48454.920883875,
-          "ended_at": 48456.410544375,
+          "span_id": "e98c179c779c",
+          "name": "memory_lookup",
+          "kind": "retrieval",
+          "started_at": 64136.246209458,
+          "ended_at": 64136.246416458,
           "status": "success",
           "error": null,
           "metadata": {
-            "input_text": "Should I learn Kubernetes to help my career?",
+            "input_text": "Create a 30-day plan for me to master system design interviews.",
+            "memories_considered": [
+              {
+                "memory_id": "mem_project_1",
+                "type": "project",
+                "overlap_words": 1
+              }
+            ]
+          },
+          "children": []
+        },
+        {
+          "span_id": "4c483ea07655",
+          "name": "domain_routing",
+          "kind": "classification",
+          "started_at": 64136.2464545,
+          "ended_at": 64137.998146958,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "Create a 30-day plan for me to master system design interviews.",
             "domains": [
               "CAREER",
               "LEARNING"
             ],
+            "confidence": 0.95
+          },
+          "children": []
+        },
+        {
+          "span_id": "58902bf87371",
+          "name": "orchestrator_run",
+          "kind": "agent",
+          "started_at": 64137.998264875,
+          "ended_at": 64148.668522041,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "Create a 30-day plan for me to master system design interviews.",
+            "agent": "planner_agent",
+            "output": "Here is a concrete, sequenced 30-day plan to master system design interviews. \n\nThis plan is built on studying 15 core architectural patterns, practicing 20 canonical problems, and mastering the 4-step interview framework. It assumes a daily commitment of **2 hours on weekdays** and **4 hours on weekends** (~50 hours total).\n\n---\n\n### **Phase 1: Foundations & The Framework (Days 1\u20137)**\n*Objective: Master the core building blocks and the interview delivery framework.*\n\n#### **Milestone 1: Understand the core components and interview structure.**\n*   **Day 1: The Interview Framework**\n    *   Step 1: Memorize the 4-step interview structure: Requirements (5m) -> High-Level Design (10m) -> Deep Dive (20m) -> Wrap-up/Bottlenecks (5m).\n    *   Step 2: Read Alex Xu\u2019s *System Design Interview \u2013 An Insider's Guide* (Chapters 1-3).\n*   **Day 2: Numbers Everyone Should Know**\n    *   Step 1: Memorize latency numbers (L1 cache, RAM, SSD, network roundtrips).\n    *   Step 2: Practice back-of-the-envelope estimations (QPS, storage, bandwidth calculations for 100M DAU).\n*   **Day 3: Scalability Fundamentals (Part 1)**\n    *   Step 1: Study vertical vs. horizontal scaling, Load Balancers (Layer 4 vs. Layer 7, algorithms like Round Robin, Consistent Hashing).\n    *   Step 2: Draw a standard 3-tier web architecture from scratch.\n*   **Day 4: Scalability Fundamentals (Part 2)**\n    *   Step 1: Study Caching (strategies: cache-aside, write-through; eviction: LRU, LFU).\n    *   Step 2: Study CDNs (edge servers, push vs. pull CDNs).\n*   **Day 5: Databases & Storage**\n    *   Step 1: SQL vs. NoSQL (Key-Value, Document, Column, Graph).\n    *   Step 2: Master CAP Theorem (Consistency vs. Availability vs. Partition Tolerance) and PACELC theorem.\n*   **Day 6: Database Scaling & Replication**\n    *   Step 1: Study Master-Slave vs. Master-Master replication.\n    *   Step 2: Study Database Sharding (strategies: range-based, directory-based, hash-based) and normalization vs. denormalization.\n*   **Day 7: Asynchronous Processing & Networking**\n    *   Step 1: Study Message Queues (Kafka, RabbitMQ) and Event-Driven Architecture.\n    *   Step 2: Compare communication protocols: HTTP/REST, WebSockets, Long Polling, and gRPC.\n\n---\n\n### **Phase 2: Core Patterns & Classic Problems (Days 8\u201320)**\n*Objective: Apply foundations to solve the 12 most common system design questions.*\n\n#### **Milestone 2: Design read-heavy and write-heavy foundational systems.**\n*   **Day 8: URL Shortener (TinyURL)**\n    *   *Focus:* Hashing algorithms (Base62), database choice, collision handling, redirection (301 vs. 302).\n*   **Day 9: Pastebin / Web Crawler**\n    *   *Focus:* Distributed queues, handling duplicate URLs, politeness, storage efficiency for small text.\n*   **Day 10: News Feed System (Twitter/Facebook)**\n    *   *Focus:* Fan-out-on-write (push) vs. fan-out-on-read (pull) architectures, timeline ranking cache.\n*   **Day 11: Chat System (WhatsApp/Slack)**\n    *   *Focus:* Persistent connections (WebSockets), message synchronization across devices, offline message storage.\n*   **Day 12: Ride-Sharing Service (Uber/Lyft)**\n    *   *Focus:* Geospatial indexing (Geohash, Quadtree, H3), handling high-frequency location updates from drivers.\n*   **Day 13: Video Streaming Service (Netflix/YouTube)**\n    *   *Focus:* Video encoding/transcoding pipelines, chunking, CDN delivery, DASH/HLS protocols.\n*   **Day 14: Review & Catch-up**\n    *   *Task:* Re-design Days 8\u201313 from memory on a whiteboard or digital drawing tool (Excalidraw). Fix gaps.\n\n#### **Milestone 3: Design large-scale transactional and metrics systems.**\n*   **Day 15: Ticket Master / Flash Sale System**\n    *   *Focus:* Handling extreme traffic spikes, preventing overselling (distributed locks, database isolation levels, Redis atomic operations).\n*   **Day 16: Distributed Message Queue (Kafka architecture)**\n    *   *Focus:* Log-structured storage, zero-copy principle, consumer groups, partition offset management.\n*   **Day 17: Metrics Monitoring & Alerting System**\n    *   *Focus:* Time-series databases (InfluxDB, Prometheus), downsampling/retrieval policies, push vs. pull collection agents.\n*   **Day 18: Google Drive / Dropbox (File Storage)**\n    *   *Focus:* Block-level file chunking, deduplication, metadata management, synchronization clients, conflict resolution.\n*   **Day 19: Distributed Rate Limiter**\n    *   *Focus:* Algorithms (Token Bucket, Leaky Bucket, Fixed/Sliding Window Counter), distributed rate limiting with Redis/Lua scripts.\n*   **Day 20: Web Analytics / Click Stream Counter**\n    *   *Focus:* Log ingestion at scale, stream processing (Apache Flink/Spark), Lambda vs. Kappa architectures.\n\n---\n\n### **Phase 3: Advanced Topics & Mock Interviews (Days 21\u201327)**\n*Objective: Handle failure modes, security, and practice verbal delivery.*\n\n#### **Milestone 4: Prepare for edge cases and conduct live mock interviews.**\n*   **Day 21: Fault Tolerance & Reliability**\n    *   *Focus:* Heartbeats, failure detection, leader election (Raft/Paxos), circuit breakers, rate limiting, and graceful degradation.\n*   **Day 22: Security & API Design**\n    *   *Focus:* Authentication/Authorization (OAuth 2.0, JWT), data encryption at rest and in transit, DDoS mitigation (WAF, SYN cookies).\n*   **Day 23: Mock Interview 1 (Self-recorded)**\n    *   *Task:* Pick a random problem (e.g., Design Yelp). Record yourself speaking out loud for 45 minutes using the 4-step framework. Review the video to eliminate filler words and check pacing.\n*   **Day 24: Mock Interview 2 (Peer/Platform)**\n    *   *Task:* Do a live mock interview with a peer or via a platform (e.g., Pramp,interviewing.io). Get feedback on your communication style.\n*   **Day 25: Ambiguity Handling**\n    *   *Focus:* Practice taking a vague prompt (\"Design a search engine\") and narrowing down functional/non-functional requirements systematically.\n*   **Day 26: Mock Interview 3 (Peer/Platform)**\n    *   *Task:* Complete a second live mock focusing specifically on deep-dive bottlenecks (e.g., \"What happens if this database fails right now?\").\n*   **Day 27: Distributed Transactions**\n    *   *Focus:* Two-Phase Commit (2PC), Saga Pattern (Orchestration vs. Choreography), Eventual Consistency.\n\n---\n\n### **Phase 4: Polish & Execution (Days 28\u201330)**\n*Objective: Solidify patterns and build interview day stamina.*\n\n#### **Milestone 5: Final review and rapid prototyping.**\n*   **Day 28: Architecture Cheat-Sheet Creation**\n    *   *Task:* Create a 1-page summary sheet of components you use for *every* design (e.g., Load Balancer -> API Gateway -> Service Mesh -> Redis Cache -> Microservices -> Sharded MySQL).\n*   **Day 29: Rapid-Fire Design Review**\n    *   *Task:* Spend 15 minutes each reviewing the high-level diagrams of all 12 core problems studied in Phase 2. Focus strictly on *why* specific technologies were chosen.\n*   **Day 30: Rest & Readiness**\n    *   *Task:* Review your personal cheat sheet, ensure your environment (drawing tools, microphone, camera) is set up for remote interviews, and **do no heavy studying**. Rest.\n\n---\n\n### **Recommended Resources**\n1.  **Books:** *System Design Interview \u2013 An Insider's Guide* (Volumes 1 and 2) by Alex Xu.\n2.  **Websites:** \n    *   [ByteByteGo Blog](https://blog.bytebytego.com/)\n    *   [System Design Primer (GitHub - Donne Martin)](https://github.com/donnemartin/system-design-primer)\n3.  **Drawing Tool:** [Excalidraw](https://excalidraw.com/) (Practice using this exclusively for drawing architectures).",
+            "stop_reason": "task_completed"
+          },
+          "children": []
+        }
+      ]
+    }
+  },
+  {
+    "input_text": "What's the weather like today?",
+    "trace_json": {
+      "execution_id": "cf19de889b94404f848e49e9207e503c",
+      "session_id": "cli_trace",
+      "user_id": "demo_user",
+      "agent": "trace_request",
+      "model": "gemini-3.5-flash-lite",
+      "input_tokens": 636,
+      "output_tokens": 82,
+      "tool_calls": 0,
+      "retrieval_calls": 1,
+      "latency_ms": 4109.498458004964,
+      "cost": 0.0003958,
+      "status": "success",
+      "spans": [
+        {
+          "span_id": "7012bbbf95a1",
+          "name": "memory_lookup",
+          "kind": "retrieval",
+          "started_at": 64155.139896458,
+          "ended_at": 64155.1399935,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "What's the weather like today?",
+            "memories_considered": []
+          },
+          "children": []
+        },
+        {
+          "span_id": "af8d4adbfc00",
+          "name": "domain_routing",
+          "kind": "classification",
+          "started_at": 64155.140030375,
+          "ended_at": 64156.643130166,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "What's the weather like today?",
+            "domains": [],
             "confidence": 1.0
           },
           "children": []
         },
         {
-          "span_id": "46a6c978fe5c",
-          "name": "agent_run",
+          "span_id": "e1a1f9999b5b",
+          "name": "orchestrator_run",
           "kind": "agent",
-          "started_at": 48456.410632958,
-          "ended_at": 48459.638990291,
+          "started_at": 64156.643186208,
+          "ended_at": 64159.226245333,
           "status": "success",
           "error": null,
           "metadata": {
-            "input_text": "Should I learn Kubernetes to help my career?",
-            "output": "Yes, learning Kubernetes is generally a very strong move for your career if you are in software engineering, DevOps, cloud architecture, or Site Reliability Engineering (SRE). \n\nHere is a breakdown of why it's worth it, along with a few considerations:\n\n### Why Learn Kubernetes?\n1. **Industry Standard:** It is the de facto standard for container orchestration. Most mid-to-large tech companies and enterprises use it to manage their applications.\n2. **High Demand & Compensation:** DevOps and backend engineering roles that list Kubernetes (K8s) as a requirement often command higher salaries due to the complexity and specialization required.\n3. **Portability:** Kubernetes abstracts underlying cloud providers (AWS, GCP, Azure, on-premise), making skills transferable across different tech stacks.\n4. **Scalability & Reliability:** Understanding K8s teaches you modern architectural patterns for resilience, scaling, and microservices.\n\n### When Might You Skip or Delay It?\n* **Beginners:** If you are brand new to programming, Linux, and Docker, you should master those fundamentals first. Trying to learn Kubernetes without understanding containers (Docker) and basic networking/Linux is overwhelming.\n* **Small Startups / Monoliths:** If you work exclusively with small teams building traditional monolithic apps hosted on fully managed platforms (like Heroku, Vercel, or AWS App Runner), Kubernetes might be complete overkill.\n\n### Recommendation\nIf you want to future-proof your career in infrastructure, cloud, or backend development, learning Kubernetes is a great investment of your time. Start by getting comfortable with **Docker and containers**, then move on to the basics of Kubernetes (Pods, Deployments, Services) and certifications like the **CKA (Certified Kubernetes Administrator)** or **CKAD (Certified Kubernetes Application Developer)**.",
+            "input_text": "What's the weather like today?",
+            "agent": "research_agent",
+            "output": "I do not have access to real-time weather information, as I lack a tool to check current weather conditions. Please check a weather website or app for today's forecast.",
             "stop_reason": "task_completed"
           },
           "children": []
