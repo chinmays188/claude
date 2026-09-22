@@ -303,11 +303,36 @@ def render_architecture(stores: dict) -> None:
         "them independently, rather than picking one silently."
     )
 
+    # NOTE: two failed approaches were actually tested live in a real
+    # browser (via agent-browser, checking the .mermaid div's
+    # data-processed attribute -- not assumed) before this one worked:
+    #   1. mermaid.initialize({startOnLoad: true}) alone -- the CDN
+    #      <script src> loads asynchronously, so startOnLoad's DOM scan
+    #      can run before the library/div is ready. data-processed stayed
+    #      null.
+    #   2. An inline onload="..." attribute on the <script src> tag --
+    #      st.html's DOMPurify sanitization strips inline event-handler
+    #      attributes even with unsafe_allow_javascript=True (confirmed:
+    #      getAttribute('onload') came back null after render). Only
+    #      <script> tag bodies survive, not inline handler attributes.
+    # Fix: a separate inline <script> tag that polls for window.mermaid to
+    # exist, then calls mermaid.run() explicitly. Verified: data-processed
+    # became "true" on the div after this.
+    diagram_id = "architecture-mermaid-diagram"
     st.html(
         f"""
-        <div class="mermaid">{ARCHITECTURE_DIAGRAM}</div>
+        <div id="{diagram_id}" class="mermaid">{ARCHITECTURE_DIAGRAM}</div>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
-        <script>mermaid.initialize({{ startOnLoad: true, theme: 'neutral' }});</script>
+        <script>
+        (function poll() {{
+            if (window.mermaid) {{
+                mermaid.initialize({{ startOnLoad: false, theme: 'neutral' }});
+                mermaid.run({{ nodes: [document.getElementById('{diagram_id}')] }});
+            }} else {{
+                setTimeout(poll, 50);
+            }}
+        }})();
+        </script>
         """,
         unsafe_allow_javascript=True,
     )
