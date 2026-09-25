@@ -182,6 +182,65 @@ code paths (`Orchestrator` params, `naive_relevance.py`,
 `trace_request.py`'s dual-router run, `--index-file`) were run live against
 the real Gemini API at least once. 702 tests passing (was 693).
 
+## Example 7 — Combining the two disconnected routers into one
+
+The user's feedback on the Architecture page: "We can't have 2 routers,
+there has to be one router with a combination of both existing routers."
+Design decision confirmed with the user first: domain (career/pm/finance/
+learning) and task-type (research/analysis/planning) are different axes,
+not redundant labels, so the combined router classifies both as two stages
+rather than collapsing them into one combinatorial label set. Scope was
+also confirmed explicitly: the combined router only routes to the existing
+3 generic agents (now domain-aware), NOT directly to domain workflows like
+`analyze_jd`/`draft_prd`/`analyze_portfolio` — those need specific typed
+inputs (a `Portfolio` object, extracted JD text) that a plain chat message
+doesn't provide, and remain invoked separately with real structured inputs.
+
+- New `app/routing/unified_router.py` (`UnifiedRouter`): wraps the existing,
+  already-tested `DomainRouter` and `TaskClassifier` internally (2 real LLM
+  calls, same as running both separately did before — no attempt to fuse
+  them into one call, which would mean rewriting and re-validating both
+  prompts at once) and returns one `UnifiedClassification` with both a
+  domain (or `None` for GENERAL — a first-class outcome, not an error) and
+  a task-type.
+- `app/agents/orchestrator.py`: `Orchestrator` now uses `UnifiedRouter`
+  internally instead of `TaskClassifier` directly, and injects the
+  classified domain into the dispatched agent's prompt as literal context
+  text (e.g. `"[Context: this request has been classified under the CAREER
+  domain.]"`) rather than changing `Agent`/`ToolAgent`'s `run()` signature,
+  which would have touched every agent and every existing test. `handle()`'s
+  signature and return type are unchanged, so `app/main.py` and
+  `app/api/voice_api.py` needed ZERO code changes — confirmed by actually
+  running `python -m app.main "Should I learn Kubernetes for my career?"`
+  and seeing the real injected domain context and a visibly domain-aware
+  answer ("As an analyst agent... career development...").
+- Also added an optional `on_classified` observer hook on `Orchestrator`
+  (mirroring the existing `on_tool_call` pattern) so a caller like
+  `scripts/trace_request.py` can observe the router's real decision without
+  `handle()`'s return type changing for every other caller.
+- `scripts/trace_request.py` simplified from running two routers side by
+  side to running the one combined router via `Orchestrator`, reusing the
+  same classification for the `--with-eval` golden-case lookup (no longer a
+  second, wasted LLM call).
+- The Architecture diagram and the dashboard's warning banner were updated
+  to show one `UnifiedRouter` (two internal stages) instead of "two
+  disconnected routers," and the 5 committed example traces were
+  regenerated against the new single-router trace format.
+
+Verified: all 3 agents (`research_agent`/`analyst_agent`/`planner_agent`)
+were confirmed reachable via the 5 regenerated example traces (a dedicated
+test asserts all three appear); the domain-context injection was verified
+with a dedicated test asserting the classified domain literally appears in
+the prompt text the agent receives, and a second test asserting no context
+is injected for GENERAL (no domain) so as not to add noise to unrelated
+requests; a routing failure (`UnifiedRoutingError`) was verified to degrade
+to a `ClarificationNeeded` response rather than propagate as an unhandled
+exception into `app/main.py`/`voice_api.py`. Every existing test file that
+scripted `Orchestrator`'s LLM call sequence (`test_orchestrator.py`,
+`test_golden.py`, `test_voice_session.py`, `test_voice_api.py`) was updated
+to account for the router now making 2 classification calls instead of 1.
+713 tests passing (was 702).
+
 ## Non-goals for this MVP
 
 - No interactivity beyond viewing — no in-UI action approval, no

@@ -1,6 +1,6 @@
-"""Fully instrumented trace CLI: run a real request through BOTH of this
-codebase's real, independent routers, using the live Gemini API, and print
-every stage in detail -- routing decisions, tool-call input/output,
+"""Fully instrumented trace CLI: run a real request through the ONE real
+router (UnifiedRouter, via Orchestrator), using the live Gemini API, and
+print every stage in detail -- routing decision, tool-call input/output,
 memory considered, retrieval, cost, and a trace_id tying it all together.
 
 Not part of the dashboard on purpose (see specs/dashboard_ui.md's non-goals
@@ -8,28 +8,25 @@ Not part of the dashboard on purpose (see specs/dashboard_ui.md's non-goals
 place to answer "how does the router route, what tool gets called, what's
 the input/output, what did it cost" for a real, live query.
 
-IMPORTANT, found while building this: there are TWO separate, disconnected
-routers in this codebase, not one:
-  1. DomainRouter (app/domains/router.py): classifies into
-     CAREER/PM/FINANCE/LEARNING/UNCLEAR. Used by nothing except this script
-     and tests -- no other production entry point calls it.
-  2. TaskClassifier + Orchestrator (app/routing/classifier.py,
-     app/agents/orchestrator.py): classifies into
-     RESEARCH/ANALYSIS/PLANNING/UNCLEAR and dispatches to ResearchAgent /
-     AnalystAgent / PlannerAgent. This is what app/main.py and
-     app/api/voice_api.py actually use.
-Neither router calls the other, and nothing combines their outputs. This
-script runs the request through BOTH, independently, so you can see both
-real classifications side by side rather than only one being silently
-picked.
+HISTORY: this script used to run TWO separate, disconnected routers
+(DomainRouter and TaskClassifier+Orchestrator) side by side, because that's
+what the codebase actually had -- confirmed by reading the code, not
+assumed. The user asked for one combined router instead of two. That's now
+app/routing/unified_router.py's UnifiedRouter: classifies domain
+(CAREER/PM/FINANCE/LEARNING/GENERAL) and task-type
+(RESEARCH/ANALYSIS/PLANNING/UNCLEAR) as two stages of ONE router, and
+Orchestrator uses it internally, injecting the classified domain as context
+into whichever agent (ResearchAgent/AnalystAgent/PlannerAgent) it dispatches
+to. app/main.py and app/api/voice_api.py already use Orchestrator, so this
+fix reached production, not just this script.
 
 What this DOES show (all real, all live):
   - trace_id: TraceRecorder's own execution_id for this run
-  - BOTH router decisions (domain classification AND task-type
-    classification), independently, since they're genuinely separate paths
-  - Tool-agent decision loop (whichever path actually runs an agent): every
-    real tool call's name, args, and result (via on_tool_call observer
-    hooks on ToolAgent/ResearchAgent/Orchestrator)
+  - The single router's decision: domain (or GENERAL) + task-type, both
+    classified by UnifiedRouter
+  - Tool-agent decision loop: every real tool call's name, args, and result
+    (via Orchestrator's on_tool_call observer hook, forwarded to
+    ResearchAgent)
   - Real token counts + real $ cost (via CostTracker, using the per-1K rates
     the user provided for gemini-3.5-flash-lite: $0.00030 input / $0.00250
     output)
@@ -41,8 +38,8 @@ What this DOES show (all real, all live):
 What this explicitly does NOT show, because it doesn't exist in this
 codebase (checked by reading the actual code, not assumed):
   - Task complexity classification: no such classifier exists anywhere in
-    app/. TaskClassifier only classifies RESEARCH/ANALYSIS/PLANNING/UNCLEAR,
-    never a complexity tier (easy/medium/hard).
+    app/. UnifiedRouter classifies domain/task-type only, never a
+    complexity tier (easy/medium/hard).
   - Retrieval recall/precision: app/evaluation/retrieval_eval.py's
     evaluate_retrieval() requires a human-labeled ground truth
     (relevant_chunk_ids) per query. No such labels exist for an ad hoc live
@@ -59,13 +56,12 @@ Usage:
 """
 
 import argparse
-import sys
 from datetime import datetime, timezone
 
 from app.agents.orchestrator import ClarificationNeeded, Orchestrator
 from app.config import require_gemini_key
 from app.db.connection import get_connection
-from app.domains.router import Domain, DomainRouter, DomainRoutingError
+from app.domains.router import Domain
 from app.evaluation.domain_golden import load_domain_cases
 from app.memory.naive_relevance import find_relevant_memories
 from app.memory.persistent_store import PersistentMemoryStore
@@ -162,28 +158,8 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
         print("No stored memory shared keywords with this request (or none seeded/matching).")
     conn.close()
 
-    # ---- Router 1: DomainRouter (career/pm/finance/learning) ----
-    _print_header("1a. ROUTER: DomainRouter (domain classification)")
-    domain_router = DomainRouter(llm)
-    try:
-        with recorder.span("domain_routing", kind="classification", input_text=text) as span:
-            domain_classification = domain_router.route(text)
-            span.metadata["domains"] = [d.value for d in domain_classification.domains]
-            span.metadata["confidence"] = domain_classification.confidence
-        print(f"Domain(s):    {[d.value for d in domain_classification.domains] or 'UNCLEAR'}")
-        print(f"Confidence:   {domain_classification.confidence:.2f}")
-        print(f"Cross-domain: {domain_classification.is_cross_domain}")
-    except DomainRoutingError as exc:
-        domain_classification = None
-        print(f"DomainRouter FAILED: {exc}")
-
-    # ---- Router 2: TaskClassifier + Orchestrator (research/analysis/planning) ----
-    _print_header("1b. ROUTER: TaskClassifier + Orchestrator (task-type classification)")
-    print(
-        "NOTE: this is a SEPARATE, independent router from DomainRouter above "
-        "-- neither calls the other. app/main.py and app/api/voice_api.py use "
-        "THIS one; nothing in production uses DomainRouter."
-    )
+    # ---- The one router (UnifiedRouter, via Orchestrator) + agent dispatch ----
+    _print_header("1. ROUTING + AGENT (UnifiedRouter -> Orchestrator)")
 
     retrieval_store = _build_retrieval_store(index_file)
     if index_file:
@@ -192,6 +168,7 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
         print("No --index-file given -- ResearchAgent's 'retrieve' tool is not available this run.")
 
     tool_call_log = []
+    classification_holder = {}
 
     def _on_tool_call(name: str, args: dict, result: str) -> None:
         tool_call_log.append({"name": name, "args": args, "result": result})
@@ -201,19 +178,33 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
         with recorder.span(f"tool:{name}", kind="tool", args=args, result=result):
             pass
 
-    orchestrator = Orchestrator(llm, retrieval_store=retrieval_store, on_tool_call=_on_tool_call)
+    def _on_classified(classification) -> None:
+        classification_holder["value"] = classification
+        with recorder.span("unified_routing", kind="classification", input_text=text) as span:
+            span.metadata["domain"] = classification.domain.value if classification.domain else "GENERAL"
+            span.metadata["all_domains"] = [d.value for d in classification.all_domains]
+            span.metadata["domain_confidence"] = classification.domain_confidence
+            span.metadata["task_type"] = classification.task_type.value
+            span.metadata["task_confidence"] = classification.task_confidence
+        print(f"Domain:        {classification.domain.value if classification.domain else 'GENERAL'} "
+              f"(confidence {classification.domain_confidence:.2f})")
+        if classification.is_cross_domain:
+            print(f"Cross-domain:  {[d.value for d in classification.all_domains]}")
+        print(f"Task type:     {classification.task_type.value} (confidence {classification.task_confidence:.2f})")
+
+    orchestrator = Orchestrator(
+        llm, retrieval_store=retrieval_store, on_tool_call=_on_tool_call, on_classified=_on_classified,
+    )
 
     with recorder.span("orchestrator_run", kind="agent", input_text=text) as orch_span:
         result = orchestrator.handle(text)
         if isinstance(result, ClarificationNeeded):
-            orch_span.metadata["task_type"] = "UNCLEAR"
-            print("Task type:    UNCLEAR (below confidence threshold)")
-            print(f"Clarification: {result.message}")
+            print(f"\nClarification: {result.message}")
         else:
             orch_span.metadata["agent"] = result.agent
             orch_span.metadata["output"] = result.output
             orch_span.metadata["stop_reason"] = result.stop_reason
-            print(f"Routed to:    {result.agent}")
+            print(f"\nRouted to:    {result.agent}")
             print(f"Tool calls:   {result.tool_calls or '(none)'}")
             print(f"Stop reason:  {result.stop_reason}")
             print(f"\n--- Orchestrator output ---\n{result.output}")
@@ -224,8 +215,8 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
     print(
         "\nTask complexity classification: NOT AVAILABLE -- no complexity "
         "classifier exists anywhere in this codebase (checked app/domains/, "
-        "app/agents/, app/routing/, app/evaluation/). Both routers above "
-        "classify domain/task-type only, never a complexity tier."
+        "app/agents/, app/routing/, app/evaluation/). UnifiedRouter "
+        "classifies domain/task-type only, never a complexity tier."
     )
 
     # ---- Retrieval evaluation ----
@@ -253,7 +244,7 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
         )
     journey = cost_tracker.journey
     print(f"Real LLM calls made this run: {len(llm.usage_log)}  "
-          "(DomainRouter classification + TaskClassifier classification + Orchestrator's agent turns)")
+          "(UnifiedRouter's 2 classification calls + Orchestrator's agent turn(s))")
     for entry in journey.entries:
         print(f"  {entry.component}: input={entry.input_tokens}, output={entry.output_tokens}, cost=${entry.cost:.6f}")
     print(f"\nTotal tokens: input={sum(u.input_tokens for u in llm.usage_log)}, "
@@ -265,8 +256,9 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
     recorder.trace.output_tokens = sum(u.output_tokens for u in llm.usage_log)
     recorder.trace.cost = journey.total
 
-    if with_eval and domain_classification and not domain_classification.is_unclear:
-        for domain in domain_classification.domains:
+    if with_eval and classification_holder.get("value") and classification_holder["value"].domain is not None:
+        eval_classification = classification_holder["value"]
+        for domain in eval_classification.all_domains:
             eval_dir = DOMAIN_EVAL_DIR.get(domain)
             if not eval_dir:
                 continue
@@ -302,7 +294,7 @@ def main() -> None:
     parser.add_argument("text", help="The request to route and run, in quotes.")
     parser.add_argument(
         "--with-eval", action="store_true",
-        help="Also print the DomainRouter-routed domain's golden-case counts (no extra live LLM calls).",
+        help="Also print the routed domain's golden-case counts (no extra live LLM call -- reuses the router's own classification).",
     )
     parser.add_argument(
         "--index-file", default=None,

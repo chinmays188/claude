@@ -20,6 +20,7 @@ class ScriptedProvider(LLMProvider):
 def test_handle_transcript_returns_agent_response_text():
     llm = ScriptedProvider(
         [
+            '{"domains": [], "confidence": 0.9}',
             '{"task_type": "research", "confidence": 0.9}',
             '{"action": "final_answer", "answer": "RAG combines retrieval with generation."}',
         ]
@@ -35,6 +36,7 @@ def test_handle_transcript_returns_agent_response_text():
 def test_handle_transcript_records_turn_in_history():
     llm = ScriptedProvider(
         [
+            '{"domains": [], "confidence": 0.9}',
             '{"task_type": "research", "confidence": 0.9}',
             '{"action": "final_answer", "answer": "answer"}',
         ]
@@ -49,6 +51,7 @@ def test_handle_transcript_records_turn_in_history():
 def test_handle_transcript_measures_latency():
     llm = ScriptedProvider(
         [
+            '{"domains": [], "confidence": 0.9}',
             '{"task_type": "research", "confidence": 0.9}',
             '{"action": "final_answer", "answer": "answer"}',
         ]
@@ -71,7 +74,7 @@ def test_empty_transcript_raises():
 
 
 def test_ambiguous_transcript_returns_clarification_message():
-    llm = ScriptedProvider(['{"task_type": "unclear", "confidence": 0.9}'])
+    llm = ScriptedProvider(['{"domains": [], "confidence": 0.9}', '{"task_type": "unclear", "confidence": 0.9}'])
     session = VoiceSession(Orchestrator(llm))
 
     turn = session.handle_transcript("Do something useful.")

@@ -4,39 +4,44 @@ dashboard's Architecture page.
 Every box/edge here traces to real code, verified by reading it directly
 (not inferred from names or specs) while answering the user's specific
 questions about routing, tools, retrieval, memory, goals, and Chief of
-Staff. Two things drawn here are real gaps/simplifications, not modeling
-choices, and are labeled as such directly in the diagram:
+Staff.
 
-1. DomainRouter and TaskClassifier+Orchestrator are two SEPARATE,
-   independent entry points -- neither calls the other, nothing combines
-   their outputs. app/main.py and app/api/voice_api.py use Orchestrator;
-   nothing in production uses DomainRouter (only scripts/trace_request.py
-   and tests do).
-2. Chief of Staff's "listening" is a pull-based batch pipeline
-   (ChiefOfStaffOrchestrator.process(events)) -- it processes a list of
-   events handed to it by a caller, not an always-on background
-   poller/scheduler (confirmed: no such scheduler exists in this codebase).
+HISTORY: this diagram originally showed two SEPARATE, disconnected routers
+(DomainRouter and TaskClassifier+Orchestrator) -- a real architectural gap
+found while building this page. The user asked for one combined router
+instead. That's now app/routing/unified_router.py's UnifiedRouter, used
+internally by Orchestrator: it classifies domain (CAREER/PM/FINANCE/
+LEARNING/GENERAL) and task-type (RESEARCH/ANALYSIS/PLANNING/UNCLEAR) as two
+stages of one router, then Orchestrator injects the classified domain into
+the dispatched agent's prompt as context. This diagram reflects that fix.
+
+One thing drawn here is still a real gap/simplification, not a modeling
+choice, and is labeled as such directly in the diagram: Chief of Staff's
+"listening" is a pull-based batch pipeline
+(ChiefOfStaffOrchestrator.process(events)) -- it processes a list of events
+handed to it by a caller, not an always-on background poller/scheduler
+(confirmed: no such scheduler exists in this codebase).
 """
 
 ARCHITECTURE_DIAGRAM = r"""
 flowchart TB
     USER["User request\n(CLI / voice / dashboard trace)"]
 
-    subgraph ROUTERS["⚠️ Two SEPARATE, disconnected routers -- neither calls the other"]
+    subgraph UNIFIED["UnifiedRouter -- ONE router, two classification stages"]
         direction LR
-        DR["DomainRouter\nCAREER / PM / FINANCE / LEARNING / UNCLEAR\n(used by: scripts/trace_request.py, tests only)"]
-        TC["TaskClassifier\nRESEARCH / ANALYSIS / PLANNING / UNCLEAR\n(used by: app/main.py, app/api/voice_api.py)"]
+        DR["Stage 1: domain\nCAREER / PM / FINANCE / LEARNING / GENERAL\n(reuses DomainRouter's prompt/logic)"]
+        TC["Stage 2: task-type\nRESEARCH / ANALYSIS / PLANNING / UNCLEAR\n(reuses TaskClassifier's prompt/logic)"]
+        DR --> TC
     end
 
     USER --> DR
-    USER --> TC
 
-    TC --> ORCH["Orchestrator"]
+    TC --> ORCH["Orchestrator\ninjects classified domain as\ncontext into the dispatched agent"]
     ORCH -->|RESEARCH| RA["ResearchAgent\n(ToolAgent)"]
-    ORCH -->|ANALYSIS| AA["AnalystAgent\n(single-shot)"]
-    ORCH -->|PLANNING| PA["PlannerAgent\n(single-shot)"]
+    ORCH -->|ANALYSIS| AA["AnalystAgent\n(single-shot, domain-aware)"]
+    ORCH -->|PLANNING| PA["PlannerAgent\n(single-shot, domain-aware)"]
 
-    DR -.->|"domain label only --\nnot wired to any agent\nin production"| DOMAINDATA["app/domains/{career,pm,finance,learning}/*\nJD analysis, resume optimization,\nstakeholder requests, PRDs, etc."]
+    ORCH -.->|"domain label only --\nnot wired to any\ndomain workflow below"| DOMAINDATA["app/domains/{career,pm,finance,learning}/*\nJD analysis, resume optimization,\nstakeholder requests, PRDs, etc.\n(need typed inputs a chat message\ndoesn't provide -- invoked separately)"]
 
     RA --> TOOLS
 
@@ -75,7 +80,6 @@ flowchart TB
 
     TRACESTORE["TraceStore (SQLite)\ntrace_id = execution_id"]
     RA -.->|"trace_request.py records\nevery span here"| TRACESTORE
-    DR -.-> TRACESTORE
     ORCH -.-> TRACESTORE
     NAIVEREL -.-> TRACESTORE
 """

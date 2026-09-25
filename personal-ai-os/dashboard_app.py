@@ -294,13 +294,15 @@ def render_architecture(stores: dict) -> None:
         "See specs/dashboard_ui.md for how each fact was checked."
     )
 
-    st.warning(
-        "⚠️ Two real, separate routers exist and neither calls the other: "
-        "**DomainRouter** (career/pm/finance/learning) and **TaskClassifier + "
-        "Orchestrator** (research/analysis/planning). Production code "
-        "(`app/main.py`, `app/api/voice_api.py`) uses only the second one. "
-        "`scripts/trace_request.py` runs a request through BOTH so you can see "
-        "them independently, rather than picking one silently."
+    st.success(
+        "✅ **One combined router.** This used to be two separate, disconnected "
+        "routers (DomainRouter and TaskClassifier+Orchestrator) — a real gap "
+        "found while building this page, fixed after the user asked for a "
+        "single router. `UnifiedRouter` now classifies domain "
+        "(career/pm/finance/learning/general) and task-type "
+        "(research/analysis/planning) as two stages of one router, and "
+        "`Orchestrator` injects the classified domain into whichever agent "
+        "(Research/Analyst/Planner) it dispatches to as context."
     )
 
     # NOTE: two failed approaches were actually tested live in a real

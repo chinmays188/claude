@@ -48,11 +48,20 @@ def test_seed_example_traces_includes_a_real_tool_call():
     assert any(t.tool_calls > 0 for t in traces)
 
 
-def test_seed_example_traces_includes_a_domain_router_unclear_example():
-    """At least one example must show DomainRouter classifying UNCLEAR
-    (empty domains) -- a real, distinct behavior worth demonstrating,
-    even though the separate TaskClassifier+Orchestrator path may still
-    route the same input somewhere (the two routers are independent)."""
+def _find_span(spans, name):
+    for span in spans:
+        if span.name == name:
+            return span
+        found = _find_span(span.children, name)
+        if found:
+            return found
+    return None
+
+
+def test_seed_example_traces_includes_a_general_domain_example():
+    """At least one example must show UnifiedRouter classifying GENERAL
+    (no Phase 3 domain fits) -- a real, distinct, first-class outcome worth
+    demonstrating, not an error case."""
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     store = TraceStore(conn)
@@ -61,13 +70,31 @@ def test_seed_example_traces_includes_a_domain_router_unclear_example():
     summaries = store.list_summaries()
     traces = [store.get(s["execution_id"]) for s in summaries]
 
-    def _has_unclear_domain_routing(trace):
-        for span in trace.spans:
-            if span.name == "domain_routing" and span.metadata.get("domains") == []:
-                return True
-        return False
+    def _has_general_domain(trace):
+        span = _find_span(trace.spans, "unified_routing")
+        return span is not None and span.metadata.get("domain") == "GENERAL"
 
-    assert any(_has_unclear_domain_routing(t) for t in traces)
+    assert any(_has_general_domain(t) for t in traces)
+
+
+def test_seed_example_traces_includes_all_three_task_types():
+    """The 5 examples should collectively exercise research, analysis, and
+    planning -- all 3 agents UnifiedRouter/Orchestrator can dispatch to."""
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    store = TraceStore(conn)
+    seed_example_traces(store)
+
+    summaries = store.list_summaries()
+    traces = [store.get(s["execution_id"]) for s in summaries]
+
+    agents_seen = set()
+    for t in traces:
+        run_span = _find_span(t.spans, "orchestrator_run")
+        if run_span and run_span.metadata.get("agent"):
+            agents_seen.add(run_span.metadata["agent"])
+
+    assert agents_seen == {"research_agent", "analyst_agent", "planner_agent"}
 
 
 def test_seed_example_traces_includes_memory_lookup_span():

@@ -18,6 +18,7 @@ class ScriptedProvider(LLMProvider):
 def test_passing_case_research_agent():
     llm = ScriptedProvider(
         [
+            '{"domains": [], "confidence": 0.9}',
             '{"task_type": "research", "confidence": 0.9}',
             '{"action": "final_answer", "answer": "RAG combines retrieval with generation."}',
         ]
@@ -32,7 +33,7 @@ def test_passing_case_research_agent():
 
 
 def test_failing_case_wrong_agent():
-    llm = ScriptedProvider(['{"task_type": "planning", "confidence": 0.9}', "a plan"])
+    llm = ScriptedProvider(['{"domains": [], "confidence": 0.9}', '{"task_type": "planning", "confidence": 0.9}', "a plan"])
     orchestrator = Orchestrator(llm)
     case = GoldenCase(id="r1", input="Explain RAG.", expected_agent="research_agent")
 
@@ -43,7 +44,7 @@ def test_failing_case_wrong_agent():
 
 
 def test_expects_clarification_and_gets_it():
-    llm = ScriptedProvider(['{"task_type": "unclear", "confidence": 0.9}'])
+    llm = ScriptedProvider(['{"domains": [], "confidence": 0.9}', '{"task_type": "unclear", "confidence": 0.9}'])
     orchestrator = Orchestrator(llm)
     case = GoldenCase(id="amb1", input="Do something useful.", expected_agent=None)
 
@@ -55,6 +56,7 @@ def test_expects_clarification_and_gets_it():
 def test_expects_clarification_but_gets_an_agent():
     llm = ScriptedProvider(
         [
+            '{"domains": [], "confidence": 0.9}',
             '{"task_type": "research", "confidence": 0.9}',
             '{"action": "final_answer", "answer": "some answer"}',
         ]
@@ -70,6 +72,7 @@ def test_expects_clarification_but_gets_an_agent():
 def test_missing_expected_tool_fails():
     llm = ScriptedProvider(
         [
+            '{"domains": [], "confidence": 0.9}',
             '{"task_type": "research", "confidence": 0.9}',
             '{"action": "final_answer", "answer": "564"}',
         ]
@@ -86,8 +89,10 @@ def test_missing_expected_tool_fails():
 def test_pass_rate_computation():
     llm = ScriptedProvider(
         [
+            '{"domains": [], "confidence": 0.9}',
             '{"task_type": "research", "confidence": 0.9}',
             '{"action": "final_answer", "answer": "answer"}',
+            '{"domains": [], "confidence": 0.9}',
             '{"task_type": "planning", "confidence": 0.9}',
             '{"action": "final_answer", "answer": "answer"}',
         ]

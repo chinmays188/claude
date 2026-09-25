@@ -28,6 +28,7 @@ def _client_with_scripted_responses(responses: list[str]) -> TestClient:
 def test_voice_turn_returns_response_text():
     client = _client_with_scripted_responses(
         [
+            '{"domains": [], "confidence": 0.9}',
             '{"task_type": "research", "confidence": 0.9}',
             '{"action": "final_answer", "answer": "RAG combines retrieval with generation."}',
         ]
@@ -45,6 +46,7 @@ def test_voice_turn_returns_response_text():
 def test_voice_turn_reuses_session_id_across_requests():
     client = _client_with_scripted_responses(
         [
+            '{"domains": [], "confidence": 0.9}',
             '{"task_type": "research", "confidence": 0.9}',
             '{"action": "final_answer", "answer": "first answer"}',
         ]
