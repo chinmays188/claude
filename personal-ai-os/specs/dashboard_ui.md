@@ -318,3 +318,48 @@ bridge tools, 2 for the tool-example generator. 726 tests passing (was
   every page load — doing so would mean a live Gemini API call (and cost)
   every time the dashboard renders, which isn't the right tradeoff for a
   page that's refreshed frequently during a demo.
+
+## Example 9 — GoalStore holds the user's real learning goals, not fabricated data
+
+"Goal store needs to be updated - ask me all the inputs." The user described
+this project as a learning vehicle for an AI PM career, giving a detailed
+15-capability learning map (LLM Fundamentals through AI Product Strategy).
+Clarified with the user directly rather than assumed: this capability map
+is REAL personal content, distinct from a second, not-yet-specified set of
+real personal domain goals (Career/PM/Finance/Learning life goals) the user
+also mentioned but deferred to a later step.
+
+- New `app/dashboard_ui/user_learning_goals.py`: kept deliberately separate
+  from `scripts/seed_demo_data.py` (whose docstring says everything in it
+  is fabricated demo data) for the same reason `example_traces.py` is kept
+  separate from `demo_workflow_outputs.py` — real content should never be
+  silently mixed into a file that says it's all fake. Seeds all 15
+  capabilities as real `Goal` records (`domain=LEARNING`), with
+  `success_criteria` drawn verbatim from the user's own bullet points, and
+  the user's explicitly chosen defaults: `priority=0.5`, `progress=0.0`, no
+  deadline — to be updated later as their actual learning progresses, not
+  invented here.
+- The 4 previously-seeded fabricated demo goals (one per domain — a fake
+  career goal, a fake Kubernetes goal, a fake PM goal, a fake finance goal)
+  were removed per the user's explicit choice ("Remove them — replace with
+  the 15 learning goals only for now"), confirmed as an acceptable
+  side-effect that the Career OS/Finance OS dashboard pages now show 0
+  goals (honestly reflecting no real goals yet there) while Learning OS
+  jumps to 15.
+- `scripts/seed_demo_data.py`'s `seed_all()` now calls
+  `seed_learning_capability_goals()` instead of the removed `seed_goals()`.
+
+Verified: seeded and confirmed live (both via direct `GoalStore` query and
+in a real browser via `agent-browser`) that all 15 goals appear correctly
+on the Architecture page's live goal count and the Learning OS page's
+"Active learning goals" metric (now 15); confirmed Career OS/Finance OS
+show 0 goals as expected. 5 new tests (exact count, all LEARNING domain,
+idempotent re-seeding, every goal has success criteria, defaults match the
+user's explicit choices). 731 tests passing (was 726).
+
+## Deferred
+
+- Real personal domain goals (Career/PM/Finance/Learning life goals,
+  distinct from the capability-tracking list above) — the user mentioned
+  wanting these tracked too, but specifics weren't given; a separate,
+  later step once the user provides them.

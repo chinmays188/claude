@@ -20,10 +20,9 @@ from datetime import date, datetime, timedelta, timezone
 from app.actions.audit_log import AuditLog
 from app.actions.models import ActionClass, ActionProposal, ApprovalStatus, AuditRecord, RiskLevel
 from app.dashboard_ui.example_traces import seed_example_traces
+from app.dashboard_ui.user_learning_goals import seed_learning_capability_goals
 from app.db.connection import get_connection
 from app.domains.cross_domain.goal_store import GoalStore
-from app.domains.cross_domain.models import Goal, GoalStatus
-from app.domains.router import Domain
 from app.graph.models import Decision, GraphNode, NodeType
 from app.graph.store import GraphStore
 from app.memory.models import MemoryRecord, MemoryType
@@ -58,29 +57,15 @@ def seed_memories(store: PersistentMemoryStore) -> None:
         )
 
 
-def seed_goals(store: GoalStore) -> list[Goal]:
-    goals = [
-        Goal(
-            goal_id="goal_career_1", owner_id=USER_ID, title="Land an AI PM role", domain=Domain.CAREER,
-            priority=0.9, deadline=TODAY + timedelta(days=60), status=GoalStatus.IN_PROGRESS, progress=0.45,
-            success_criteria=["Resume updated with AI project work", "3+ interviews completed"],
-        ),
-        Goal(
-            goal_id="goal_learning_1", owner_id=USER_ID, title="Master Kubernetes", domain=Domain.LEARNING,
-            priority=0.7, deadline=TODAY + timedelta(days=30), status=GoalStatus.IN_PROGRESS, progress=0.6,
-        ),
-        Goal(
-            goal_id="goal_pm_1", owner_id=USER_ID, title="Ship refund automation feature", domain=Domain.PM,
-            priority=0.8, deadline=TODAY + timedelta(days=14), status=GoalStatus.IN_PROGRESS, progress=0.3,
-        ),
-        Goal(
-            goal_id="goal_finance_1", owner_id=USER_ID, title="Build 6-month emergency fund", domain=Domain.FINANCE,
-            priority=0.6, deadline=TODAY + timedelta(days=180), status=GoalStatus.IN_PROGRESS, progress=0.5,
-        ),
-    ]
-    for goal in goals:
-        store.create(goal)
-    return goals
+# The 4 fabricated demo goals that used to live here (one per domain: a
+# fake career goal, a fake Kubernetes goal, a fake PM goal, a fake finance
+# goal) were removed per the user's explicit choice, replaced by their real
+# personal learning goals -- see app/dashboard_ui/user_learning_goals.py's
+# seed_learning_capability_goals(), kept in its own module since that
+# content is real, not fabricated demo data like the rest of this file.
+# Real personal domain goals (Career/PM/Finance/Learning, distinct from
+# that capability-tracking list) were discussed but not yet specified --
+# a separate, later step.
 
 
 def seed_graph(store: GraphStore) -> None:
@@ -184,7 +169,7 @@ def seed_all(conn) -> None:
     manual step to run this script before the app starts).
     """
     seed_memories(PersistentMemoryStore(conn))
-    seed_goals(GoalStore(conn))
+    seed_learning_capability_goals(GoalStore(conn))
     seed_graph(GraphStore(conn))
     seed_tasks(TaskStore(conn))
     seed_audit_log(AuditLog(conn))
