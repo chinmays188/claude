@@ -42,13 +42,42 @@ def test_every_goal_has_success_criteria():
     assert all(len(g.success_criteria) > 0 for g in goals)
 
 
-def test_goals_start_at_zero_progress_per_user_choice():
-    """User explicitly chose defaults: progress=0.0, priority=0.5, no
-    deadline -- to be updated later as their real learning progresses."""
+def test_goals_use_priority_0_5_and_no_deadline_per_user_choice():
+    """User's explicit choice for these two fields: priority=0.5, no
+    deadline. Progress, unlike these two, is a real code-coverage-proxy
+    assessment (see module docstring), not a fixed default -- verified
+    separately below."""
     store = _store()
 
     goals = seed_learning_capability_goals(store)
 
-    assert all(g.progress == 0.0 for g in goals)
     assert all(g.priority == 0.5 for g in goals)
     assert all(g.deadline is None for g in goals)
+
+
+def test_progress_values_are_a_real_assessment_not_all_zero():
+    """Progress was updated from the original all-zero default to a real,
+    evidence-based code-coverage-proxy assessment per capability -- this
+    guards against silently reverting to the meaningless all-zero state."""
+    store = _store()
+
+    goals = seed_learning_capability_goals(store)
+
+    progresses = {g.progress for g in goals}
+    assert len(progresses) > 1  # not all identical
+    assert all(0.0 <= p <= 1.0 for p in progresses)
+    assert max(progresses) > 0.5  # at least one capability is meaningfully progressed
+    assert min(progresses) < 0.5  # at least one capability is honestly behind
+
+
+def test_every_goal_has_a_progress_basis_recorded():
+    """Every progress value must carry its evidence, not be a bare number --
+    stored as the last success_criteria entry (see seed_learning_capability_goals)."""
+    store = _store()
+
+    goals = seed_learning_capability_goals(store)
+
+    assert all(
+        any(c.startswith("[Progress basis]") for c in g.success_criteria)
+        for g in goals
+    )

@@ -18,6 +18,10 @@ _TRIGGER_BASE_WEIGHT: dict[str, float] = {
     "goal_deadline_approaching": 0.9,
     "urgent_email": 0.85,
     "task_stuck": 0.6,
+    # Deliberately lower than goal_deadline_approaching: a deadline-less
+    # stalled goal is real but less urgent than one about to actually miss
+    # a real deadline.
+    "goal_stalled_no_deadline": 0.5,
 }
 _DEFAULT_WEIGHT = 0.4
 

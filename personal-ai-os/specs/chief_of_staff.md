@@ -145,3 +145,53 @@ Expected:
 - `ChiefOfStaffOrchestrator` never calls `execute_step`/`resume_step` itself —
   APPROVE/ACT/VERIFY remain the caller's responsibility, consistent with Phase
   4's rule that AI should not directly execute consequential actions.
+
+## Example 12 — Activating Chief of Staff against real goal data
+
+The user asked to "activate the chief of staff now... chief of staff needs
+to track progress against all 15 project based learning goals." Checked
+first: `GoalMonitor` (bridges `GoalStore`/`GoalAgent` to `GOAL_UPDATED`
+events) existed and was tested, but was never run against real seeded goal
+data — only exercised in isolation by tests.
+
+New `scripts/run_chief_of_staff.py` wires the real, already-tested pipeline
+end to end for the first time: `GoalStore` (15 real learning goals) ->
+`GoalAgent.recommend_priorities()` -> `GoalMonitor.check_goals()` ->
+`TriggerEngine` -> `AttentionEngine` -> `DecisionEngine` (1 real LLM call
+per surfaced signal) -> `ChiefOfStaffOrchestrator`.
+
+A real gap was found while wiring this: all 15 learning goals were
+deliberately seeded with no deadline (the user's own earlier choice), so
+`GoalDeadlineApproachingTrigger` (which only ever evaluates deadline
+proximity) can never fire for any of them. New `StalledGoalTrigger` in
+`app/proactive/builtin_triggers.py` fires instead when a goal has no
+deadline, is below a progress threshold, and hasn't been updated recently
+— reusing the same `GOAL_UPDATED` event `GoalMonitor` already produces
+(`GoalMonitor` now additionally includes `updated_at` in that event's
+payload, additive/backward-compatible). Given its own base attention
+weight (0.5, deliberately lower than an actual deadline-approaching signal's
+0.9).
+
+Also: the user asked Chief of Staff to track progress on the 15 learning
+goals, which required an actual assessment of where the project stands on
+each capability. Progress values were updated from the original all-0.0
+seed to a real, evidence-based code-coverage-proxy assessment (e.g. AI
+Evaluation and RAG scored highest given how much of each is actually built
+and tested; Multimodal AI and AI Product Strategy scored lowest) — each
+value's justification is recorded directly on the goal
+(`success_criteria`'s `[Progress basis]` entry), and the assessment is
+explicitly labeled throughout as a proxy for the user's own personal
+understanding, not a claim to observe it.
+
+Verified live end to end against the real Gemini API: a verification run
+(with `staleness_days=0`, without touching the real seeded `updated_at`
+values) confirmed the full pipeline actually fires for real
+below-threshold goals, correctly scores them, and produces genuine
+per-signal `DecisionEngine` reasoning (e.g. "the goal is stalled at 55%
+with no recent updates and no deadline, warranting a low-urgency
+notification"). A real run against the actual seeded data (all goals
+&lt;7 days old) correctly produced zero signals — an honest, correct
+outcome, not a bug, documented as such in the script's own output.
+`StalledGoalTrigger`: 4 new tests (fires when stale+low-progress, doesn't
+fire when recently updated, doesn't fire when progress is high, defers to
+the deadline trigger when a deadline exists). 738 tests passing (was 733).

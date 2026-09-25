@@ -1,5 +1,8 @@
+from datetime import datetime, timedelta, timezone
+
 from app.proactive.builtin_triggers import (
     GoalDeadlineApproachingTrigger,
+    StalledGoalTrigger,
     TaskStuckTrigger,
     UrgentEmailTrigger,
 )
@@ -96,3 +99,52 @@ def test_trigger_engine_returns_empty_list_when_nothing_matches():
     event = Event(type=EventType.TASK_STATE_CHANGED, owner_id="alice", payload={"state": "RUNNING", "hours_in_state": 1})
 
     assert engine.evaluate(event) == []
+
+
+def test_stalled_goal_trigger_fires_for_deadline_less_stale_low_progress_goal():
+    trigger = StalledGoalTrigger(staleness_days=7, progress_threshold=0.7)
+    stale_time = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+    event = Event(
+        type=EventType.GOAL_UPDATED, owner_id="alice",
+        payload={"days_remaining": None, "progress": 0.4, "title": "Multimodal AI", "updated_at": stale_time},
+    )
+
+    signal = trigger.evaluate(event)
+
+    assert signal is not None
+    assert "Multimodal AI" in signal.title
+
+
+def test_stalled_goal_trigger_does_not_fire_when_recently_updated():
+    trigger = StalledGoalTrigger(staleness_days=7, progress_threshold=0.7)
+    recent_time = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    event = Event(
+        type=EventType.GOAL_UPDATED, owner_id="alice",
+        payload={"days_remaining": None, "progress": 0.4, "updated_at": recent_time},
+    )
+
+    assert trigger.evaluate(event) is None
+
+
+def test_stalled_goal_trigger_does_not_fire_when_progress_is_high():
+    trigger = StalledGoalTrigger(staleness_days=7, progress_threshold=0.7)
+    stale_time = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+    event = Event(
+        type=EventType.GOAL_UPDATED, owner_id="alice",
+        payload={"days_remaining": None, "progress": 0.85, "updated_at": stale_time},
+    )
+
+    assert trigger.evaluate(event) is None
+
+
+def test_stalled_goal_trigger_defers_to_deadline_trigger_when_deadline_present():
+    """A goal WITH a deadline is GoalDeadlineApproachingTrigger's job --
+    StalledGoalTrigger must not also fire for it."""
+    trigger = StalledGoalTrigger(staleness_days=7, progress_threshold=0.7)
+    stale_time = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+    event = Event(
+        type=EventType.GOAL_UPDATED, owner_id="alice",
+        payload={"days_remaining": 3, "progress": 0.4, "updated_at": stale_time},
+    )
+
+    assert trigger.evaluate(event) is None

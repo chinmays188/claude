@@ -37,6 +37,10 @@ class GoalMonitor:
                 "days_remaining": days_remaining,
                 "status": goal.status.value,
                 "domain": goal.domain.value,
+                # Added so a deadline-less goal (days_remaining is None) can
+                # still be evaluated for staleness by a trigger that doesn't
+                # depend on a deadline -- see StalledGoalTrigger.
+                "updated_at": goal.updated_at.isoformat(),
             },
             source="goal_monitor",
         )

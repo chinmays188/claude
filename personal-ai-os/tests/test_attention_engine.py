@@ -14,6 +14,14 @@ def test_score_uses_trigger_base_weight():
     assert scored.attention_score == 0.9
 
 
+def test_score_uses_stalled_goal_weight():
+    engine = AttentionEngine()
+
+    scored = engine.score(_signal(trigger_name="goal_stalled_no_deadline"))
+
+    assert scored.attention_score == 0.5
+
+
 def test_score_unknown_trigger_uses_default_weight():
     engine = AttentionEngine()
 
