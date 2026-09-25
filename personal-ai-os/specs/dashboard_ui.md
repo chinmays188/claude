@@ -241,6 +241,68 @@ scripted `Orchestrator`'s LLM call sequence (`test_orchestrator.py`,
 to account for the router now making 2 classification calls instead of 1.
 713 tests passing (was 702).
 
+## Example 8 — All 3 agents get real tools, a domain-workflow bridge, a Tools page, and a readable journey
+
+Four more pieces of user feedback, addressed together:
+
+1. **"Why would only research agent do tool calling? Even analyst and
+   planner can do tool calling?"** -- a real asymmetry: `AnalystAgent` and
+   `PlannerAgent` were plain, single-shot `Agent` subclasses with
+   structurally NO ability to ever call a tool, while `ResearchAgent`
+   extended `ToolAgent`. Fixed: both now extend `ToolAgent` too, sharing
+   tool construction via new `app/agents/agent_tools.py`'s
+   `build_shared_tools()`. Confirmed with the user: tool use is never
+   forced -- `ToolAgent`'s existing per-turn decision loop already lets the
+   LLM pick `final_answer` directly with no tool call, for any of the 3
+   agents, on any given input.
+2. **"resume_optimization, jd_analysis, prd... why are these separate and
+   not part of research, analyst, planner?"** -- corrected understanding by
+   reading the actual functions: `analyze_jd`/`draft_prd` need a
+   `SecureRetriever` (they ground output in the user's own retrieved
+   documents), not just text; `analyze_feedback` needs only a list of
+   strings. `analyze_portfolio`/`evaluate_answer` need a real stored
+   `Portfolio`/`Exercise` object a chat message can't manufacture --
+   confirmed out of scope with the user. New
+   `app/tools/domain_workflow_tools.py` bridges the three that ARE
+   reachable (`analyze_feedback` always available; `analyze_jd`/`draft_prd`
+   available when a `SecureRetriever` is wired in, reusing the same
+   retrieval infra `--index-file` already builds) as real tools any of the
+   3 agents can call.
+3. **"How to add more tools (when can each of these tools be called...
+   with their request and response example)"** -- new
+   `scripts/generate_tool_examples.py` actually RUNS every one of the 8
+   registered tools (calculator, retrieve, calendar_day, email_summary,
+   github_activity, analyze_feedback, analyze_jd, draft_prd) against small,
+   synthetic fixture data (the same in-memory/mocked-HTTP pattern this
+   codebase's own tests already use for calendar/github) and writes real
+   request/response pairs plus each tool's real Pydantic `args_schema` to
+   `app/dashboard_ui/tool_examples.json`. New dashboard **Tools** page
+   reads this committed file (no live LLM call on page render) and
+   documents how to add a new tool.
+4. **"We need to show the journey till output, don't see how we are
+   finally getting the output"** -- the Traces page's span rendering was a
+   collapsed, nested raw-JSON tree with no linear narrative. New
+   `_render_journey()` walks the same span data into numbered steps
+   (Input -> Memory considered -> Routing -> Tool call(s) -> Final output),
+   falling back gracefully when a step type is absent (e.g. an UNCLEAR
+   trace has no agent output). The old raw span tree is kept as a
+   collapsed "Raw spans" detail section, not removed.
+
+Verified: `AnalystAgent` was confirmed live to actually call the calculator
+tool on a real comparison question ("Which is cheaper... 1500/month or a
+flat 20000/year?"); `analyze_feedback` and `analyze_jd` were both confirmed
+live end to end (real tool call, real structured JSON output, correctly
+routed via `UnifiedRouter` to `analyst_agent`) -- `analyze_jd`'s example
+specifically showed real `SecureRetriever`-grounded output citing the
+indexed fixture achievement. All 8 tool examples in `tool_examples.json`
+are real generator output, not hand-written (verified by inspecting every
+one). The new Traces page journey was visually confirmed in a real browser
+(via `agent-browser`) to render a complete, readable input-to-output
+narrative for a real trace. 4 new tests for `AnalystAgent`/`PlannerAgent`
+tool-calling (and no-tool-needed) behavior, 7 for the domain-workflow
+bridge tools, 2 for the tool-example generator. 726 tests passing (was
+713).
+
 ## Non-goals for this MVP
 
 - No interactivity beyond viewing — no in-UI action approval, no

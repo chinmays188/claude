@@ -48,7 +48,7 @@ def test_analysis_request_routes_to_analyst_agent():
         [
             '{"domains": [], "confidence": 0.9}',
             '{"task_type": "analysis", "confidence": 0.9}',
-            "RAG is better for freshness; fine-tuning for style.",
+            '{"action": "final_answer", "answer": "RAG is better for freshness; fine-tuning for style."}',
         ]
     )
     orchestrator = Orchestrator(llm)
@@ -63,7 +63,7 @@ def test_planning_request_routes_to_planner_agent():
         [
             '{"domains": [], "confidence": 0.9}',
             '{"task_type": "planning", "confidence": 0.9}',
-            "Week 1: Docker basics...",
+            '{"action": "final_answer", "answer": "Week 1: Docker basics..."}',
         ]
     )
     orchestrator = Orchestrator(llm)
@@ -258,7 +258,7 @@ def test_on_classified_observer_receives_the_real_classification():
         [
             '{"domains": ["FINANCE"], "confidence": 0.9}',
             '{"task_type": "analysis", "confidence": 0.85}',
-            "some analysis",
+            '{"action": "final_answer", "answer": "some analysis"}',
         ]
     )
     orchestrator = Orchestrator(llm, on_classified=lambda c: observed.append(c))

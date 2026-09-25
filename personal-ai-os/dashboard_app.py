@@ -12,7 +12,9 @@ First run: seed demo data so every page has something to show —
     PYTHONPATH=. python scripts/seed_demo_data.py
 """
 
+import json
 import os
+from pathlib import Path
 
 import streamlit as st
 
@@ -36,8 +38,6 @@ from app.observability.trace_store import TraceNotFoundError, TraceStore
 from app.proactive.commitments import CommitmentStore
 from app.proactive.outcome_tracking import OutcomeStore
 from app.tasks.store import TaskStore
-from app.tools.calculator import CalculatorTool
-from app.tools.retrieval_tool import RetrievalTool
 
 TENANT_ID = "demo_tenant"
 USER_ID = "demo_user"
@@ -220,6 +220,77 @@ def _render_span(span, indent: int = 0) -> None:
         _render_span(child, indent=indent + 1)
 
 
+def _flatten_spans(spans, out=None):
+    """Depth-first flat list of every span (parent before children) --
+    used to find a specific named span anywhere in the tree regardless of
+    nesting depth, since e.g. unified_routing/tool:* live nested under
+    orchestrator_run, not at the top level."""
+    if out is None:
+        out = []
+    for span in spans:
+        out.append(span)
+        _flatten_spans(span.children, out)
+    return out
+
+
+def _render_journey(trace, input_text: str) -> None:
+    """Renders the trace as a numbered, linear step-by-step narrative --
+    input -> memory -> routing -> tool calls -> final output -- instead of
+    a raw, collapsed span tree. Built after the user's feedback: 'We need
+    to show the journey till output, don't see how we are finally getting
+    the output.' Falls back gracefully (prints what it can find) if a
+    particular span type isn't present, e.g. an UNCLEAR trace has no
+    orchestrator agent output at all."""
+    all_spans = _flatten_spans(trace.spans)
+    by_name = {s.name: s for s in all_spans}
+    step = 1
+
+    st.markdown(f"**Step {step}: Input**")
+    st.code(input_text or "(not recorded)", language=None)
+    step += 1
+
+    memory_span = by_name.get("memory_lookup")
+    if memory_span is not None:
+        memories = memory_span.metadata.get("memories_considered", [])
+        st.markdown(f"**Step {step}: Memory considered** (naive keyword overlap, not semantic search)")
+        if memories:
+            for m in memories:
+                st.text(f"  • [{m['type']}] {m['memory_id']} (overlap={m['overlap_words']})")
+        else:
+            st.caption("No stored memory shared keywords with this request.")
+        step += 1
+
+    routing_span = by_name.get("unified_routing")
+    if routing_span is not None:
+        md = routing_span.metadata
+        st.markdown(f"**Step {step}: Routing** (UnifiedRouter)")
+        domain_line = f"Domain: **{md.get('domain', '?')}**"
+        if len(md.get("all_domains", [])) > 1:
+            domain_line += f"  (cross-domain: {md['all_domains']})"
+        st.markdown(domain_line + f"  ·  Task type: **{md.get('task_type', '?')}**")
+        st.caption(f"Domain confidence {md.get('domain_confidence', 0):.2f}, "
+                   f"task confidence {md.get('task_confidence', 0):.2f}")
+        step += 1
+
+    tool_spans = [s for s in all_spans if s.kind == "tool"]
+    if tool_spans:
+        st.markdown(f"**Step {step}: Tool call(s)**")
+        for i, tool_span in enumerate(tool_spans, start=1):
+            st.markdown(f"  {i}. `{tool_span.name}`")
+            st.json({"request": tool_span.metadata.get("args"), "response": tool_span.metadata.get("result")})
+        step += 1
+
+    orch_span = by_name.get("orchestrator_run")
+    if orch_span is not None and orch_span.metadata.get("output"):
+        st.markdown(f"**Step {step}: Final output** (from `{orch_span.metadata.get('agent', '?')}`)")
+        st.success(orch_span.metadata["output"])
+        st.caption(f"Stop reason: {orch_span.metadata.get('stop_reason', '?')}")
+    elif trace.status == "success":
+        st.markdown(f"**Step {step}: Final output**")
+        st.info("No agent output recorded — this request was likely classified UNCLEAR "
+                "(routed to neither research/analyst/planner) or ended in a clarification.")
+
+
 def render_traces(stores: dict) -> None:
     st.header("Traces")
     st.caption(
@@ -279,11 +350,70 @@ def render_traces(stores: dict) -> None:
 
     st.markdown(f"**Model:** {full_trace.model}  ·  **Agent:** {full_trace.agent}")
 
-    st.subheader("Spans")
+    st.subheader("Journey")
     if not full_trace.spans:
         st.caption("No spans recorded for this trace.")
-    for span in full_trace.spans:
-        _render_span(span)
+    else:
+        _render_journey(full_trace, summary["input_text"] if summary else "")
+
+    with st.expander("Raw spans (full detail, nested)", expanded=False):
+        for span in full_trace.spans:
+            _render_span(span)
+
+
+_TOOL_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "tool_examples.json"
+
+
+def _load_tool_examples() -> list[dict]:
+    """Loads app/dashboard_ui/tool_examples.json -- generated by actually
+    running scripts/generate_tool_examples.py against each real tool, not
+    hand-written. Regenerate that file after adding/changing a tool."""
+    if not _TOOL_EXAMPLES_PATH.exists():
+        return []
+    return json.loads(_TOOL_EXAMPLES_PATH.read_text())
+
+
+def render_tools(stores: dict) -> None:
+    st.header("Tools")
+    st.caption(
+        "Every tool an agent can call, when it's used, and a REAL request/response "
+        "example — generated by actually running each tool "
+        "(scripts/generate_tool_examples.py), not hand-written. No live LLM call "
+        "happens on this page itself; these are pre-generated, committed examples."
+    )
+    st.info(
+        "**How to add a new tool:** subclass `app/tools/base.py`'s `Tool` "
+        "(give it `name`, `description`, `args_schema`, `permissions`), wire it "
+        "into `app/agents/agent_tools.py`'s `build_shared_tools()` so all 3 agents "
+        "can use it, then add a real example to "
+        "`scripts/generate_tool_examples.py` and re-run it."
+    )
+
+    examples = _load_tool_examples()
+    if not examples:
+        st.warning("No tool examples found — run `python scripts/generate_tool_examples.py` first.")
+        return
+
+    for example in examples:
+        with st.expander(f"🔧 {example['name']}", expanded=False):
+            st.markdown(f"**Description:** {example['description']}")
+            st.markdown(f"**When to call it:** {example['when_to_call']}")
+            st.markdown(f"**Permissions:** `{example['permissions']}`")
+
+            st.markdown("**Arguments schema (real, from the tool's own Pydantic model):**")
+            st.json(example["args_schema"], expanded=False)
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Example request:**")
+                st.json(example["example_request"])
+            with col2:
+                st.markdown("**Example response:**")
+                response = example["example_response"]
+                try:
+                    st.json(json.loads(response))
+                except (json.JSONDecodeError, TypeError):
+                    st.code(response)
 
 
 def render_architecture(stores: dict) -> None:
@@ -344,16 +474,10 @@ def render_architecture(stores: dict) -> None:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.markdown("**Registered tools (5 total)**")
-        tools_info = [
-            ("calculator", CalculatorTool.description, "no credentials needed"),
-            ("retrieve", RetrievalTool.description, "no credentials needed"),
-            ("calendar_day", "Look up meetings/conflicts for a day.", "needs real CalendarClient"),
-            ("email_summary", "Fetch and classify emails.", "needs real EmailClient"),
-            ("github_activity", "Summarize GitHub activity.", "needs real GitHubClient"),
-        ]
-        for name, desc, note in tools_info:
-            st.text(f"• {name}  ({note})")
+        st.markdown("**Registered tools (8 total)**")
+        for example in _load_tool_examples():
+            st.text(f"• {example['name']}")
+        st.caption("Full request/response examples on the Tools page.")
 
     with col2:
         st.markdown("**Goals defined (GoalStore, live)**")
@@ -414,6 +538,7 @@ def main() -> None:
         "Chief of Staff": render_chief_of_staff,
         "Traces": render_traces,
         "Architecture": render_architecture,
+        "Tools": render_tools,
     }
     page = st.sidebar.radio("View", list(pages.keys()))
     st.sidebar.markdown("---")

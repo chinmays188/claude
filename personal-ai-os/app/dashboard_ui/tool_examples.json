@@ -1,0 +1,239 @@
+[
+  {
+    "name": "calculator",
+    "description": "Evaluate a basic arithmetic expression (+, -, *, /, **). Use this for numeric calculations, not for general reasoning.",
+    "permissions": [
+      "compute:local"
+    ],
+    "args_schema": {
+      "properties": {
+        "expression": {
+          "title": "Expression",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expression"
+      ],
+      "title": "CalculatorArgs",
+      "type": "object"
+    },
+    "when_to_call": "Any request needing real arithmetic (comparisons, timelines, budgets) -- never let the LLM guess a calculation.",
+    "example_request": {
+      "expression": "47 * 12"
+    },
+    "example_response": "564"
+  },
+  {
+    "name": "retrieve",
+    "description": "Search the local knowledge base for information relevant to a query. Use this to ground answers in ingested documents rather than guessing.",
+    "permissions": [
+      "read:retrieval"
+    ],
+    "args_schema": {
+      "properties": {
+        "query": {
+          "title": "Query",
+          "type": "string"
+        },
+        "top_k": {
+          "default": 3,
+          "title": "Top K",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "title": "RetrievalArgs",
+      "type": "object"
+    },
+    "when_to_call": "When the user's question might be answered by something already indexed (via --index-file) -- grounds the answer instead of guessing.",
+    "example_request": {
+      "query": "container orchestration",
+      "top_k": 3
+    },
+    "example_response": "[fixture_doc::c0 | source=fixture | score=3.0883] Kubernetes is a container orchestration platform for automating deployment and scaling."
+  },
+  {
+    "name": "calendar_day",
+    "description": "Look up meetings, events, and scheduling conflicts for a given day.",
+    "permissions": [
+      "read:calendar"
+    ],
+    "args_schema": {
+      "properties": {
+        "day": {
+          "format": "date-time",
+          "title": "Day",
+          "type": "string"
+        }
+      },
+      "required": [
+        "day"
+      ],
+      "title": "CalendarDayArgs",
+      "type": "object"
+    },
+    "when_to_call": "Questions like 'what's on my calendar today' or 'do I have any scheduling conflicts' -- needs a real CalendarClient (OAuth-authenticated in production, not wired into this trace CLI).",
+    "example_request": {
+      "day": "2026-01-15T00:00:00+00:00"
+    },
+    "example_response": "Events on 2026-01-15:\n- 09:00-10:00 Sprint planning\n- 09:30-10:00 1:1 with manager\n\n1 scheduling conflict(s) detected."
+  },
+  {
+    "name": "github_activity",
+    "description": "Fetch a summary of GitHub activity (commits, pull requests, issues) for a repository within a date range. Use this for questions like 'what did I accomplish on this project this week?'",
+    "permissions": [
+      "read:github"
+    ],
+    "args_schema": {
+      "properties": {
+        "repo": {
+          "title": "Repo",
+          "type": "string"
+        },
+        "since": {
+          "format": "date-time",
+          "title": "Since",
+          "type": "string"
+        },
+        "until": {
+          "format": "date-time",
+          "title": "Until",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "since",
+        "until"
+      ],
+      "title": "GitHubActivityArgs",
+      "type": "object"
+    },
+    "when_to_call": "Questions like 'what did I accomplish on this project this week' -- needs a real GitHubClient with a real API token (not wired into this trace CLI).",
+    "example_request": {
+      "repo": "owner/repo",
+      "since": "2026-01-01T00:00:00Z",
+      "until": "2026-01-31T00:00:00Z"
+    },
+    "example_response": "Activity in owner/repo from 2026-01-01 to 2026-01-31:\n\nCommits (1):\n- 2026-01-10 [abc1234] Fix refund calculation bug"
+  },
+  {
+    "name": "email_summary",
+    "description": "Fetch and classify emails within a date range into FYI, action required, waiting for response, commitment, or urgent. Use this for questions like 'what important emails did I receive today?'",
+    "permissions": [
+      "read:email"
+    ],
+    "args_schema": {
+      "properties": {
+        "since": {
+          "format": "date-time",
+          "title": "Since",
+          "type": "string"
+        },
+        "until": {
+          "format": "date-time",
+          "title": "Until",
+          "type": "string"
+        }
+      },
+      "required": [
+        "since",
+        "until"
+      ],
+      "title": "EmailSummaryArgs",
+      "type": "object"
+    },
+    "when_to_call": "Questions like 'what important emails did I get today' -- needs a real EmailClient (not wired into this trace CLI) and makes a real Gemini call per email to classify it.",
+    "example_request": {
+      "since": "2026-01-01T00:00:00Z",
+      "until": "2026-01-31T00:00:00Z"
+    },
+    "example_response": "- [ACTION_REQUIRED] Q3 roadmap review (from boss@company.com)"
+  },
+  {
+    "name": "analyze_feedback",
+    "description": "Analyze a list of raw customer/stakeholder feedback strings: clusters them into themes, estimates frequency/severity, flags critical issues, and recommends actions. Use this when the user gives you multiple pieces of feedback to make sense of, not for a single freeform question.",
+    "permissions": [
+      "read:pm_workflows"
+    ],
+    "args_schema": {
+      "properties": {
+        "feedback_items": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Feedback Items",
+          "type": "array"
+        }
+      },
+      "required": [
+        "feedback_items"
+      ],
+      "title": "AnalyzeFeedbackArgs",
+      "type": "object"
+    },
+    "when_to_call": "The user gives you multiple pieces of raw feedback to make sense of -- clusters into themes, estimates severity, recommends actions.",
+    "example_request": {
+      "feedback_items": [
+        "Refunds take too long.",
+        "Support never responds."
+      ]
+    },
+    "example_response": "{\"top_themes\":[{\"theme\":\"Slow Refunds\",\"frequency\":1,\"severity\":0.9,\"customer_impact\":\"Customers experience prolonged wait times to receive their money back.\",\"trend\":\"stable\"},{\"theme\":\"Unresponsive Support\",\"frequency\":1,\"severity\":1.0,\"customer_impact\":\"Customers are left without assistance as support fails to respond.\",\"trend\":\"stable\"}],\"emerging_themes\":[],\"declining_themes\":[],\"critical_issues\":[\"Complete lack of response from customer support\",\"Excessive delays in processing refunds\"],\"recommended_actions\":[\"Investigate and resolve the bottleneck in refund processing times\",\"Audit customer support queue management to address unresponded tickets\"]}"
+  },
+  {
+    "name": "analyze_jd",
+    "description": "Analyze a job description against the candidate's own retrieved resume/achievement documents: fit scores, major gaps, recommended resume changes, interview risks. Requires documents to already be indexed (e.g. via --index-file) -- returns an error if none are available. Use this when the user pastes a job description and asks about fit.",
+    "permissions": [
+      "read:career_workflows",
+      "read:retrieval"
+    ],
+    "args_schema": {
+      "properties": {
+        "jd_text": {
+          "title": "Jd Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "jd_text"
+      ],
+      "title": "AnalyzeJdArgs",
+      "type": "object"
+    },
+    "when_to_call": "The user pastes a job description and asks about fit -- requires documents already indexed (e.g. via --index-file); returns an error otherwise.",
+    "example_request": {
+      "jd_text": "Senior Product Manager, requires 3+ years PM experience and cross-functional leadership."
+    },
+    "example_response": "{\"overall_fit\":0.5,\"technical_fit\":0.0,\"ai_fit\":0.0,\"pm_fit\":0.7,\"domain_fit\":0.0,\"leadership_fit\":0.8,\"major_gaps\":[\"No explicit mention of general product management methodology or years of experience meeting the senior seniority signal.\"],\"recommended_resume_changes\":[\"Explicitly highlight the title or role of 'Product Manager' in the resume excerpt to directly match the required skill of product management.\"],\"interview_risks\":[\"The candidate's experience is limited to a single project leading a small team of 6, which may raise questions about meeting the full scope of a 'Senior Product Manager' role.\"]}"
+  },
+  {
+    "name": "draft_prd",
+    "description": "Draft a PRD (problem statement, customer context, hypothesis, solution, metrics, experiment) for a product idea, grounded in retrieved existing product docs when available. Requires documents to already be indexed (e.g. via --index-file) -- works with no context if none are indexed, just without grounding. Use this when the user describes a product idea and asks for a PRD, not for general product-strategy questions.",
+    "permissions": [
+      "read:pm_workflows",
+      "read:retrieval"
+    ],
+    "args_schema": {
+      "properties": {
+        "idea": {
+          "title": "Idea",
+          "type": "string"
+        }
+      },
+      "required": [
+        "idea"
+      ],
+      "title": "DraftPrdArgs",
+      "type": "object"
+    },
+    "when_to_call": "The user describes a product idea and asks for a PRD -- requires documents already indexed to ground context; works without grounding if none indexed.",
+    "example_request": {
+      "idea": "Automate refund status notifications for customers."
+    },
+    "example_response": "{\"problem_statement\":\"Customers lack automated visibility into the status of their refunds, leading to uncertainty and potential support inquiries following the self-serve refund flow.\",\"customer_context\":\"Customers who utilize the self-serve refund flow (which reduced average refund resolution time from 5 days to 8 hours).\",\"hypothesis\":\"If we automate refund status notifications for customers, then customer anxiety and support overhead will decrease because they will have real-time visibility into their refund progress.\",\"solution\":\"Automated notification system that sends status updates to customers throughout the refund lifecycle.\",\"metrics\":[\"Reduction in refund-related support tickets\",\"Customer satisfaction (CSAT) score for the refund experience\"],\"experiment\":\"Send manual status update emails for a cohort of refund requests and measure the impact on support ticket volume compared to a control group before building full automation.\"}"
+  }
+]

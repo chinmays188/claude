@@ -33,7 +33,7 @@ def test_passing_case_research_agent():
 
 
 def test_failing_case_wrong_agent():
-    llm = ScriptedProvider(['{"domains": [], "confidence": 0.9}', '{"task_type": "planning", "confidence": 0.9}', "a plan"])
+    llm = ScriptedProvider(['{"domains": [], "confidence": 0.9}', '{"task_type": "planning", "confidence": 0.9}', '{"action": "final_answer", "answer": "a plan"}'])
     orchestrator = Orchestrator(llm)
     case = GoldenCase(id="r1", input="Explain RAG.", expected_agent="research_agent")
 

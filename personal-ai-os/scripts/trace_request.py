@@ -63,6 +63,8 @@ from app.config import require_gemini_key
 from app.db.connection import get_connection
 from app.domains.router import Domain
 from app.evaluation.domain_golden import load_domain_cases
+from app.knowledge.document import PersonalDocumentMetadata, Sensitivity
+from app.knowledge.secure_retrieval import SecureRetriever
 from app.memory.naive_relevance import find_relevant_memories
 from app.memory.persistent_store import PersistentMemoryStore
 from app.observability.costs import CostRate, CostTracker
@@ -73,7 +75,6 @@ from app.retrieval.chunking import chunk_document
 from app.retrieval.document import Document
 from app.retrieval.embeddings import SentenceTransformerEmbedding
 from app.retrieval.vector_search import VectorStore
-from app.tools.calculator import CalculatorTool
 
 DB_PATH = "data/personal_ai.db"
 SESSION_ID = "cli_trace"
@@ -87,10 +88,8 @@ TENANT_ID = "demo_tenant"
 # Only tools that are safe to actually invoke live, with no external
 # credentials/side effects, are wired in here (calendar/email/github tools
 # need real integration credentials this script doesn't assume you have).
-# 'retrieve' is added only when --index-file gives it something real to
-# search -- an empty/absent index would make the tool always return "no
-# relevant documents found," which isn't worth offering the agent.
-BASE_TOOLS = [CalculatorTool()]
+# See app/agents/agent_tools.py's build_shared_tools() for exactly which
+# tools each agent gets and under what conditions.
 
 DOMAIN_EVAL_DIR = {
     Domain.CAREER: "career",
@@ -120,6 +119,26 @@ def _build_retrieval_store(index_file: str | None) -> VectorStore | None:
     store = VectorStore(SentenceTransformerEmbedding())
     store.add(chunks)
     return store
+
+
+def _build_secure_retriever(retrieval_store: VectorStore | None) -> SecureRetriever | None:
+    """Wraps the same VectorStore --index-file already builds in a
+    SecureRetriever, so the domain-workflow bridge tools (analyze_jd,
+    draft_prd -- see app/tools/domain_workflow_tools.py) can use it too,
+    not just the plain 'retrieve' tool. One document, owned by this
+    script's own USER_ID/TENANT_ID -- consistent with how every other real
+    document in this codebase carries ownership metadata (Section 10)."""
+    if retrieval_store is None:
+        return None
+    now = datetime.now(timezone.utc)
+    metadata = {
+        "cli_index_doc": PersonalDocumentMetadata(
+            document_id="cli_index_doc", source="cli", title="Indexed CLI document",
+            created_at=now, updated_at=now, category="general",
+            sensitivity=Sensitivity.PERSONAL, owner_id=USER_ID, tenant_id=TENANT_ID,
+        )
+    }
+    return SecureRetriever(retrieval_store, metadata)
 
 
 def trace(text: str, with_eval: bool, index_file: str | None) -> None:
@@ -162,10 +181,13 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
     _print_header("1. ROUTING + AGENT (UnifiedRouter -> Orchestrator)")
 
     retrieval_store = _build_retrieval_store(index_file)
+    secure_retriever = _build_secure_retriever(retrieval_store)
     if index_file:
-        print(f"Indexed {index_file} for the 'retrieve' tool ({len(retrieval_store)} chunks).")
+        print(f"Indexed {index_file} for 'retrieve', 'analyze_jd', and 'draft_prd' ({len(retrieval_store)} chunks).")
     else:
-        print("No --index-file given -- ResearchAgent's 'retrieve' tool is not available this run.")
+        print("No --index-file given -- 'retrieve', 'analyze_jd', and 'draft_prd' are not "
+              "available this run (each needs an indexed document).")
+    print("Always available regardless of --index-file: calculator, analyze_feedback.")
 
     tool_call_log = []
     classification_holder = {}
@@ -194,6 +216,7 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
 
     orchestrator = Orchestrator(
         llm, retrieval_store=retrieval_store, on_tool_call=_on_tool_call, on_classified=_on_classified,
+        secure_retriever=secure_retriever, requester_id=USER_ID, requester_tenant_id=TENANT_ID,
     )
 
     with recorder.span("orchestrator_run", kind="agent", input_text=text) as orch_span:
@@ -209,8 +232,10 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
             print(f"Stop reason:  {result.stop_reason}")
             print(f"\n--- Orchestrator output ---\n{result.output}")
 
-    print(f"\nRegistered tools (this run): {[t.name for t in BASE_TOOLS]}"
-          + (" + retrieve" if retrieval_store is not None else ""))
+    registered = ["calculator", "analyze_feedback"]
+    if retrieval_store is not None:
+        registered += ["retrieve", "analyze_jd", "draft_prd"]
+    print(f"\nRegistered tools (this run, all 3 agents): {registered}")
 
     print(
         "\nTask complexity classification: NOT AVAILABLE -- no complexity "
