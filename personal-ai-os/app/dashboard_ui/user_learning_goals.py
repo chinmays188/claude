@@ -87,11 +87,14 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand state management, agent depth, loop/tool budgets, stop conditions, recovery paths",
             "Understand multi-agent orchestration and know when an agent is necessary vs. a deterministic workflow",
         ],
-        0.4,
+        0.65,
         "Single-agent dispatch (Orchestrator picks exactly one of Research/Analyst/Planner "
         "per request) real and tested, with real budgets/stop-conditions. Genuine "
-        "multi-agent coordination (multiple agents collaborating on one input) does not "
-        "exist yet -- actively being built next.",
+        "multi-agent coordination now exists too (MultiAgentPlanner + MultiAgentCoordinator, "
+        "input-dependent SEQUENTIAL/PARALLEL, not a fixed pipeline) -- the planning step "
+        "verified live and correct; full end-to-end agent-chain completion still only "
+        "verified via scripted tests, not a live run to completion (blocked by a real, "
+        "reproducible Gemini capacity issue at build time, not a code gap).",
     ),
     (
         "learn_ai_memory",
