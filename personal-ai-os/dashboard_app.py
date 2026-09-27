@@ -595,6 +595,39 @@ def render_rag(stores: dict) -> None:
             for r in fused[:5]:
                 st.text(f"[{r.score:.3f}] {r.chunk.id}\n{r.chunk.text[:80]}")
 
+        st.divider()
+        st.subheader("2b. Live retrieval evaluation (recall / precision) — YOUR real ground truth")
+        st.caption(
+            "Recall/precision need a real ground truth: which chunks are ACTUALLY relevant to "
+            "your query? Only you can say that — check every chunk below that's genuinely "
+            "relevant (not just the ones retrieved), and recall/precision compute live against "
+            "your own real labels. No LLM call, no fabrication — this is why the pre-generated "
+            "example further down uses a human-labeled ground truth too, not an inferred one."
+        )
+        relevant_ids = set()
+        for c in live_chunks:
+            was_retrieved = c.id in {r.chunk.id for r in fused}
+            label = f"{c.id}{'  (retrieved)' if was_retrieved else '  (NOT retrieved)'}"
+            if st.checkbox(f"Relevant to \"{query}\"? — {label}", key=f"relevant_{c.id}_{query}"):
+                relevant_ids.add(c.id)
+
+        if relevant_ids:
+            from app.evaluation.retrieval_eval import RetrievalCase, evaluate_retrieval
+
+            case = RetrievalCase(query=query, relevant_chunk_ids=list(relevant_ids))
+            metrics = evaluate_retrieval(case, fused[:5])
+            col1, col2 = st.columns(2)
+            col1.metric("Recall", f"{metrics.recall:.0%}")
+            col2.metric("Precision", f"{metrics.precision:.0%}")
+            st.caption(
+                f"Recall: of the {len(relevant_ids)} chunk(s) you marked relevant, "
+                f"{len(set(metrics.retrieved_ids) & relevant_ids)} were actually retrieved (top 5, hybrid). "
+                f"Precision: of the {len(metrics.retrieved_ids)} chunk(s) retrieved, "
+                f"{len(set(metrics.retrieved_ids) & relevant_ids)} were ones you marked relevant."
+            )
+        else:
+            st.caption("Check at least one chunk above as relevant to compute real recall/precision.")
+
     st.divider()
     st.subheader("3. Full pipeline example: retrieval → generation → evaluation")
     example = _load_rag_examples()

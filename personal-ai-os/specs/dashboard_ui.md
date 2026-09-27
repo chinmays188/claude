@@ -462,3 +462,30 @@ citation quality (1.00) all rendered correctly across all 4 tabs. 8 new
 structural tests on the committed `rag_examples.json` (does not re-run
 the generator in the test suite — that makes real paid LLM calls and
 loads a real embedding model). 763 tests passing (was 755).
+
+## Example 12 — Live retrieval evaluation (recall/precision) on your own labels
+
+The user asked: "can we not build RAG evaluation (precision, recall,
+etc.) on live chunking and semantic search?" Answered directly: the
+only real blocker was that recall/precision need a human-labeled ground
+truth (which chunks are ACTUALLY relevant to a query) — something no
+one can infer, not an LLM-call cost or a technical limitation. Confirmed
+with the user: solve it with real checkboxes, letting the user label
+their own live query's ground truth on the spot.
+
+Added a new "2b. Live retrieval evaluation" section directly under the
+live vector/BM25/hybrid search results: every live chunk (not just the
+retrieved ones — recall needs to know about relevant chunks that were
+MISSED too, not just ones that were retrieved) gets a checkbox asking
+"relevant to this query?", labeled with whether it was actually
+retrieved. Once at least one chunk is checked, `evaluate_retrieval()`
+(the same real function the pre-generated example uses) computes real
+recall/precision live against the user's own real labels — no LLM call,
+no fabrication.
+
+Verified live in a real browser (`agent-browser`): checking one relevant
+chunk (out of 3, all retrieved) correctly showed recall=100%,
+precision=33%; checking a second correctly updated to recall=100%,
+precision=67% — confirmed the math updates correctly in real time as
+labels change. 763 tests passing (pure dashboard addition, no existing
+logic changed).
