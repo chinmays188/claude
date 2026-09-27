@@ -398,3 +398,67 @@ Orchestration" (matching its just-updated GoalStore value) with its real
 progress-basis text, and the full success-criteria checklist rendering
 correctly per goal. 755 tests passing (pure dashboard rendering fix, no
 logic changed, no new tests needed).
+
+## Example 11 — A full, real RAG page (chunking, embedding, semantic search, eval, failure modes)
+
+The user asked for a dedicated RAG page: "real input data and output
+data along with RAG evaluation parameters... map a graph with the
+values, show how they are chunked, show an input and output on semantic
+search... RAG failure modes, what to do when retrieval fails, or
+generation fails... an entire RAG focused architecture diagram."
+
+Scope decided explicitly with the user: chunking/embedding/search are
+genuinely LIVE and interactive (free, local, no LLM call), while
+generation + LLM-judge evaluation use pre-generated real examples (same
+pattern as `tool_examples.json`) since those cost a real Gemini call and
+this dashboard has a standing rule of never making live LLM calls on
+page render. This meant reversing an earlier deliberate constraint:
+`requirements-dashboard.txt` had excluded `sentence-transformers`/
+`faiss-cpu`/heavy deps to keep the deploy light — the user explicitly
+accepted the real deploy-weight increase for genuine interactivity, so
+`sentence-transformers`, `faiss-cpu`, `rank-bm25`, and `pandas` were
+added back.
+
+- New `app/dashboard_ui/rag_diagram.py`: a RAG-specific Mermaid diagram
+  (input -> chunk -> embed/BM25 -> hybrid fusion -> rerank -> context
+  build -> generate -> cite -> evaluate), including a real, honestly
+  disclosed failure-modes subgraph.
+- New `scripts/generate_rag_examples.py`: runs the REAL full pipeline
+  once (real chunking, real `SentenceTransformerEmbedding`, real FAISS +
+  BM25 hybrid search, real `CrossEncoderReranker`, a real Gemini
+  generation call via `PersonalRagPipeline`, real `evaluate_grounding()`
+  and `citation_quality()`) against small synthetic fixture achievements
+  (reused from `tests/fakes/example_resume.py`'s convention), plus a
+  real, human-constructed retrieval ground truth for `evaluate_retrieval()`
+  — writes `app/dashboard_ui/rag_examples.json`.
+- New dashboard **RAG** page: (1) live chunking + embedding on
+  user-pasted text, with a real numpy-SVD PCA projection of the real
+  384-dim vectors to 2D (no sklearn dependency needed); (2) live vector
+  vs BM25 vs hybrid-fusion semantic search on the same live-indexed
+  chunks; (3) the pre-generated full-pipeline example across 4 tabs
+  (Retrieval, Generation + Citations, Evaluation, Failure modes), each
+  with a plain-English explanation of what its metric measures and why.
+
+**A real, honest gap was caught while building this**, not glossed over:
+`specs/personal_rag.md`'s own "Non-goals" section states hybrid search +
+reranking are NOT actually wired into `PersonalRagPipeline` yet —
+`SecureRetriever` currently wraps plain vector search only. The page's
+Retrieval tab originally implied the reranked results fed the generation
+step; fixed with an explicit warning box, and the RAG diagram itself now
+draws BOTH the real hybrid+rerank chain (marked "NOT wired into
+PersonalRagPipeline yet") and the actual production path (a distinct,
+thick arrow: `SecureRetriever.search() == plain vector search only`) so
+the gap is visible in the diagram itself, not just in prose.
+
+Verified live end-to-end (twice — once before, once after the honesty
+fix) in a real browser (`agent-browser`): the RAG diagram rendered
+correctly; live-typed text produced real chunks, real embeddings, and a
+real 2D scatter plot; a live query produced real, correctly-ranked
+vector/BM25/hybrid results (the "networking" query correctly ranked the
+networking-related chunk first); the pre-generated example's real
+recall (1.00), precision (0.75 — genuinely imperfect, not cherry-picked:
+one irrelevant chunk was really retrieved), groundedness (1.00), and
+citation quality (1.00) all rendered correctly across all 4 tabs. 8 new
+structural tests on the committed `rag_examples.json` (does not re-run
+the generator in the test suite — that makes real paid LLM calls and
+loads a real embedding model). 763 tests passing (was 755).

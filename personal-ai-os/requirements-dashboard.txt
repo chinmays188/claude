@@ -1,9 +1,16 @@
 # Minimal requirements for deploying dashboard_app.py (e.g. Streamlit
-# Community Cloud). Deliberately NOT the full requirements.txt -- verified
-# by actually importing dashboard_app.py and checking sys.modules that the
-# dashboard's real import chain never touches sentence-transformers,
-# faiss-cpu, or their heavy transitive torch dependency (those exist for
-# the RAG pipeline, not for the dashboard, which only reads SQLite).
-# See specs/dashboard_ui.md for the verification method.
+# Community Cloud). Deliberately NOT the full requirements.txt.
+#
+# sentence-transformers/faiss-cpu/rank-bm25 were added back here
+# (previously deliberately excluded to keep the deploy light -- see
+# specs/dashboard_ui.md's original verification) once the RAG page needed
+# genuinely live, interactive chunking/embedding/search on real user-typed
+# input -- a real deploy-weight tradeoff accepted explicitly by the user
+# rather than faking interactivity with pre-generated examples for
+# something that's actually free/local (no LLM API cost) to run live.
 pydantic
 streamlit
+sentence-transformers
+faiss-cpu
+rank-bm25
+pandas
