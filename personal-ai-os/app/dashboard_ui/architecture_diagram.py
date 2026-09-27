@@ -31,6 +31,20 @@ HISTORY:
    hand-maintained prose describing the code, not generated from it, so it
    needs an explicit update pass whenever agent/tool wiring changes.
 
+3. This diagram went stale again after multi-agent orchestration was
+   added (user's ask: "some inputs will require all 3... pattern will not
+   be sequential, will depend on the input"). A free, no-LLM-call
+   heuristic gate (might_need_multiple_agents()) now runs BEFORE the
+   router/tool-agent path shown above; only when it's true does a real
+   MultiAgentPlanner call decide SEQUENTIAL (each agent's output feeds the
+   next) vs PARALLEL (independent, then synthesized) vs SINGLE (falls
+   through to the normal path with zero extra cost). Documented here
+   explicitly as a standing lesson after being caught stale twice now:
+   this diagram is hand-maintained prose, not generated from code --
+   check it against app/agents/orchestrator.py and
+   app/agents/multi_agent_coordinator.py directly whenever either changes,
+   don't assume it's still accurate.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
@@ -43,6 +57,21 @@ ARCHITECTURE_DIAGRAM = r"""
 flowchart TB
     USER["User request\n(CLI / voice / dashboard trace)"]
 
+    HEURISTIC{"might_need_multiple_agents()\nFREE, no LLM call --\nsequencing keyword OR >=18 words?"}
+    USER --> HEURISTIC
+
+    HEURISTIC -->|"no (most requests)"| DR
+    HEURISTIC -->|"yes"| MAPLANNER["MultiAgentPlanner\n1 real LLM call: which agents,\nSEQUENTIAL / PARALLEL / SINGLE?"]
+
+    MAPLANNER -->|SINGLE| DR
+    MAPLANNER -->|"SEQUENTIAL or PARALLEL"| COORDINATOR
+
+    subgraph COORDINATOR["MultiAgentCoordinator -- runs Orchestrator's OWN agent instances"]
+        direction TB
+        SEQ["SEQUENTIAL:\neach agent's real output becomes\ncontext for the next agent's input"]
+        PAR["PARALLEL:\nagents run independently on the\nsame input, then 1 LLM call\nsynthesizes their outputs"]
+    end
+
     subgraph UNIFIED["UnifiedRouter -- ONE router, two classification stages"]
         direction LR
         DR["Stage 1: domain\nCAREER / PM / FINANCE / LEARNING / GENERAL\n(reuses DomainRouter's prompt/logic)"]
@@ -50,12 +79,13 @@ flowchart TB
         DR --> TC
     end
 
-    USER --> DR
-
     TC --> ORCH["Orchestrator\ninjects classified domain as\ncontext into the dispatched agent"]
     ORCH -->|RESEARCH| RA["ResearchAgent (ToolAgent)"]
     ORCH -->|ANALYSIS| AA["AnalystAgent (ToolAgent)"]
     ORCH -->|PLANNING| PA["PlannerAgent (ToolAgent)"]
+
+    SEQ -.->|"same 3 agent instances,\nnot rebuilt"| RA
+    PAR -.->|"same 3 agent instances,\nnot rebuilt"| RA
 
     subgraph DECISIONLOOP["Every one of the 3 agents: same per-turn decision, every turn"]
         direction TB
