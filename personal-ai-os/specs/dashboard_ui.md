@@ -363,3 +363,38 @@ user's explicit choices). 731 tests passing (was 726).
   distinct from the capability-tracking list above) — the user mentioned
   wanting these tracked too, but specifics weren't given; a separate,
   later step once the user provides them.
+
+## Example 10 — Learning OS page was showing fabricated data instead of the real 15 goals
+
+The user caught two things after the progress-value updates: "these %
+are not updated in the streamlit UI, also the learning page in UI is not
+updated." The first was the Architecture diagram going stale a second
+time (fixed separately, see specs/orchestration.md). The second was a
+real, previously-undetected bug in `render_learning()`: its "Progress by
+concept" bar chart and "Knowledge gaps" list were sourced entirely from
+`LEARNING_DEMO` — fabricated Kubernetes/Docker demo data — completely
+disconnected from the real 15 `GoalStore` capability goals shown
+everywhere else on the dashboard. Only the goal *count* was real; the
+actual per-goal progress breakdown the user wanted was never wired to
+real data at all.
+
+Rewrote `render_learning()` to build its progress chart directly from
+`stores["goals"].list_by_owner()` (the same real data source the
+Architecture page's "Goals defined" section already uses) — no caching,
+so it reflects the actual state after every commit, not a fixed
+snapshot. Added a per-goal "Deep dive — what's done, what's left"
+section: an expander per capability showing its real progress %, the
+`[Progress basis]` evidence note, and its real `success_criteria`
+checklist (split from the basis note by its distinguishing prefix).
+"Exercises completed" was dropped from the page entirely rather than
+kept with a fabricated number — there is no real store backing an
+exercises-completed count for these capability goals (confirmed by
+checking: `evaluate_answer`/`AdaptiveLoop` are per-call functions with no
+persistence), so showing one would be inventing data, not reporting it.
+
+Verified live in a real browser (`agent-browser`): confirmed the real
+56% average progress, the real 65% for "Agents & Multi-Agent
+Orchestration" (matching its just-updated GoalStore value) with its real
+progress-basis text, and the full success-criteria checklist rendering
+correctly per goal. 755 tests passing (pure dashboard rendering fix, no
+logic changed, no new tests needed).

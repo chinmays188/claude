@@ -28,7 +28,7 @@ from app.dashboard.domain_data import (
     get_pm_dashboard,
 )
 from app.dashboard_ui.architecture_diagram import ARCHITECTURE_DIAGRAM
-from app.dashboard_ui.demo_workflow_outputs import CAREER_DEMO, FINANCE_DEMO, LEARNING_DEMO, PM_DEMO
+from app.dashboard_ui.demo_workflow_outputs import CAREER_DEMO, FINANCE_DEMO, PM_DEMO
 from app.db.connection import get_connection
 from app.domains.cross_domain.goal_store import GoalStore
 from app.evaluation.domain_golden import count_cases_by_domain
@@ -176,21 +176,47 @@ def render_finance(stores: dict) -> None:
 
 def render_learning(stores: dict) -> None:
     st.header("Learning OS")
-    st.caption("Phase 3, Sections 26-30 · dashboard: Section 51")
+    st.caption(
+        "Phase 3, Sections 26-30 · dashboard: Section 51 — the real-time deep-dive below "
+        "reads live from GoalStore on every page load (no caching), so it reflects the "
+        "actual state after your latest commit, not a fixed snapshot."
+    )
 
-    dashboard = get_learning_dashboard(stores["goals"], USER_ID, **LEARNING_DEMO)
+    # Real per-goal data from the actual 15 learning-capability goals (GoalStore),
+    # NOT the fabricated Kubernetes/Docker demo dict (LEARNING_DEMO) -- that was the
+    # bug the user caught: this page previously showed fake concepts, disconnected
+    # from the real goals tracked everywhere else on the dashboard.
+    real_learning_goals = sorted(
+        (g for g in stores["goals"].list_by_owner(USER_ID) if g.domain.value == "LEARNING"),
+        key=lambda g: -g.progress,
+    )
+    real_progress = {g.title: round(g.progress * 10, 1) for g in real_learning_goals}
+
+    dashboard = get_learning_dashboard(stores["goals"], USER_ID, progress=real_progress)
 
     col1, col2 = st.columns(2)
-    col1.metric("Exercises completed", dashboard.exercises_completed)
-    col2.metric("Active learning goals", dashboard.learning_goals_count)
+    col1.metric("Active learning goals", dashboard.learning_goals_count)
+    avg_progress = sum(g.progress for g in real_learning_goals) / len(real_learning_goals) if real_learning_goals else 0.0
+    col2.metric("Average progress", f"{avg_progress:.0%}")
+    st.caption(
+        "\"Exercises completed\" is dropped from this page — it was fabricated demo data "
+        "(LEARNING_DEMO) with no real store behind it for these capability goals; showing "
+        "a number here would be inventing data, not reporting it."
+    )
 
-    st.subheader("Progress by concept (out of 10)")
+    st.subheader("Real progress per capability (out of 10)")
     st.bar_chart(dashboard.progress)
 
-    if dashboard.knowledge_gaps:
-        st.subheader("Knowledge gaps")
-        for gap in dashboard.knowledge_gaps:
-            st.write(f"- {gap}")
+    st.subheader("Deep dive — what's done, what's left")
+    for goal in real_learning_goals:
+        criteria = [c for c in goal.success_criteria if not c.startswith("[Progress basis]")]
+        basis = next((c[len("[Progress basis] "):] for c in goal.success_criteria if c.startswith("[Progress basis]")), None)
+        with st.expander(f"{goal.progress:.0%} — {goal.title}", expanded=False):
+            if basis:
+                st.caption(f"**Why this score:** {basis}")
+            st.markdown("**Success criteria (what 'done' looks like for this capability):**")
+            for c in criteria:
+                st.write(f"- {c}")
 
 
 def render_chief_of_staff(stores: dict) -> None:
