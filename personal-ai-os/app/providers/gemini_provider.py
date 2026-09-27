@@ -1,9 +1,21 @@
 from pydantic import BaseModel
 
 from google import genai
+from google.genai import types as genai_types
 
 from app.config import Config, require_gemini_key
 from app.providers.base import LLMProvider
+
+# Real bug found while running the multi-agent coordinator live: the SDK's
+# HttpOptions.timeout defaults to None (no request timeout at all), and it
+# retries automatically on 429/5xx. Combined with this project's real
+# free-tier rate limit (confirmed earlier this session:
+# RESOURCE_EXHAUSTED, 15 req/min), a single generate() call could hang for
+# minutes with no way for AgentBudget's timeout_seconds to interrupt it --
+# that budget check only runs BETWEEN calls, never during one already in
+# flight. A hard client-side timeout is the real fix: it turns an
+# indefinite hang into a real, catchable exception.
+DEFAULT_REQUEST_TIMEOUT_MS = 45_000
 
 
 class GenerationUsage(BaseModel):
@@ -19,10 +31,16 @@ class GenerationUsage(BaseModel):
 
 
 class GeminiProvider(LLMProvider):
-    def __init__(self, model: str | None = None, track_usage: bool = False):
+    def __init__(
+        self, model: str | None = None, track_usage: bool = False,
+        request_timeout_ms: int = DEFAULT_REQUEST_TIMEOUT_MS,
+    ):
         require_gemini_key()
         self._model = model or Config.GEMINI_MODEL
-        self._client = genai.Client(api_key=Config.GEMINI_API_KEY)
+        self._client = genai.Client(
+            api_key=Config.GEMINI_API_KEY,
+            http_options=genai_types.HttpOptions(timeout=request_timeout_ms),
+        )
         # When enabled, every real generate() call made through this
         # instance appends its actual usage here -- no extra/duplicate LLM
         # calls, just capturing what the SDK already returns for calls that

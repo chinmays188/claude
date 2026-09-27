@@ -2,6 +2,13 @@ from pydantic import BaseModel
 
 from app.agents.analyst_agent import AnalystAgent
 from app.agents.base import AgentResponse
+from app.agents.multi_agent_coordinator import (
+    AgentName,
+    MultiAgentCoordinator,
+    MultiAgentPlanner,
+    MultiAgentPlanningError,
+    might_need_multiple_agents,
+)
 from app.agents.planner_agent import PlannerAgent
 from app.agents.research_agent import ResearchAgent
 from app.knowledge.secure_retrieval import SecureRetriever
@@ -9,6 +16,12 @@ from app.providers.base import LLMProvider
 from app.retrieval.vector_search import VectorStore
 from app.routing.classifier import TaskType
 from app.routing.unified_router import UnifiedClassification, UnifiedRouter, UnifiedRoutingError
+
+_TASK_TYPE_TO_AGENT_NAME = {
+    TaskType.RESEARCH: AgentName.RESEARCH,
+    TaskType.ANALYSIS: AgentName.ANALYSIS,
+    TaskType.PLANNING: AgentName.PLANNING,
+}
 
 
 class ClarificationNeeded(BaseModel):
@@ -27,13 +40,23 @@ class Orchestrator:
     remain separate. The text-only/retriever-groundable ones (analyze_jd,
     draft_prd, analyze_feedback) ARE bridged in as real tools any of the 3
     agents can call (see app/tools/domain_workflow_tools.py) -- confirmed
-    scope decision with the user."""
+    scope decision with the user.
+
+    Multi-agent orchestration (user's ask: "some inputs will require all
+    3... pattern will not be sequential, will depend on the input"): before
+    dispatching to a single agent, a cheap MultiAgentPlanner call decides
+    whether this specific request genuinely needs more than one agent, and
+    if so whether they run SEQUENTIAL (each feeding the next) or PARALLEL
+    (independent, then synthesized) -- a real per-input decision, not a
+    fixed pipeline. Most requests are SINGLE and keep the original fast
+    path (1 router call + 1 agent); only genuinely multi-agent requests pay
+    for the extra planning call and extra agent runs."""
 
     def __init__(
         self, llm: LLMProvider, retrieval_store: VectorStore | None = None,
         on_tool_call=None, on_classified=None,
         secure_retriever: SecureRetriever | None = None, requester_id: str | None = None,
-        requester_tenant_id: str | None = None,
+        requester_tenant_id: str | None = None, on_multi_agent_planned=None,
     ):
         # retrieval_store/secure_retriever/requester_* are all optional and
         # additive: passing none of them (the default, matching every
@@ -47,9 +70,13 @@ class Orchestrator:
         # ClarificationNeeded) doesn't carry the classification itself, so
         # callers that need it (e.g. scripts/trace_request.py) observe it
         # via this hook instead of Orchestrator's return type changing for
-        # everyone.
+        # everyone. on_multi_agent_planned (optional, called as
+        # on_multi_agent_planned(MultiAgentPlan)) exposes the multi-agent
+        # planning decision the same way.
         self._router = UnifiedRouter(llm)
+        self._multi_agent_planner = MultiAgentPlanner(llm)
         self._on_classified = on_classified
+        self._on_multi_agent_planned = on_multi_agent_planned
         agent_kwargs = dict(
             store=retrieval_store, on_tool_call=on_tool_call,
             secure_retriever=secure_retriever, requester_id=requester_id,
@@ -60,10 +87,33 @@ class Orchestrator:
             TaskType.ANALYSIS: AnalystAgent(llm, **agent_kwargs),
             TaskType.PLANNING: PlannerAgent(llm, **agent_kwargs),
         }
+        agents_by_name = {
+            task_type_to_name: self._agents[task_type]
+            for task_type, task_type_to_name in _TASK_TYPE_TO_AGENT_NAME.items()
+        }
+        self._coordinator = MultiAgentCoordinator(llm, agents_by_name)
 
     def handle(self, text: str) -> AgentResponse | ClarificationNeeded:
         if not text or not text.strip():
             raise ValueError("Input text must not be empty.")
+
+        multi_agent_plan = None
+        if might_need_multiple_agents(text):
+            # Cheap, free (no LLM call) heuristic gate, confirmed with the
+            # user: paying for a real planning call on every single
+            # request -- including obviously-simple ones -- was an
+            # unacceptable cost increase. Only requests that plausibly
+            # need coordination pay for this real LLM call at all.
+            try:
+                multi_agent_plan = self._multi_agent_planner.plan(text)
+            except MultiAgentPlanningError:
+                multi_agent_plan = None  # degrade to the normal single-agent path below
+
+            if self._on_multi_agent_planned and multi_agent_plan is not None:
+                self._on_multi_agent_planned(multi_agent_plan)
+
+            if multi_agent_plan is not None and multi_agent_plan.needs_coordination:
+                return self._coordinator.run(text, multi_agent_plan)
 
         try:
             classification = self._router.route(text)

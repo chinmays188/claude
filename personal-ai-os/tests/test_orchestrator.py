@@ -12,9 +12,12 @@ from tests.fakes.fake_embedding import FakeEmbeddingModel
 
 class ScriptedProvider(LLMProvider):
     """Returns responses in sequence, matching Orchestrator.handle()'s real
-    call order via UnifiedRouter: (1) DomainRouter's classification call,
-    (2) TaskClassifier's classification call, (3+) the dispatched agent's
-    own call(s)."""
+    call order: (0) MultiAgentPlanner's call, but ONLY when
+    might_need_multiple_agents(text) is True for the given input (a free,
+    no-LLM-call heuristic gate -- short/simple test inputs below don't
+    trigger it, so no response needs to be scripted for it); (1)
+    DomainRouter's classification call, (2) TaskClassifier's classification
+    call, (3+) the dispatched agent's own call(s)."""
 
     def __init__(self, responses: list[str]):
         self._responses = list(responses)
@@ -287,3 +290,91 @@ def test_on_classified_still_fires_for_unclear_task_type():
 
     assert len(observed) == 1
     assert observed[0].task_type.value == "unclear"
+
+
+def test_multi_agent_heuristic_not_triggered_skips_planner_call_entirely():
+    """A short, simple request should never even make the MultiAgentPlanner
+    call -- confirmed by NOT scripting a response for it; if the heuristic
+    incorrectly fired, this test would fail with an empty-list pop error."""
+    llm = ScriptedProvider(
+        [
+            '{"domains": [], "confidence": 0.9}',
+            '{"task_type": "research", "confidence": 0.9}',
+            '{"action": "final_answer", "answer": "RAG combines retrieval with generation."}',
+        ]
+    )
+    orchestrator = Orchestrator(llm)
+
+    result = orchestrator.handle("Explain RAG.")
+
+    assert result.agent == "research_agent"
+
+
+def test_long_multi_clause_request_triggers_sequential_multi_agent_path():
+    llm = ScriptedProvider(
+        [
+            '{"agents": ["research", "analysis", "planning"], "mode": "SEQUENTIAL", '
+            '"reasoning": "planning needs the analysis which needs the research"}',
+            '{"action": "final_answer", "answer": "Kubernetes orchestrates containers."}',
+            '{"action": "final_answer", "answer": "K8s is more flexible than ECS but has a steeper learning curve."}',
+            '{"action": "final_answer", "answer": "Week 1: pilot. Week 2: migrate one service."}',
+        ]
+    )
+    orchestrator = Orchestrator(llm)
+    long_request = (
+        "Please research what Kubernetes actually is and how it works, then "
+        "compare it against ECS for a mid-size team's real tradeoffs, and "
+        "finally give me a concrete plan to adopt whichever one wins."
+    )
+
+    result = orchestrator.handle(long_request)
+
+    assert result.agent.startswith("multi_agent:sequential:")
+    assert result.output == "Week 1: pilot. Week 2: migrate one service."
+
+
+def test_multi_agent_planner_failure_degrades_to_single_agent_path():
+    """A malformed MultiAgentPlanner response (StructuredOutputError after
+    exhausting repairs) should degrade to the normal single-agent path, not
+    crash -- the request still goes through UnifiedRouter + a real agent."""
+    long_request = (
+        "Please research what Kubernetes actually is and how it works, then "
+        "compare it against ECS for a mid-size team's real tradeoffs, and "
+        "finally give me a concrete plan to adopt whichever one wins."
+    )
+    llm = ScriptedProvider(
+        [
+            "not valid json", "still not valid json", "nope",  # exhausts MultiAgentPlanner's repair attempts
+            '{"domains": [], "confidence": 0.9}',
+            '{"task_type": "research", "confidence": 0.9}',
+            '{"action": "final_answer", "answer": "a real answer"}',
+        ]
+    )
+    orchestrator = Orchestrator(llm)
+
+    result = orchestrator.handle(long_request)
+
+    assert result.agent == "research_agent"
+    assert result.output == "a real answer"
+
+
+def test_on_multi_agent_planned_observer_receives_the_real_plan():
+    observed = []
+    llm = ScriptedProvider(
+        [
+            '{"agents": ["research", "analysis"], "mode": "PARALLEL", "reasoning": "independent asks"}',
+            '{"action": "final_answer", "answer": "research output"}',
+            '{"action": "final_answer", "answer": "analysis output"}',
+            "combined synthesis output",
+        ]
+    )
+    orchestrator = Orchestrator(llm, on_multi_agent_planned=lambda p: observed.append(p))
+    long_request = (
+        "Give me a thorough research summary of retrieval augmented generation "
+        "and, completely separately, a risk analysis of adopting it in production."
+    )
+
+    orchestrator.handle(long_request)
+
+    assert len(observed) == 1
+    assert observed[0].mode.value == "PARALLEL"
