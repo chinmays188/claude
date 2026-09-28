@@ -57,6 +57,7 @@ class Orchestrator:
         on_tool_call=None, on_classified=None,
         secure_retriever: SecureRetriever | None = None, requester_id: str | None = None,
         requester_tenant_id: str | None = None, on_multi_agent_planned=None,
+        mcp_tools: list | None = None,
     ):
         # retrieval_store/secure_retriever/requester_* are all optional and
         # additive: passing none of them (the default, matching every
@@ -72,7 +73,10 @@ class Orchestrator:
         # via this hook instead of Orchestrator's return type changing for
         # everyone. on_multi_agent_planned (optional, called as
         # on_multi_agent_planned(MultiAgentPlan)) exposes the multi-agent
-        # planning decision the same way.
+        # planning decision the same way. mcp_tools (optional): real Tool
+        # instances discovered from a connected MCP server (see
+        # app/tools/mcp_tool.py), forwarded to all 3 agents identically to
+        # every other optional tool dependency.
         self._router = UnifiedRouter(llm)
         self._multi_agent_planner = MultiAgentPlanner(llm)
         self._on_classified = on_classified
@@ -80,7 +84,7 @@ class Orchestrator:
         agent_kwargs = dict(
             store=retrieval_store, on_tool_call=on_tool_call,
             secure_retriever=secure_retriever, requester_id=requester_id,
-            requester_tenant_id=requester_tenant_id,
+            requester_tenant_id=requester_tenant_id, mcp_tools=mcp_tools,
         )
         self._agents = {
             TaskType.RESEARCH: ResearchAgent(llm, **agent_kwargs),

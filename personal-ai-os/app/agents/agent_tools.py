@@ -24,6 +24,7 @@ def build_shared_tools(
     secure_retriever: SecureRetriever | None = None,
     requester_id: str | None = None,
     requester_tenant_id: str | None = None,
+    mcp_tools: list[Tool] | None = None,
 ) -> list[Tool]:
     """calculator and analyze_feedback are always available (neither needs
     retrieval -- checked by reading app/domains/pm/feedback_intelligence.py
@@ -32,7 +33,11 @@ def build_shared_tools(
     a SecureRetriever (they ground their output in the user's own retrieved
     documents) plus a requester identity for permission-scoped search --
     each is added independently, only when its own real dependency is
-    supplied, not lumped under one shared toggle."""
+    supplied, not lumped under one shared toggle. mcp_tools (optional):
+    real Tool instances discovered live from a connected MCP server (see
+    app/tools/mcp_tool.py's discover_mcp_tools()) -- added exactly like any
+    other tool here, since MCPTool IS a real Tool; no agent code needs to
+    know MCP exists."""
     tools: list[Tool] = [CalculatorTool(), AnalyzeFeedbackTool(llm)]
 
     if retrieval_store is not None:
@@ -41,5 +46,8 @@ def build_shared_tools(
     if secure_retriever is not None and requester_id is not None and requester_tenant_id is not None:
         tools.append(AnalyzeJdTool(llm, secure_retriever, requester_id, requester_tenant_id))
         tools.append(DraftPrdTool(llm, secure_retriever, requester_id, requester_tenant_id))
+
+    if mcp_tools:
+        tools.extend(mcp_tools)
 
     return tools

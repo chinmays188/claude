@@ -12,3 +12,4 @@ httpx
 pypdf
 python-docx
 streamlit
+mcp

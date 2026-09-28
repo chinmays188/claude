@@ -45,6 +45,15 @@ HISTORY:
    app/agents/multi_agent_coordinator.py directly whenever either changes,
    don't assume it's still accurate.
 
+4. Updated in the SAME batch as the code this time (applying the lesson
+   above) for MCP (Model Context Protocol) support: the user asked for a
+   generic, plug-and-play MCP client tested live against GitHub's real
+   MCP server. app/tools/mcp_tool.py's MCPConnection/MCPTool/
+   discover_mcp_tools() dynamically wrap ANY MCP server's real tools as
+   real Tool instances -- indistinguishable from calculator/retrieve/etc.
+   to ToolAgent/ToolRegistry, added to build_shared_tools() exactly like
+   every other optional tool dependency.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
@@ -103,7 +112,7 @@ flowchart TB
 
     DECISIONLOOP --> TOOLS
 
-    subgraph TOOLS["Tool Registry -- ALL 8 real tools, same set for all 3 agents"]
+    subgraph TOOLS["Tool Registry -- 8 built-in tools + N live MCP tools, same set for all 3 agents"]
         direction TB
         T1["calculator\n(local, no credentials, always on)"]
         T2["analyze_feedback\n(local, no credentials, always on)"]
@@ -112,8 +121,19 @@ flowchart TB
         T5["draft_prd\n(needs SecureRetriever + requester identity --\nbridges app/domains/pm/prd.py)"]
         T6["calendar_day\n(needs real CalendarClient)"]
         T7["email_summary\n(needs real EmailClient)"]
-        T8["github_activity\n(needs real GitHubClient)"]
+        T8["github_activity\n(needs real GitHubClient, direct REST API)"]
+        T9["mcp_* (N tools)\ndynamically discovered from ANY\nconnected MCP server -- generic,\nnot GitHub-specific code"]
     end
+
+    subgraph MCPLAYER["MCP (Model Context Protocol) -- plug and play, any server"]
+        direction TB
+        MCPCONN["MCPConnection\npersistent session, background\nasyncio event loop thread"]
+        MCPDISCOVER["discover_mcp_tools()\nlist_tools() -> real MCPTool\nper server-advertised tool"]
+        MCPCONN --> MCPDISCOVER
+        MCPDISCOVER -.->|"tested live against"| GHMCP["GitHub's official remote\nMCP server\n(api.githubcopilot.com/mcp/)"]
+    end
+
+    MCPDISCOVER --> T9
 
     T3 --> VECSTORE["VectorStore (FAISS)\nreal embeddings via\nSentenceTransformerEmbedding"]
     T4 --> SECURERETR["SecureRetriever\n(permission-filtered)"]
