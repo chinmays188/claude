@@ -1,0 +1,206 @@
+[
+  {
+    "input_text": "Use the calculator tool to compute 1 divided by 0, then tell me what happened.",
+    "trace_json": {
+      "execution_id": "b64fa032d48b4774a37e1fae3f7bc66b",
+      "session_id": "failure_trace_gen",
+      "user_id": "demo_user",
+      "agent": "trace_request",
+      "model": "gemini-3.5-flash-lite",
+      "input_tokens": 1603,
+      "output_tokens": 168,
+      "tool_calls": 1,
+      "retrieval_calls": 0,
+      "latency_ms": 6532.638834003592,
+      "cost": 0.0,
+      "status": "success",
+      "spans": [
+        {
+          "span_id": "3af09300fc91",
+          "name": "orchestrator_run",
+          "kind": "agent",
+          "started_at": 64455.292972583,
+          "ended_at": 64461.80186425,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "Use the calculator tool to compute 1 divided by 0, then tell me what happened.",
+            "agent": "research_agent",
+            "output": "I attempted to use the calculator tool to divide 1 by 0. The calculator returned an error because division by zero is mathematically undefined, resulting in a division by zero exception.",
+            "stop_reason": "task_completed"
+          },
+          "children": [
+            {
+              "span_id": "28b276ec9dce",
+              "name": "unified_routing",
+              "kind": "classification",
+              "started_at": 64459.428392541,
+              "ended_at": 64459.42844075,
+              "status": "success",
+              "error": null,
+              "metadata": {
+                "input_text": "Use the calculator tool to compute 1 divided by 0, then tell me what happened.",
+                "domain": "GENERAL",
+                "all_domains": [],
+                "domain_confidence": 1.0,
+                "task_type": "research",
+                "task_confidence": 0.8
+              },
+              "children": []
+            },
+            {
+              "span_id": "c10d0272c670",
+              "name": "tool:calculator",
+              "kind": "tool",
+              "started_at": 64460.449580416,
+              "ended_at": 64460.449689708,
+              "status": "error",
+              "error": "Could not evaluate expression '1 / 0': division by zero",
+              "metadata": {
+                "args": {
+                  "expression": "1 / 0"
+                }
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "input_text": "What is Kubernetes and how does container orchestration work?",
+    "trace_json": {
+      "execution_id": "356254006e73405fbebf64773148177c",
+      "session_id": "failure_trace_gen",
+      "user_id": "demo_user",
+      "agent": "trace_request",
+      "model": "gemini-3.5-flash-lite",
+      "input_tokens": 1532,
+      "output_tokens": 972,
+      "tool_calls": 1,
+      "retrieval_calls": 1,
+      "latency_ms": 17926.949584005342,
+      "cost": 0.0,
+      "status": "success",
+      "spans": [
+        {
+          "span_id": "8256585f9669",
+          "name": "retrieve_eval",
+          "kind": "retrieval",
+          "started_at": 64472.138909708,
+          "ended_at": 64472.156103333,
+          "status": "error",
+          "error": "Retrieval returned 1 chunk(s), 0 of which are relevant (precision=0.00) -- the indexed document has no content matching this topic at all. (recall is trivially 1.0 here since the ground truth itself has 0 relevant chunk ids to find -- precision is the real failure signal in this scenario.)",
+          "metadata": {
+            "query": "What is Kubernetes and how does container orchestration work?",
+            "retrieved_ids": [
+              "unrelated_doc::chunk0"
+            ],
+            "relevant_ids": [],
+            "recall": 1.0,
+            "precision": 0.0
+          },
+          "children": []
+        },
+        {
+          "span_id": "4a313ae2a4e7",
+          "name": "orchestrator_run",
+          "kind": "agent",
+          "started_at": 64472.156173666,
+          "ended_at": 64480.737097416,
+          "status": "success",
+          "error": null,
+          "metadata": {
+            "input_text": "What is Kubernetes and how does container orchestration work?",
+            "agent": "research_agent",
+            "output": "### What is Kubernetes?\n\n**Kubernetes** (often abbreviated as **K8s**) is an open-source container orchestration platform designed to automate the deployment, scaling, and management of containerized applications. Originally developed by Google and now maintained by the Cloud Native Computing Foundation (CNFC), Kubernetes takes groups of containers\u2014typically packaged via Docker\u2014and runs them across a cluster of physical or virtual machines.\n\n### How Container Orchestration Works\n\nContainers package an application together with its dependencies, configuration files, and runtime environment so that it can run reliably across different computing environments. However, managing hundreds or thousands of containers across multiple servers introduces complex operational challenges. Container orchestration automates this lifecycle. \n\nAt a high level, Kubernetes works through a **Master-Worker architecture**:\n\n1. **The Control Plane (Master Node):** This is the brain of the cluster. It makes global decisions about the cluster (e.g., scheduling workloads), detects and responds to cluster events, and maintains the desired state of the system.\n2. **Worker Nodes:** These are the machines (VMs or physical servers) that actually run your containerized applications. Each worker node contains:\n   - **Kubelet:** An agent that ensures containers are running inside a **Pod** (the smallest deployable unit in Kubernetes, which contains one or more containers).\n   - **Container Runtime:** The software responsible for running containers (e.g., containerd, CRI-O).\n   - **Kube-proxy:** A network proxy that maintains network rules on nodes, enabling network communication to your Pods.\n\n#### The Control Loop\nKubernetes operates on a **declarative model**. Instead of telling the system step-by-step how to do something, you define the *desired state* (e.g., \"I want 3 replicas of my web app running\"). The Kubernetes control plane continuously monitors the *actual state* of the cluster and takes corrective action if they differ (e.g., if a server crashes and one container dies, Kubernetes automatically spins up a new container elsewhere to maintain the desired count of 3).\n\n---\n\n### Concrete Example\n\nImagine you run an e-commerce website experiencing a sudden surge in traffic during a flash sale:\n\n1. **Deployment Definition:** You create a Kubernetes configuration file specifying that your web application deployment should maintain **2 Pods** normally.\n2. **Auto-scaling Trigger:** As thousands of customers flood the site, CPU utilization on those 2 Pods spikes to 90%.\n3. **Orchestration Action:** Kubernetes' **Horizontal Pod Autoscaler (HPA)** detects this high resource usage and updates the desired state of your deployment from 2 Pods to **10 Pods**.\n4. **Scheduling & Execution:** The Kubernetes Scheduler finds available computing resources across your worker nodes, places the 8 new Pods onto those nodes, and the Kube-proxy routes incoming traffic to include the new capacity.\n5. **Scale-Down:** Once the flash sale ends and traffic drops, CPU usage normalizes, and Kubernetes automatically scales the application back down to 2 Pods to save infrastructure costs.\n\n---\n\n### Important Limitations and Caveats\n\n* **Steep Learning Curve:** Kubernetes has a notoriously complex architecture with many custom concepts (Pods, Services, Ingress, PersistentVolumes, Custom Resource Definitions). Configuring and securing a cluster requires specialized knowledge.\n* **Operational Overhead:** While managed Kubernetes services (like AWS EKS, Google GKE, or Azure AKS) reduce the burden, running a production-grade cluster yourself requires significant time investment in monitoring, upgrades, networking, and security patching.\n* **Overkill for Simple Applications:** For small applications, single-server deployments, or simple monoliths, Kubernetes is often unnecessary and introduces avoidable complexity compared to simpler PaaS (Platform-as-a-Service) options or Docker Compose.\n* **Stateful Workloads Complexity:** While Kubernetes handles stateless applications (like web servers) very well, managing stateful applications (like databases) that require persistent storage and ordered startup/shutdown sequences remains more challenging, requiring specialized objects like StatefulSets.",
+            "stop_reason": "task_completed"
+          },
+          "children": []
+        }
+      ]
+    }
+  },
+  {
+    "input_text": "Keep dividing by zero.",
+    "trace_json": {
+      "execution_id": "5c4de7b6e41a4abc822159da6e675988",
+      "session_id": "failure_trace_gen",
+      "user_id": "demo_user",
+      "agent": "trace_request",
+      "model": "deterministic-stub",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "tool_calls": 3,
+      "retrieval_calls": 0,
+      "latency_ms": 1.8639589980011806,
+      "cost": 0.0,
+      "status": "error",
+      "spans": [
+        {
+          "span_id": "6659fc266b61",
+          "name": "orchestrator_run",
+          "kind": "agent",
+          "started_at": 64480.737506875,
+          "ended_at": 64480.7393355,
+          "status": "error",
+          "error": "Stopped via max_tool_calls_reached after 3 failed tool calls.",
+          "metadata": {
+            "input_text": "Keep dividing by zero.",
+            "agent": "agent",
+            "output": "I couldn't fully complete this request within the allowed budget (max_tool_calls exceeded (4 > 3)). Here is what I have so far; the answer may be incomplete.",
+            "stop_reason": "max_tool_calls_reached"
+          },
+          "children": [
+            {
+              "span_id": "56e54fc043e3",
+              "name": "tool:calculator",
+              "kind": "tool",
+              "started_at": 64480.738344208,
+              "ended_at": 64480.738367791,
+              "status": "error",
+              "error": "Could not evaluate expression '1 / 0': division by zero",
+              "metadata": {
+                "args": {
+                  "expression": "1 / 0"
+                }
+              },
+              "children": []
+            },
+            {
+              "span_id": "e38b77d29557",
+              "name": "tool:calculator",
+              "kind": "tool",
+              "started_at": 64480.738712583,
+              "ended_at": 64480.738734416,
+              "status": "error",
+              "error": "Could not evaluate expression '1 / 0': division by zero",
+              "metadata": {
+                "args": {
+                  "expression": "1 / 0"
+                }
+              },
+              "children": []
+            },
+            {
+              "span_id": "d59d857f27d9",
+              "name": "tool:calculator",
+              "kind": "tool",
+              "started_at": 64480.739041375,
+              "ended_at": 64480.739059916,
+              "status": "error",
+              "error": "Could not evaluate expression '1 / 0': division by zero",
+              "metadata": {
+                "args": {
+                  "expression": "1 / 0"
+                }
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

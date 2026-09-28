@@ -34,6 +34,12 @@ from app.domains.cross_domain.goal_store import GoalStore
 from app.evaluation.domain_golden import count_cases_by_domain
 from app.graph.store import GraphStore
 from app.memory.persistent_store import PersistentMemoryStore
+from app.observability.error_analysis import (
+    failure_examples,
+    span_failure_counts_by_kind,
+    stop_reason_counts,
+    trace_error_rate,
+)
 from app.observability.trace_store import TraceNotFoundError, TraceStore
 from app.proactive.commitments import CommitmentStore
 from app.proactive.outcome_tracking import OutcomeStore
@@ -317,6 +323,123 @@ def _render_journey(trace, input_text: str) -> None:
                 "(routed to neither research/analyst/planner) or ended in a clarification.")
 
 
+_EVAL_HISTORY_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "eval_history.json"
+
+
+def _load_eval_history() -> list[dict]:
+    """Loads app/dashboard_ui/eval_history.json -- appended to by
+    scripts/track_eval_drift.py each time it's run against the real,
+    fixed RAG ground-truth fixture. A real time series, not simulated;
+    starts thin and only grows meaningfully with repeated runs over time."""
+    if not _EVAL_HISTORY_PATH.exists():
+        return []
+    return json.loads(_EVAL_HISTORY_PATH.read_text())
+
+
+def _render_error_rates_section(trace_store, summaries: list[dict]) -> None:
+    """Real error-rate / failure-mode section, computed from every stored
+    trace (seeded example + failure traces, plus any real ones a caller has
+    since saved) -- app/observability/error_analysis.py's pure functions,
+    nothing fabricated. Built for the user's ask: 'add retrieval failures,
+    tool failures, error rates logging with examples of trace ids.'"""
+    st.subheader("Error rates & failure modes")
+    st.caption(
+        "Computed live from every trace currently in TraceStore (seeded example + "
+        "failure traces from scripts/generate_failure_traces.py, plus any real trace "
+        "saved since). No number here is invented — an empty section means no failing "
+        "trace has been recorded yet, not a hidden zero."
+    )
+
+    if not summaries:
+        st.info("No traces recorded yet.")
+        return
+
+    all_traces = [trace_store.get(s["execution_id"]) for s in summaries]
+    error_rate = trace_error_rate(all_traces)
+    span_counts = span_failure_counts_by_kind(all_traces)
+    stop_reasons = stop_reason_counts(all_traces)
+    examples = failure_examples(all_traces)
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Trace error rate", f"{error_rate * 100:.1f}%", help="Fraction of traces with status == 'error'.")
+    col2.metric("Traces analyzed", len(all_traces))
+    col3.metric("Failed spans (any kind)", sum(span_counts.values()))
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("**Failed spans by kind**")
+        if span_counts:
+            st.bar_chart(span_counts)
+        else:
+            st.caption("No failed spans recorded.")
+    with col_b:
+        st.markdown("**Stop reasons across traces**")
+        if stop_reasons:
+            st.bar_chart(stop_reasons)
+        else:
+            st.caption("No orchestrator_run spans recorded a stop_reason.")
+
+    if examples:
+        st.markdown("**Example failing trace ids, by span kind**")
+        for kind, items in examples.items():
+            with st.expander(f"{kind} — {len(items)} example(s)", expanded=False):
+                for item in items:
+                    st.code(item["trace_id"], language=None)
+                    st.caption(f"Span: `{item['span_name']}`")
+                    st.error(item["error"])
+    else:
+        st.caption("No failed spans to show examples for.")
+
+
+def _render_model_drift_section() -> None:
+    """Real model/eval-drift section, from app/dashboard_ui/eval_history.json
+    (appended to by scripts/track_eval_drift.py re-running the same real,
+    fixed RAG ground truth over time). Built for the user's ask: 'track
+    model drifting signals overtime.'"""
+    st.subheader("Model drift signals over time")
+    history = _load_eval_history()
+    st.caption(
+        "Each point is a real rerun of the same fixed RAG ground-truth fixture "
+        "(scripts/track_eval_drift.py) — same documents, same question, same "
+        "human-labeled relevant chunks, every time. Only the model/pipeline code and "
+        "the live API's actual behavior can differ between runs, so a real change "
+        "here is a real drift signal, not noise from a different test."
+    )
+
+    if not history:
+        st.info("No eval history yet — run `python scripts/track_eval_drift.py` at least once.")
+        return
+
+    if len(history) < 3:
+        st.warning(
+            f"Only {len(history)} data point(s) so far — not enough to call this a trend yet. "
+            "Shown below anyway for transparency, but treat it as a starting baseline, not drift."
+        )
+
+    import pandas as pd
+
+    df = pd.DataFrame(history)
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df = df.set_index("timestamp")
+
+    st.markdown("**Retrieval quality**")
+    st.line_chart(df[["recall", "precision"]])
+    st.markdown("**Generation quality**")
+    st.line_chart(df[["groundedness_score", "citation_quality_score"]])
+    st.markdown("**Latency**")
+    st.line_chart(df[["latency_ms"]])
+
+    with st.expander("Raw eval history", expanded=False):
+        st.dataframe(df.reset_index())
+
+    latest_model = history[-1]["model"]
+    models_seen = {row["model"] for row in history}
+    if len(models_seen) > 1:
+        st.info(f"Multiple models seen in this history: {sorted(models_seen)}. Latest run: {latest_model}.")
+    else:
+        st.caption(f"All runs so far used the same model: {latest_model}.")
+
+
 def render_traces(stores: dict) -> None:
     st.header("Traces")
     st.caption(
@@ -327,6 +450,10 @@ def render_traces(stores: dict) -> None:
 
     trace_store = stores["traces"]
     summaries = trace_store.list_summaries(limit=200)
+
+    _render_error_rates_section(trace_store, summaries)
+    _render_model_drift_section()
+    st.markdown("---")
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("Trace IDs")

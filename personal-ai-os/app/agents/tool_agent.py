@@ -7,6 +7,7 @@ from app.guardrails.budgets import AgentBudget, BudgetExceededError, BudgetTrack
 from app.guardrails.stop_conditions import StopReason
 from app.providers.base import LLMProvider
 from app.structured.repair import RepairableGenerator, StructuredOutputError
+from app.tools.base import ToolError
 from app.tools.registry import ToolRegistry, UnknownToolError
 
 DECISION_PROMPT = """{system_prompt}
@@ -39,6 +40,7 @@ class ToolAgent(Agent):
         tools: ToolRegistry,
         budget: AgentBudget | None = None,
         on_tool_call=None,
+        on_tool_error=None,
     ):
         super().__init__(llm)
         self._tools = tools
@@ -50,6 +52,14 @@ class ToolAgent(Agent):
         # (e.g. scripts/trace_request.py) can observe the actual production
         # decision loop rather than reimplementing it separately.
         self._on_tool_call = on_tool_call
+        # Optional observer: called as on_tool_error(tool_name, args, error_message)
+        # when a tool raises ToolError. Mirrors on_tool_call's pattern exactly.
+        # Added alongside the fix for a real bug: tool.call() previously had
+        # no try/except at all here, so a real ToolError (bad args, a tool's
+        # own crash, e.g. calculator division by zero) propagated up and
+        # crashed the whole agent request instead of being recorded and
+        # recovered from.
+        self._on_tool_error = on_tool_error
 
     def run(self, text: str) -> AgentResponse:
         if not text or not text.strip():
@@ -78,7 +88,19 @@ class ToolAgent(Agent):
                     continue
 
                 tracker.record_tool_call()
-                tool_result = tool.call(decision.args)
+                try:
+                    tool_result = tool.call(decision.args)
+                except ToolError as exc:
+                    tool_calls.append(tool.name)
+                    history.append(
+                        f"Called {tool.name} -> ERROR: {exc}. "
+                        "Try different arguments, a different tool, or answer "
+                        "directly if this can't be recovered from."
+                    )
+                    if self._on_tool_error:
+                        self._on_tool_error(tool.name, decision.args, str(exc))
+                    continue
+
                 tool_calls.append(tool.name)
                 history.append(f"Called {tool.name} -> {tool_result}")
                 if self._on_tool_call:

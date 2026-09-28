@@ -57,7 +57,7 @@ class Orchestrator:
         on_tool_call=None, on_classified=None,
         secure_retriever: SecureRetriever | None = None, requester_id: str | None = None,
         requester_tenant_id: str | None = None, on_multi_agent_planned=None,
-        mcp_tools: list | None = None,
+        mcp_tools: list | None = None, on_tool_error=None,
     ):
         # retrieval_store/secure_retriever/requester_* are all optional and
         # additive: passing none of them (the default, matching every
@@ -76,13 +76,18 @@ class Orchestrator:
         # planning decision the same way. mcp_tools (optional): real Tool
         # instances discovered from a connected MCP server (see
         # app/tools/mcp_tool.py), forwarded to all 3 agents identically to
-        # every other optional tool dependency.
+        # every other optional tool dependency. on_tool_error (optional,
+        # called as on_tool_error(tool_name, args, error_message)) mirrors
+        # on_tool_call for the real-bug fix in ToolAgent: a tool raising
+        # ToolError is now caught and recorded instead of crashing the
+        # whole request; this hook exposes that to callers that need
+        # failure visibility (e.g. scripts/trace_request.py).
         self._router = UnifiedRouter(llm)
         self._multi_agent_planner = MultiAgentPlanner(llm)
         self._on_classified = on_classified
         self._on_multi_agent_planned = on_multi_agent_planned
         agent_kwargs = dict(
-            store=retrieval_store, on_tool_call=on_tool_call,
+            store=retrieval_store, on_tool_call=on_tool_call, on_tool_error=on_tool_error,
             secure_retriever=secure_retriever, requester_id=requester_id,
             requester_tenant_id=requester_tenant_id, mcp_tools=mcp_tools,
         )

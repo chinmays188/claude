@@ -7,3 +7,4 @@ class StopReason(str, Enum):
     MAX_TOOL_CALLS_REACHED = "max_tool_calls_reached"
     TIMEOUT = "timeout"
     SAFETY_BLOCKED = "safety_blocked"
+    TOOL_FAILED = "tool_failed"

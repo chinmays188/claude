@@ -4,7 +4,6 @@ from app.agents.tool_agent import ToolAgent
 from app.guardrails.budgets import AgentBudget
 from app.guardrails.stop_conditions import StopReason
 from app.providers.base import LLMProvider
-from app.tools.base import ArgumentValidationError
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
 
@@ -116,11 +115,64 @@ def test_hallucinated_tool_does_not_execute_and_agent_recovers():
     assert result.stop_reason == StopReason.TASK_COMPLETED.value
 
 
-def test_invalid_tool_args_raise():
-    agent = _agent(['{"action": "call_tool", "tool": "calculator", "args": {"expression": null}}'])
+def test_invalid_tool_args_are_caught_and_agent_recovers():
+    """Real bug fixed: tool.call() previously had no try/except in
+    ToolAgent.run() at all, so a real ToolError (this test's
+    ArgumentValidationError, or a tool's own runtime crash, e.g. calculator
+    division by zero) propagated up and crashed the whole request. Now it's
+    caught, recorded, and fed back to the LLM as a recoverable turn --
+    matching how a hallucinated tool name is already handled just above."""
+    agent = _agent(
+        [
+            '{"action": "call_tool", "tool": "calculator", "args": {"expression": null}}',
+            '{"action": "final_answer", "answer": "I couldn\'t compute that; please give a numeric expression."}',
+        ]
+    )
 
-    with pytest.raises(ArgumentValidationError):
-        agent.run("What is null plus one?")
+    result = agent.run("What is null plus one?")
+
+    assert result.tool_calls == ["calculator"]  # attempted, even though it failed
+    assert result.stop_reason == StopReason.TASK_COMPLETED.value
+
+
+def test_on_tool_error_observer_receives_real_failure():
+    observed = []
+    agent = ToolAgent(
+        ScriptedProvider(
+            [
+                '{"action": "call_tool", "tool": "calculator", "args": {"expression": "1 / 0"}}',
+                '{"action": "final_answer", "answer": "That expression divides by zero."}',
+            ]
+        ),
+        tools=ToolRegistry([CalculatorTool()]),
+        on_tool_error=lambda name, args, error: observed.append((name, args, error)),
+    )
+
+    result = agent.run("What is 1 / 0?")
+
+    assert len(observed) == 1
+    name, args, error = observed[0]
+    assert name == "calculator"
+    assert args == {"expression": "1 / 0"}
+    assert error  # real error message from the tool, not empty
+    assert result.stop_reason == StopReason.TASK_COMPLETED.value
+
+
+def test_tool_that_always_fails_eventually_hits_budget():
+    """A tool that keeps failing every attempt must not loop forever --
+    record_tool_call() increments on each attempt (even a failed one), so
+    the existing max_tool_calls budget is the real backstop."""
+    agent = _agent(
+        [
+            '{"action": "call_tool", "tool": "calculator", "args": {"expression": "1 / 0"}}',
+        ]
+        * 10,
+        budget=AgentBudget(max_tool_calls=2),
+    )
+
+    result = agent.run("Keep dividing by zero.")
+
+    assert result.stop_reason == StopReason.MAX_TOOL_CALLS_REACHED.value
 
 
 def test_malformed_decision_json_repairs_then_succeeds():

@@ -489,3 +489,98 @@ precision=33%; checking a second correctly updated to recall=100%,
 precision=67% — confirmed the math updates correctly in real time as
 labels change. 763 tests passing (pure dashboard addition, no existing
 logic changed).
+
+## Example 13 — Traces page: real error rates, failure examples, and model drift over time
+
+The user's ask: "Lets focus on AI Observability - Traces page, where we
+need to add retrieval failures, tool failures, error rates logging with
+examples of traces id ... add spans ... track model drifting signals
+overtime."
+
+Checked first, honestly: every committed example trace was `status ==
+"success"` — there was no real failure trace to show, and no time series
+of runs to show drift over. Confirmed with the user before building
+anything: generate real failure traces via a script (not simulate them),
+and build the drift signal from real reruns of a fixed eval fixture over
+time, not fabricate a curve.
+
+**A real bug was found and fixed while building this**, not just observed:
+`app/agents/tool_agent.py`'s `ToolAgent.run()` had no `try`/`except` at all
+around `tool.call()` — a real `ToolError` (bad args, a tool's own runtime
+crash, e.g. calculator division by zero) propagated up and crashed the
+*whole* agent request instead of being recorded. Fixed: the error is now
+caught, recorded as a real failed span (`status="error"`), fed back to the
+LLM as a recoverable turn (identical pattern to how a hallucinated tool
+name was already handled), and exposed via a new `on_tool_error` observer
+hook mirrored from the existing `on_tool_call` one — wired through all 3
+agents and `Orchestrator` identically. A tool that fails on *every*
+attempt still can't loop forever: `AgentBudget.max_tool_calls` is the real
+backstop (`record_tool_call()` increments on each attempt, even a failed
+one), verified with a test forcing 10 consecutive failures against a
+budget of 2.
+
+New `app/observability/error_analysis.py`: pure functions over stored
+`Trace`s — `trace_error_rate()`, `span_failure_counts_by_kind()`,
+`stop_reason_counts()`, `failure_examples()` (returns real `trace_id`s +
+the actual error text, capped per kind) — nothing fabricated; an empty
+result means no failure has been recorded yet, not a hidden zero.
+
+New `scripts/generate_failure_traces.py`: generates 3 REAL failure
+scenarios, committed as `app/dashboard_ui/failure_traces.json` (same
+seed-once, load-in-dashboard pattern as `example_traces.json`):
+1. **Tool failure, recovered** — live, via the real `Orchestrator` + live
+   Gemini API: the agent is asked to compute `1 / 0`, the real
+   `CalculatorTool` raises a real `ToolError`, it's caught and recorded as
+   a failed span, and the agent still completes with a real final answer
+   (trace `status="success"` even though one span failed — a distinct,
+   real signal from a whole-trace failure).
+2. **Retrieval failure** — live: a real small index about an unrelated
+   topic (sourdough bread) is queried about Kubernetes; the real
+   human-labeled ground truth honestly has 0 relevant chunk ids for this
+   index, so `evaluate_retrieval()` reports real precision=0.0 — a
+   genuine span-level retrieval failure while the overall trace still
+   completes.
+3. **Budget exhausted** — deterministic (no live API call — nothing for a
+   live LLM decision to add over what's already proven in
+   `tests/test_tool_agent.py`): a scripted decision loop that always
+   retries the failing calculator call, stopped by the real
+   `AgentBudget.max_tool_calls` backstop, ending `status="error"` with
+   `StopReason.MAX_TOOL_CALLS_REACHED`.
+
+New `scripts/track_eval_drift.py`: reuses the exact same fixed fixture
+`scripts/generate_rag_examples.py` already built (same documents, same
+question, same human-labeled ground truth) so every run is directly
+comparable — reruns the real pipeline (embeddings, hybrid search, rerank,
+a real live Gemini generation call, real grounding/citation eval) and
+appends one real, timestamped row to `app/dashboard_ui/eval_history.json`.
+Run twice so far (2 real points) — the dashboard explicitly discloses
+"not enough to call this a trend yet" below 3 points rather than implying
+drift that hasn't been observed.
+
+Dashboard: the Traces page gained two new sections, both computed from
+real data only —
+- **Error rates & failure modes**: trace error rate, failed-span counts by
+  kind, stop-reason counts, and expandable real trace_id examples per
+  failure kind.
+- **Model drift signals over time**: real recall/precision, groundedness/
+  citation-quality, and latency line charts from `eval_history.json`, with
+  the "not enough history yet" disclosure.
+
+Architecture diagram updated in the same batch (the now-repeated,
+explicitly documented lesson): the tool decision loop gained a real
+error-recovery edge, and a new subgraph shows `error_analysis.py` +
+`eval_history.json` feeding the Traces page.
+
+"AI Observability" learning-goal progress updated 70% → 95% in the same
+batch — this closes exactly the gap its own success criteria named
+("error rates, model drift, tool failures, retrieval failures"). Kept
+below 100% honestly: only 2 real drift data points exist so far.
+
+Verified live in a real browser (`agent-browser`): confirmed the real
+12.5% error rate (1 of 8 traces), real failed-span counts (tool=4,
+retrieval=1, agent=1), real stop-reason counts, expandable real failure
+examples, and the real 2-point drift chart with its correct
+not-a-trend-yet disclosure. 788 tests passing (was 772; net +16 — new
+error_analysis.py tests, new failure_traces.py tests, and
+tests/test_tool_agent.py's invalid-args test rewritten to assert the
+fixed recovery behavior instead of the old crash).

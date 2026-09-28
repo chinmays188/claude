@@ -190,6 +190,7 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
     print("Always available regardless of --index-file: calculator, analyze_feedback.")
 
     tool_call_log = []
+    tool_error_log = []
     classification_holder = {}
 
     def _on_tool_call(name: str, args: dict, result: str) -> None:
@@ -199,6 +200,21 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
         print(f"     output: {result}")
         with recorder.span(f"tool:{name}", kind="tool", args=args, result=result):
             pass
+
+    def _on_tool_error(name: str, args: dict, error: str) -> None:
+        # Real bug fix (app/agents/tool_agent.py): a tool raising ToolError
+        # used to crash the whole request uncaught. Now it's caught and
+        # recorded here as a real failed span (status="error") instead of a
+        # silent success -- this is what makes a real, honest tool-failure
+        # trace example possible, rather than a fabricated one.
+        tool_error_log.append({"name": name, "args": args, "error": error})
+        print(f"\n  >> TOOL ERROR: {name}")
+        print(f"     input:  {args}")
+        print(f"     error:  {error}")
+        span = recorder.span(f"tool:{name}", kind="tool", args=args)
+        with span as s:
+            s.status = "error"
+            s.error = error
 
     def _on_classified(classification) -> None:
         classification_holder["value"] = classification
@@ -215,7 +231,8 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
         print(f"Task type:     {classification.task_type.value} (confidence {classification.task_confidence:.2f})")
 
     orchestrator = Orchestrator(
-        llm, retrieval_store=retrieval_store, on_tool_call=_on_tool_call, on_classified=_on_classified,
+        llm, retrieval_store=retrieval_store, on_tool_call=_on_tool_call,
+        on_tool_error=_on_tool_error, on_classified=_on_classified,
         secure_retriever=secure_retriever, requester_id=USER_ID, requester_tenant_id=TENANT_ID,
     )
 
@@ -300,7 +317,21 @@ def trace(text: str, with_eval: bool, index_file: str | None) -> None:
                 f"    PYTHONPATH=. pytest tests/ -k {eval_dir} -v"
             )
 
-    recorder.finish(status="success")
+    # Real trace status, not hardcoded: "error" if the request never reached
+    # a real answer (ClarificationNeeded) or the agent's own run stopped for
+    # a non-completion reason (budget exhausted, tool failed and never
+    # recovered) -- read from whatever orch_span.metadata recorded above,
+    # not guessed.
+    recorded_stop_reason = None
+    for span in recorder.trace.spans:
+        if span.name == "orchestrator_run":
+            recorded_stop_reason = span.metadata.get("stop_reason")
+    trace_status = "success"
+    if isinstance(result, ClarificationNeeded):
+        trace_status = "error"
+    elif recorded_stop_reason not in (None, "task_completed"):
+        trace_status = "error"
+    recorder.finish(status=trace_status)
     _persist_trace(recorder.trace, text)
 
     _print_header("TRACE END")

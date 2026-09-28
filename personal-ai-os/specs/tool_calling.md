@@ -37,9 +37,18 @@ Condition:
 LLM decision step returns `{"tool": "calculator", "args": {"expression": null}}`
 
 Expected:
-- `CalculatorArgs` schema validation fails
-- `ArgumentValidationError` raised
-- (Repair loop for this is deferred to Milestone 4 — Structured Output; for M3 the failure must be visible, not silently swallowed)
+- `CalculatorArgs` schema validation fails, raising `ArgumentValidationError` (a `ToolError`)
+- **Updated** (Section: AI Observability — Traces page): a real bug was found while
+  building failure-mode tracing — `ToolAgent.run()` had no try/except around
+  `tool.call()` at all, so this exception propagated up and crashed the whole
+  agent request instead of being recorded. Fixed: `ToolAgent` now catches any
+  `ToolError`, records it as a real failed tool call (`tool_calls` still
+  includes the attempted tool name — an attempt, not a silent skip), fires the
+  new `on_tool_error` observer hook, and feeds the real error back to the LLM
+  as a recoverable turn (same pattern already used for a hallucinated tool
+  name). The failure is never silently absorbed into a fabricated answer — it
+  is visible in the trace (a span with `status="error"`), just no longer fatal
+  to the whole request.
 
 ## Example 5 — Tool execution failure
 
@@ -48,7 +57,12 @@ Condition:
 
 Expected:
 - Tool raises `ToolError` (division by zero)
-- Error is visible, not silently absorbed into a fabricated answer
+- Caught by `ToolAgent.run()` (see Example 4's update) — recorded, not
+  silently absorbed into a fabricated answer, and not fatal
+- If the same tool keeps failing on every attempt, `AgentBudget.max_tool_calls`
+  is the real backstop (`record_tool_call()` increments on each attempt, even
+  a failed one) — verified with a test that forces 10 consecutive failures
+  against a budget of 2 and confirms `StopReason.MAX_TOOL_CALLS_REACHED`
 
 ## Retry safety
 

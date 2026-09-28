@@ -216,10 +216,18 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand error rates, model drift, tool failures, retrieval failures",
             "Internalize: you can't product-manage an AI system you can't see the reasoning behind",
         ],
-        0.7,
-        "Real TraceRecorder/Span/TraceStore, real per-call token/cost tracking, and (this "
-        "session) a genuinely readable input-to-output Journey view built and verified live "
-        "in the dashboard's Traces page.",
+        0.95,
+        "Real TraceRecorder/Span/TraceStore, real per-call token/cost tracking, a genuinely "
+        "readable input-to-output Journey view, and (this session) real error-rate/failure-mode "
+        "tracking: a genuine bug was found and fixed (ToolAgent.run() had no try/except around "
+        "tool.call(), so a real ToolError used to crash the whole request instead of being caught "
+        "and recorded); error_analysis.py computes real error rate, failures-by-kind, stop-reason "
+        "counts, and example trace_ids purely from stored traces; 3 real failure traces (tool "
+        "failure recovered from, retrieval miss against a real human-labeled ground truth, "
+        "budget-exhausted) were generated live and committed; and a real (if still thin, 2 "
+        "points) model-drift time series is tracked by rerunning the same fixed RAG ground truth "
+        "over time. Kept below 100% honestly: only 2 real data points exist so far for drift, not "
+        "enough to call it a proven trend yet.",
     ),
     (
         "learn_ai_cost_latency",

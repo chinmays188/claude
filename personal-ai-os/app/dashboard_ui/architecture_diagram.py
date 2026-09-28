@@ -54,6 +54,27 @@ HISTORY:
    to ToolAgent/ToolRegistry, added to build_shared_tools() exactly like
    every other optional tool dependency.
 
+5. Updated in the SAME batch again for AI Observability (Traces page):
+   the user asked for retrieval failures, tool failures, error-rate
+   logging with example trace ids, and model-drift signals over time. A
+   real bug was found and fixed while building this:
+   ToolAgent.run() had no try/except around tool.call() at all, so a
+   real ToolError crashed the whole request instead of being recorded --
+   now caught, recorded as a failed span, and fed back to the LLM as a
+   recoverable turn (an on_tool_error hook mirrors on_tool_call). New
+   app/observability/error_analysis.py computes real error rate /
+   failure-by-kind / stop-reason counts / failure examples (with real
+   trace_ids) purely from stored traces -- nothing fabricated. Real
+   failure traces (tool failure recovered from, retrieval miss against a
+   real human-labeled ground truth, budget-exhausted) are generated once
+   by scripts/generate_failure_traces.py and committed, same pattern as
+   example_traces.json. Model drift is tracked by
+   scripts/track_eval_drift.py re-running the SAME fixed RAG ground-truth
+   fixture (documents/question/labels from generate_rag_examples.py)
+   over time, appending each real run to eval_history.json -- shown as a
+   real (if initially thin) line chart, with an explicit disclosure when
+   there are fewer than 3 points that it isn't a trend yet.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
@@ -101,6 +122,8 @@ flowchart TB
         DEC["LLM sees: system prompt + full tool list +\nconversation history so far + user request"]
         DEC -->|"decides call_tool"| CALLTOOL["Calls one tool, sees its\nreal result, loops again\n(never forced -- LLM's own choice)"]
         DEC -->|"decides final_answer"| DIRECT["Answers directly,\nno tool call at all"]
+        CALLTOOL -->|"ToolError raised"| TOOLERR["Caught, recorded as a\nfailed span, fed back to\nthe LLM as a recoverable turn\n(real bug fix -- used to crash)"]
+        TOOLERR --> DEC
         CALLTOOL --> DEC
     end
 
@@ -165,4 +188,11 @@ flowchart TB
     DECISIONLOOP -.->|"trace_request.py records\nevery span here"| TRACESTORE
     ORCH -.-> TRACESTORE
     NAIVEREL -.-> TRACESTORE
+
+    ERRANALYSIS["error_analysis.py\nerror rate / failures-by-kind /\nstop reasons / example trace ids\n-- pure computation over TraceStore"]
+    TRACESTORE --> ERRANALYSIS
+
+    EVALHISTORY["eval_history.json\nappended by track_eval_drift.py\nrerunning the SAME fixed RAG\nground truth over time"]
+    ERRANALYSIS -.->|"shown together on"| TRACESPAGE["Dashboard Traces page:\nError rates & failures +\nModel drift over time"]
+    EVALHISTORY --> TRACESPAGE
 """

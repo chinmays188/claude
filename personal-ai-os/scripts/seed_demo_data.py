@@ -20,6 +20,7 @@ from datetime import date, datetime, timedelta, timezone
 from app.actions.audit_log import AuditLog
 from app.actions.models import ActionClass, ActionProposal, ApprovalStatus, AuditRecord, RiskLevel
 from app.dashboard_ui.example_traces import seed_example_traces
+from app.dashboard_ui.failure_traces import seed_failure_traces
 from app.dashboard_ui.user_learning_goals import seed_learning_capability_goals
 from app.db.connection import get_connection
 from app.domains.cross_domain.goal_store import GoalStore
@@ -176,6 +177,7 @@ def seed_all(conn) -> None:
     seed_commitments(CommitmentStore(conn))
     seed_outcomes(OutcomeStore(conn))
     seed_example_traces(TraceStore(conn))
+    seed_failure_traces(TraceStore(conn))
 
 
 def main(db_path: str) -> None:
