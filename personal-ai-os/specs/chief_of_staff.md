@@ -195,3 +195,94 @@ outcome, not a bug, documented as such in the script's own output.
 `StalledGoalTrigger`: 4 new tests (fires when stale+low-progress, doesn't
 fire when recently updated, doesn't fire when progress is high, defers to
 the deadline trigger when a deadline exists). 738 tests passing (was 733).
+
+## Example 13 — Chief of Staff's real role, defined and built to a 4-point spec
+
+The user gave Chief of Staff an explicit, 4-point job description and asked
+for it to be reflected in the dashboard: "1. keeps a track of my 15
+learning progress ... 2. keeps a track of my career, finance (real goals)
+... 3. COS helps in loop engineering & harness engineering ... on every
+input a goal should be defined and given to our goal agent ... output
+should continue to run until this goal is achieved ... COS needs to keep
+a track of this ... 4. COS proactively suggest changes to our workflow
+(harness) based on every learning after every run — it gets feeds from
+our feedback agent, etc."
+
+Checked first, honestly, before building anything:
+- Point 2: `GoalStore` held only the 15 LEARNING goals — no real
+  career/finance goals existed anywhere (the Career/Finance dashboard
+  pages used separate, unrelated fabricated demo data). Confirmed with
+  the user: they gave their real goals directly (not placeholders) —
+  "Move to a senior PM role handling AI-agent products by mid-2027" and
+  two finance goals (education loan payoff, first savings corpus) — now
+  seeded as real `Goal` records via `app/dashboard_ui/user_career_finance_goals.py`.
+  `GoalMonitor.check_goals()` and `ChiefOfStaffOrchestrator` already read
+  every domain for an owner, not just LEARNING — confirmed live (18
+  `GOAL_UPDATED` events generated: 15 learning + 3 career/finance) — so
+  no wiring change was needed there, only real data.
+- Point 3: nothing like a "run until goal achieved" loop existed —
+  `Orchestrator.handle()` did exactly one dispatch and returned. This is
+  genuinely new.
+- Point 4: "feedback agent" doesn't exist as the user means it —
+  `app/domains/pm/feedback_intelligence.py`'s `analyze_feedback` is
+  customer-feedback theme clustering, unrelated. Confirmed with the user:
+  ground this in REAL signals already in the codebase instead of
+  inventing a new feedback-generating agent.
+
+**New `app/proactive/goal_run.py` (point 3 — loop/harness engineering)**:
+`GoalRunner` — on a real input, a real `Goal` is created via `GoalAgent`,
+then `Orchestrator.handle()` is rerun in a bounded loop. After each
+iteration, `GoalCompletionChecker` makes one real, structured LLM call:
+"is this goal achieved by this output, yes/no/why" — a judgment call
+through a real, auditable LLM call with a reason attached, not a
+heuristic guess. Stops on: `achieved`, a real `max_iterations` budget
+(mirrors `AgentBudget`'s pattern), or two consecutive identical outputs
+(a real, deterministic no-progress signal for a repeated request with no
+new information). Every iteration (output, verdict, reason) is recorded
+on a `GoalRun` and persisted via `GoalRunStore` — Chief of Staff's
+tracking requirement made concrete and inspectable, not just a final
+answer.
+
+**New `app/proactive/harness_feedback.py` (point 4 — proactive harness
+feedback)**: `generate_harness_suggestion()` builds a real evidence block
+from `error_analysis.py` (trace error rate, failures-by-kind, stop-reason
+counts, real failure examples), `eval_history.json` (drift), and
+`GoalRunStore`'s own run history (stop reasons, average iterations) —
+then makes ONE real, structured LLM call that must cite the specific real
+number(s) that justify its suggestion, and can honestly say
+`has_suggestion: false` when the evidence doesn't clearly point anywhere.
+Persisted via `HarnessSuggestionStore`. This is a distinct, text-only
+recommendation — never a tool-call plan (that's already
+`action_plans.py`'s `propose_plan()`) — and, matching Phase 4's core
+rule, never auto-applied.
+
+Both were verified live via `scripts/generate_cos_examples.py`, and the
+results were genuinely unscripted, not cherry-picked: one `GoalRun`
+("Explain what RAG is in one paragraph") genuinely failed all 3
+iterations because the completion checker correctly kept catching the
+agent violating the "one paragraph" constraint every time; the other
+("Create a complete 90-day plan...") genuinely achieved a broader goal in
+its first attempt despite a deliberately tight `max_iterations=1` budget.
+The harness suggestion it produced correctly cited the real "4 tool
+failures out of 6 failed spans" signal from the committed failure traces
+and proposed reviewing tool input validation — grounded, not invented.
+
+Dashboard: `render_chief_of_staff()` now opens with the user's own 4-point
+role definition (verbatim, in an expander), then renders all 4
+responsibilities from real data: goal tracking by domain (learning/
+career/finance), goal-run history (every iteration + real stop reason),
+and harness suggestions (with cited evidence).
+
+Architecture diagram updated in the same batch: a new `GOALLOOP` subgraph
+(`GoalAgent` → real `Goal` → `Orchestrator` rerun loop →
+`GoalCompletionChecker` → `GoalRunStore`) and a `harness_feedback.py` node
+reading `error_analysis.py` + `eval_history.json` + `GoalRunStore`.
+
+"Agents & Multi-Agent Orchestration" learning-goal progress updated 65% →
+85% in the same batch — this closes its own success criterion directly
+("agent depth, loop/tool budgets, stop conditions, recovery paths").
+Verified live in a real browser (`agent-browser`): all 4 CoS sections
+render real data, and the updated 85% renders with its real evidence text
+on the Learning page.
+
+808 tests passing (was 788).

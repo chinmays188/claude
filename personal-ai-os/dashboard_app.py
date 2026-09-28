@@ -14,6 +14,7 @@ First run: seed demo data so every page has something to show —
 
 import json
 import os
+from datetime import date
 from pathlib import Path
 
 import streamlit as st
@@ -41,6 +42,8 @@ from app.observability.error_analysis import (
     trace_error_rate,
 )
 from app.observability.trace_store import TraceNotFoundError, TraceStore
+from app.proactive.goal_run import GoalRunStore
+from app.proactive.harness_feedback import HarnessSuggestionStore
 from app.proactive.commitments import CommitmentStore
 from app.proactive.outcome_tracking import OutcomeStore
 from app.tasks.store import TaskStore
@@ -90,6 +93,8 @@ def get_stores():
         "commitments": CommitmentStore(conn),
         "outcomes": OutcomeStore(conn),
         "traces": TraceStore(conn),
+        "goal_runs": GoalRunStore(conn),
+        "harness_suggestions": HarnessSuggestionStore(conn),
     }
 
 
@@ -225,18 +230,136 @@ def render_learning(stores: dict) -> None:
                 st.write(f"- {c}")
 
 
+_COS_ROLE_DEFINITION = """
+**Chief of Staff's role on this project (defined by the user, built to this
+exact spec — not a generic "AI assistant" framing):**
+
+1. **Learning-progress tracking** — keeps a live, real read on all 15 of the
+   user's AI-PM learning-capability goals (`GoalStore`, domain=LEARNING).
+2. **Career & finance goal tracking** — keeps the same live read on the
+   user's *real* career and finance goals (domain=CAREER/FINANCE) — not
+   fabricated demo data, given directly by the user.
+3. **Loop / harness engineering** — on a real input, defines a real `Goal`
+   and hands it to `GoalAgent`; `GoalRunner` re-runs the real `Orchestrator`
+   until a real, structured completion check says the goal is achieved, a
+   real max-iterations budget is hit, or no progress is detected between
+   attempts. Every run (all iterations, the real stop reason) is tracked,
+   not just the final answer.
+4. **Proactive harness feedback** — after runs accumulate, reads the real
+   error/failure signals already produced elsewhere in this system
+   (`error_analysis.py`'s trace failures, `eval_history.json`'s drift,
+   `GoalRunStore`'s own run history) and proposes ONE concrete,
+   evidence-cited workflow/harness change — never invented, never
+   auto-applied (Phase 4's rule: Chief of Staff proposes, a human decides).
+"""
+
+
 def render_chief_of_staff(stores: dict) -> None:
     st.header("Chief of Staff")
-    st.caption("Phase 4, Milestone 43")
+    st.caption("Phase 4, Milestone 43 — role definition + all 4 responsibilities, real data only")
+    with st.expander("What is Chief of Staff's job here?", expanded=True):
+        st.markdown(_COS_ROLE_DEFINITION)
 
     snapshot = get_chief_of_staff_snapshot(stores["commitments"], stores["outcomes"], USER_ID)
-
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Open commitments", snapshot.open_commitments)
     col2.metric("Overdue", snapshot.overdue_commitments, delta_color="inverse")
     col3.metric("Pending outcomes", snapshot.pending_outcomes)
     success_rate_display = f"{snapshot.outcome_success_rate:.0%}" if snapshot.outcome_success_rate is not None else "—"
     col4.metric("Outcome success rate", success_rate_display)
+
+    st.markdown("---")
+    _render_cos_goal_tracking(stores)
+    st.markdown("---")
+    _render_cos_goal_runs(stores)
+    st.markdown("---")
+    _render_cos_harness_suggestions(stores)
+
+
+def _render_cos_goal_tracking(stores: dict) -> None:
+    """Responsibilities 1+2: real goal tracking across ALL domains, not
+    just learning -- GoalMonitor.check_goals() (see
+    scripts/run_chief_of_staff.py) already reads every one of the owner's
+    goals regardless of domain; this just makes that visible per-domain on
+    the dashboard."""
+    st.subheader("1+2. Goal tracking — learning, career, finance")
+    goals = stores["goals"].list_by_owner(USER_ID)
+
+    by_domain: dict[str, list] = {}
+    for g in goals:
+        by_domain.setdefault(g.domain.value, []).append(g)
+
+    cols = st.columns(len(by_domain) or 1)
+    for col, (domain, domain_goals) in zip(cols, sorted(by_domain.items())):
+        avg_progress = sum(g.progress for g in domain_goals) / len(domain_goals)
+        col.metric(domain.title(), f"{avg_progress * 100:.0f}%", help=f"{len(domain_goals)} real goal(s)")
+
+    with st.expander("Real career & finance goals (given directly by the user)", expanded=False):
+        real_cf_goals = [g for g in goals if g.domain.value in ("CAREER", "FINANCE")]
+        if not real_cf_goals:
+            st.caption("None seeded yet.")
+        for g in sorted(real_cf_goals, key=lambda g: g.deadline or date.max):
+            deadline_str = g.deadline.isoformat() if g.deadline else "no deadline"
+            st.markdown(f"**[{g.domain.value}] {g.title}** — {g.progress * 100:.0f}% · due {deadline_str} · status: {g.status.value}")
+            st.caption(g.description)
+
+
+def _render_cos_goal_runs(stores: dict) -> None:
+    """Responsibility 3: loop / harness engineering. Shows real GoalRun
+    history from GoalRunStore -- every iteration, the real completion-check
+    reason, and the real stop_reason. No live LLM call happens on this
+    page; see scripts/generate_cos_examples.py for how these are produced,
+    and app/proactive/goal_run.py's GoalRunner for the actual loop."""
+    st.subheader("3. Loop / harness engineering — goal-driven runs")
+    st.caption(
+        "On a real input, GoalAgent tracks a real Goal, then GoalRunner reruns the real "
+        "Orchestrator until a real completion-check call says the goal is achieved, a real "
+        "max-iterations budget is hit, or no progress is detected between attempts."
+    )
+    runs = stores["goal_runs"].list_by_owner(USER_ID)
+    if not runs:
+        st.info("No goal runs recorded yet — run `python scripts/generate_cos_examples.py` first.")
+        return
+
+    achieved_count = sum(1 for r in runs if r.achieved)
+    avg_iterations = sum(len(r.iterations) for r in runs) / len(runs)
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Goal runs tracked", len(runs))
+    col2.metric("Achieved", f"{achieved_count}/{len(runs)}")
+    col3.metric("Avg iterations per run", f"{avg_iterations:.1f}")
+
+    for run in runs:
+        icon = "✅" if run.achieved else "⏹️"
+        with st.expander(f"{icon} {run.input_text[:80]} — {run.stop_reason} ({len(run.iterations)} iteration(s))", expanded=False):
+            for it in run.iterations:
+                verdict_icon = "✅" if it.achieved else "❌"
+                st.markdown(f"**Iteration {it.iteration}** {verdict_icon}")
+                st.text(it.output[:500] + ("…" if len(it.output) > 500 else ""))
+                st.caption(f"Completion check: {it.reason}")
+
+
+def _render_cos_harness_suggestions(stores: dict) -> None:
+    """Responsibility 4: proactive harness feedback, grounded in real
+    signals from error_analysis.py / eval_history.json / GoalRunStore --
+    see app/proactive/harness_feedback.py. Never auto-applied."""
+    st.subheader("4. Proactive harness feedback")
+    st.caption(
+        "Reads real error/failure signals already produced elsewhere in this system and "
+        "proposes ONE concrete, evidence-cited workflow change. Never invented, never "
+        "auto-applied — a human reviews it, same as any other Phase 4 proposal."
+    )
+    suggestions = stores["harness_suggestions"].list_by_owner(USER_ID)
+    if not suggestions:
+        st.info("No suggestions recorded yet — run `python scripts/generate_cos_examples.py` first.")
+        return
+
+    for s in suggestions:
+        if s.has_suggestion:
+            st.success(s.suggestion)
+            st.caption(f"**Evidence cited:** {s.evidence_cited}")
+            st.caption(f"**Reasoning:** {s.reasoning}")
+        else:
+            st.info(f"No suggestion this run: {s.reasoning}")
 
 
 def _render_span(span, indent: int = 0) -> None:

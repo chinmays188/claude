@@ -20,7 +20,9 @@ from datetime import date, datetime, timedelta, timezone
 from app.actions.audit_log import AuditLog
 from app.actions.models import ActionClass, ActionProposal, ApprovalStatus, AuditRecord, RiskLevel
 from app.dashboard_ui.example_traces import seed_example_traces
+from app.dashboard_ui.cos_examples import seed_cos_examples
 from app.dashboard_ui.failure_traces import seed_failure_traces
+from app.dashboard_ui.user_career_finance_goals import seed_career_finance_goals
 from app.dashboard_ui.user_learning_goals import seed_learning_capability_goals
 from app.db.connection import get_connection
 from app.domains.cross_domain.goal_store import GoalStore
@@ -30,6 +32,8 @@ from app.memory.models import MemoryRecord, MemoryType
 from app.memory.persistent_store import PersistentMemoryStore
 from app.observability.trace_store import TraceStore
 from app.proactive.commitments import Commitment, CommitmentOwner, CommitmentStatus, CommitmentStore
+from app.proactive.goal_run import GoalRunStore
+from app.proactive.harness_feedback import HarnessSuggestionStore
 from app.proactive.outcome_tracking import Outcome, OutcomeStatus, OutcomeStore
 from app.tasks.models import LongRunningTask, TaskState
 from app.tasks.store import TaskStore
@@ -171,6 +175,7 @@ def seed_all(conn) -> None:
     """
     seed_memories(PersistentMemoryStore(conn))
     seed_learning_capability_goals(GoalStore(conn))
+    seed_career_finance_goals(GoalStore(conn))
     seed_graph(GraphStore(conn))
     seed_tasks(TaskStore(conn))
     seed_audit_log(AuditLog(conn))
@@ -178,6 +183,7 @@ def seed_all(conn) -> None:
     seed_outcomes(OutcomeStore(conn))
     seed_example_traces(TraceStore(conn))
     seed_failure_traces(TraceStore(conn))
+    seed_cos_examples(GoalRunStore(conn), HarnessSuggestionStore(conn))
 
 
 def main(db_path: str) -> None:

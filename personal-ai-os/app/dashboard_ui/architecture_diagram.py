@@ -75,6 +75,22 @@ HISTORY:
    real (if initially thin) line chart, with an explicit disclosure when
    there are fewer than 3 points that it isn't a trend yet.
 
+6. Updated in the SAME batch again to define Chief of Staff's actual role
+   (the user's own 4-point spec) and build the 2 genuinely new
+   capabilities it named: a goal-driven loop
+   (app/proactive/goal_run.py's GoalRunner -- a real Goal per input,
+   Orchestrator reruns until a real structured completion-check call says
+   achieved, a real max-iterations budget is hit, or no progress is
+   detected between attempts) and proactive harness feedback
+   (app/proactive/harness_feedback.py -- reads REAL signals already in
+   this codebase: error_analysis.py's trace failures, eval_history.json's
+   drift, GoalRunStore's own run history -- and proposes one
+   evidence-cited workflow suggestion, never invented, never
+   auto-applied). Real career/finance goals (given directly by the user,
+   not fabricated) were also seeded into GoalStore for the first time --
+   GoalMonitor/ChiefOfStaffOrchestrator already read every domain, not
+   just LEARNING, so no wiring change was needed there, only real data.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
@@ -168,7 +184,7 @@ flowchart TB
     NAIVEREL["naive_relevance.py\nkeyword overlap ONLY --\nNOT semantic search"]
     NAIVEREL --> MEMSTORE
 
-    GOALSTORE["GoalStore (SQLite)\n15 real user learning goals"]
+    GOALSTORE["GoalStore (SQLite)\n15 real learning goals +\nreal career/finance goals\n(given directly by the user)"]
     GOALAGENT["GoalAgent\ntrack / detect conflicts /\ndependencies / priorities"]
     GOALAGENT --> GOALSTORE
 
@@ -181,6 +197,24 @@ flowchart TB
         EVENTS --> TRIGGERS --> ATTENTION --> DECISION
         DECISION -->|PROPOSE_PLAN| PLANS["action_plans.py\n-> PolicyEngine approval gate"]
     end
+
+    subgraph GOALLOOP["Goal-driven loop (harness engineering) --\nGoalRunner, per real input"]
+        direction TB
+        GRINPUT["Real input -> a real Goal\n(GoalAgent.track)"]
+        GRLOOP["Orchestrator reruns until:\nachieved / max_iterations / no_progress"]
+        GRCHECK["GoalCompletionChecker\n1 real structured LLM call per\niteration: achieved? yes/no + why"]
+        GRINPUT --> GRLOOP --> GRCHECK
+        GRCHECK -->|"not achieved,\nbudget remains"| GRLOOP
+    end
+    GOALAGENT --> GRINPUT
+    GRLOOP -.->|"each iteration\nreruns"| ORCH
+    GRSTORE["GoalRunStore (SQLite)\nevery iteration + real stop_reason"]
+    GRCHECK --> GRSTORE
+
+    HARNESSFEED["harness_feedback.py\nreads error_analysis.py +\neval_history.json + GoalRunStore,\nproposes 1 evidence-cited suggestion\n(never auto-applied)"]
+    ERRANALYSIS --> HARNESSFEED
+    EVALHISTORY --> HARNESSFEED
+    GRSTORE --> HARNESSFEED
 
     EVALDATA["evals/\ncareer, pm, finance, learning,\ncross_domain, golden, adversarial\n(static JSON + .md, no live grading harness)"]
 

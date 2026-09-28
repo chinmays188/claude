@@ -102,14 +102,21 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand state management, agent depth, loop/tool budgets, stop conditions, recovery paths",
             "Understand multi-agent orchestration and know when an agent is necessary vs. a deterministic workflow",
         ],
-        0.65,
+        0.85,
         "Single-agent dispatch (Orchestrator picks exactly one of Research/Analyst/Planner "
         "per request) real and tested, with real budgets/stop-conditions. Genuine "
         "multi-agent coordination now exists too (MultiAgentPlanner + MultiAgentCoordinator, "
         "input-dependent SEQUENTIAL/PARALLEL, not a fixed pipeline) -- the planning step "
-        "verified live and correct; full end-to-end agent-chain completion still only "
-        "verified via scripted tests, not a live run to completion (blocked by a real, "
-        "reproducible Gemini capacity issue at build time, not a code gap).",
+        "verified live and correct. And (this session) a real goal-driven loop closes the "
+        "'agent depth, loop/tool budgets, stop conditions, recovery paths' gap directly: "
+        "GoalRunner reruns the real Orchestrator until a real structured completion-check "
+        "call says the goal is achieved, a real max_iterations budget is hit, or no "
+        "progress is detected between attempts -- verified live with genuinely unscripted "
+        "outcomes (one run correctly failed a 'one paragraph' constraint 3 times straight, "
+        "one achieved a broader goal in its first attempt). Kept below 100%: full "
+        "multi-agent end-to-end completion is still only verified via scripted tests, not "
+        "a live run to completion (blocked by a real, reproducible Gemini capacity issue "
+        "at build time, not a code gap).",
     ),
     (
         "learn_ai_memory",
