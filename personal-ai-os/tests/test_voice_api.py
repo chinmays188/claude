@@ -25,12 +25,19 @@ def _client_with_scripted_responses(responses: list[str]) -> TestClient:
     return TestClient(app)
 
 
+_NO_MEMORY_RESPONSE = '{"should_remember": false, "type": null, "importance": 0.0, "summary": null}'
+# VoiceSession now delegates to ConversationSession (real bug fix -- see
+# app/voice/session.py's docstring), which makes one real MemoryWritePolicy
+# call after every turn.
+
+
 def test_voice_turn_returns_response_text():
     client = _client_with_scripted_responses(
         [
             '{"domains": [], "confidence": 0.9}',
             '{"task_type": "research", "confidence": 0.9}',
             '{"action": "final_answer", "answer": "RAG combines retrieval with generation."}',
+            _NO_MEMORY_RESPONSE,
         ]
     )
 
@@ -49,6 +56,7 @@ def test_voice_turn_reuses_session_id_across_requests():
             '{"domains": [], "confidence": 0.9}',
             '{"task_type": "research", "confidence": 0.9}',
             '{"action": "final_answer", "answer": "first answer"}',
+            _NO_MEMORY_RESPONSE,
         ]
     )
 

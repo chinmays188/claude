@@ -126,11 +126,21 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand short-term, long-term, profile, preference, goal, decision, and experience memory",
             "Understand memory retrieval, importance, confidence, duplicate detection, decay/update",
         ],
-        0.5,
-        "PersistentMemoryStore (SQLite) real, with importance/confidence fields and a "
-        "write policy. Retrieval is naive keyword-overlap only (naive_relevance.py, "
-        "explicitly documented as NOT semantic search) -- the storage half is solid, the "
-        "retrieval-quality half is a known, disclosed gap.",
+        0.8,
+        "PersistentMemoryStore (SQLite) real, with importance/confidence fields. This "
+        "session closed a real, found gap: the real semantic MemoryRetriever "
+        "(similarity/recency/importance/confirmed) and real MemoryWritePolicy "
+        "(classify -> importance threshold -> duplicate check -> approval gate) existed, "
+        "tested, but were never called from any live request path -- only "
+        "naive_relevance.py's keyword-overlap stand-in was wired in. Both are now wired "
+        "into the new app/conversation/session.py's ConversationSession: real semantic "
+        "read on every turn, real write-policy evaluation after every turn, with "
+        "high-importance candidates queued for real human approval (never silently "
+        "auto-written) -- verified live against the real Gemini API: a stated name+"
+        "preference was correctly classified importance=0.8, queued for approval, and "
+        "correctly written only after explicit approval. Kept below 100%: duplicate "
+        "detection is still exact-string-match only, not semantic; no decay/update "
+        "policy exists yet for stale memories.",
     ),
     (
         "learn_context_engineering",
@@ -140,10 +150,24 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand retrieval/memory ordering, tool-result placement, lost-in-the-middle",
             "Internalize: the question is the minimum useful context, not the maximum context window",
         ],
-        0.35,
-        "Token/turn/tool-call budgets real (app/guardrails/budgets.py) and a "
-        "PersonalContextEngine/ContextBuilder exist, but no real context ranking, "
-        "compression, or lost-in-the-middle handling has been built or tested.",
+        0.6,
+        "Token/turn/tool-call budgets real (app/guardrails/budgets.py). A full, honest "
+        "breakdown was done this session (checked directly against the code, not "
+        "assumed): ContextBuilder's real compression path (drop lowest-priority whole "
+        "section first) was dead code in production (always constructed with "
+        "max_tokens=None on its only real call site), PersonalContextEngine's real "
+        "4-factor scoring was never called from anywhere, and Orchestrator.handle() was "
+        "completely stateless -- no session, no turn history, so 'summarize after N "
+        "turns' didn't apply because there was no multi-turn state to summarize. Fixed "
+        "the biggest structural gap: new app/conversation/session.py's ConversationSession "
+        "adds real turn history, injects recent turns + real semantic memory into each "
+        "request, and triggers one real LLM summarization call via a real token-budget "
+        "threshold (estimate_tokens() proxy) once history exceeds it -- verified live "
+        "with a genuine multi-turn Gemini conversation where turn 2 measurably changed "
+        "its answer style based on turn 1's real injected preference. Kept below 100%: "
+        "ContextBuilder's section-drop compression and PersonalContextEngine's scoring "
+        "are still not wired into this new path -- ConversationSession uses simple "
+        "verbatim-window + summary, not full priority-based selection yet.",
     ),
     (
         "learn_model_routing_strategy",

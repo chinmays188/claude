@@ -82,6 +82,9 @@ class Orchestrator:
         # ToolError is now caught and recorded instead of crashing the
         # whole request; this hook exposes that to callers that need
         # failure visibility (e.g. scripts/trace_request.py).
+        self._llm = llm  # exposed via the llm property below -- e.g. VoiceSession
+        # needs the same real LLMProvider for its own memory-related calls
+        # without reaching into a private attribute.
         self._router = UnifiedRouter(llm)
         self._multi_agent_planner = MultiAgentPlanner(llm)
         self._on_classified = on_classified
@@ -101,6 +104,16 @@ class Orchestrator:
             for task_type, task_type_to_name in _TASK_TYPE_TO_AGENT_NAME.items()
         }
         self._coordinator = MultiAgentCoordinator(llm, agents_by_name)
+
+    @property
+    def llm(self) -> LLMProvider:
+        """The same LLMProvider this Orchestrator was constructed with --
+        exposed so a caller wrapping Orchestrator (e.g. VoiceSession,
+        ConversationSession) can reuse the identical provider for its own
+        real LLM calls (memory classification, summarization) without
+        reaching into a private attribute or requiring its own separate
+        constructor argument."""
+        return self._llm
 
     def handle(self, text: str) -> AgentResponse | ClarificationNeeded:
         if not text or not text.strip():

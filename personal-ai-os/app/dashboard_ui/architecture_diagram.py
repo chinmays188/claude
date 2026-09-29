@@ -91,6 +91,35 @@ HISTORY:
    GoalMonitor/ChiefOfStaffOrchestrator already read every domain, not
    just LEARNING, so no wiring change was needed there, only real data.
 
+7. Updated in the SAME batch again after a full context-engineering
+   breakdown (user's ask: "let us first breakdown session memory, user
+   memory, long term memory ... how each memory is getting called ...
+   after how many turn are we summarizing the session ... context
+   window/compression ... ordering of memory"). Checked directly against
+   the code, not assumed: Orchestrator.handle() was completely stateless
+   (no history param at all); MemoryRetriever (real semantic scoring) and
+   MemoryWritePolicy (real write gate) existed, tested, but were NEVER
+   called from any live request path -- only naive_relevance.py's
+   keyword-overlap stand-in was wired in; ContextBuilder's real
+   compression path was dead code (always constructed with
+   max_tokens=None on its only real call site); PersonalContextEngine's
+   real 4-factor scoring was never called from anywhere;
+   VoiceSession.turns was recorded but never actually passed back into
+   Orchestrator.handle() despite the class's own docstring claiming
+   "conversation continuity." Fixed: new app/conversation/session.py's
+   ConversationSession wraps Orchestrator (without changing its
+   signature -- every existing stateless caller is unaffected), injects
+   real recent-turn history + real semantic memory into each request,
+   triggers one real LLM summarization call via a real token-budget
+   threshold, and writes memory via the real write-policy gate
+   (high-importance candidates queued for real human approval, never
+   auto-written). VoiceSession now delegates to it, closing its own
+   real bug. Verified live against the real Gemini API: a stated
+   name+preference was correctly queued for approval at importance=0.8
+   and written only after explicit approval; a second turn measurably
+   changed its answer style based on the first turn's real injected
+   preference.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
@@ -181,8 +210,30 @@ flowchart TB
     DOMAINDATA -.->|"same retrieval pattern,\ncalled directly with real inputs"| SECURERETR
 
     MEMSTORE["PersistentMemoryStore\n(SQLite)"]
-    NAIVEREL["naive_relevance.py\nkeyword overlap ONLY --\nNOT semantic search"]
+    NAIVEREL["naive_relevance.py\nkeyword overlap ONLY --\nNOT semantic search\n(still used by trace_request.py's\nstateless CLI path)"]
     NAIVEREL --> MEMSTORE
+
+    subgraph CONVSESSION["ConversationSession -- real, stateful, wraps Orchestrator"]
+        direction TB
+        CSHISTORY["Real turn history\n+ running summary"]
+        CSBUDGET{"History over\ntoken budget?"}
+        CSSUMMARY["1 real LLM call:\nsummarize older turns"]
+        CSHISTORY --> CSBUDGET
+        CSBUDGET -->|yes| CSSUMMARY --> CSHISTORY
+    end
+    CONVSESSION -.->|"injects recent turns +\nreal semantic memory as\nplain text context"| ORCH
+    MEMRETRIEVER["MemoryRetriever\nreal 4-factor semantic scoring:\nsimilarity/recency/importance/confirmed"]
+    MEMRETRIEVER --> MEMSTORE
+    CONVSESSION --> MEMRETRIEVER
+
+    WRITEPOLICY["MemoryWritePolicy\nclassify -> importance threshold ->\nduplicate check -> approval gate"]
+    CONVSESSION -->|"after every turn"| WRITEPOLICY
+    WRITEPOLICY -->|"low importance"| MEMSTORE
+    WRITEPOLICY -->|"high importance"| PENDINGAPPROVAL["Pending human approval\n(never auto-written)"]
+    PENDINGAPPROVAL -->|"approved"| MEMSTORE
+
+    VOICESESSION["VoiceSession\n(real bug fixed: turns were\nrecorded but never replayed)"]
+    VOICESESSION --> CONVSESSION
 
     GOALSTORE["GoalStore (SQLite)\n15 real learning goals +\nreal career/finance goals\n(given directly by the user)"]
     GOALAGENT["GoalAgent\ntrack / detect conflicts /\ndependencies / priorities"]

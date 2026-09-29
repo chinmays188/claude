@@ -79,3 +79,45 @@ Expected:
   is not implemented.
 - "Current task relevance" (Section 13's 5th ranking factor) is left to the
   caller — this module doesn't know what the current task is.
+
+## Example 8 — Real gap found: MemoryRetriever/MemoryWritePolicy existed but were never called live
+
+Found while breaking down this project's context engineering for the
+user (see specs/context_engineering.md's Example 6 for the full
+breakdown): `MemoryRetriever` (Example 7's real 4-factor semantic
+scoring) and `MemoryWritePolicy` (Example 5's real classify -> importance
+-> duplicate-check -> approval-gate pipeline) were both real, tested, and
+correct in isolation -- but neither was ever called from any live request
+path. Only `naive_relevance.py` (explicitly documented in its own module
+as keyword-overlap only, NOT semantic) was wired into
+`scripts/trace_request.py`/`Orchestrator`.
+
+Fixed by wiring both into the new `app/conversation/session.py`'s
+`ConversationSession`:
+- **Read side**: every turn calls `MemoryRetriever.rank()` against
+  `PersistentMemoryStore.list_all()`, injecting the top-ranked real
+  memories as plain-text context ahead of the current request -- real
+  semantic scoring, not keyword overlap.
+- **Write side**: after every turn, `MemoryWritePolicy.evaluate()` runs
+  against the real exchange. A low-importance candidate is written
+  immediately; a high-importance one (>= `approval_threshold`) is queued
+  in `session.pending_memory_approvals`, never silently auto-written --
+  `session.approve_pending_memory(turn_id)` is the explicit human approval
+  path, mirroring `app/actions/policy_engine.py`'s propose/resume pattern
+  exactly (Phase 4's standing human-in-the-loop principle, applied here
+  too).
+
+`naive_relevance.py` is NOT removed -- it's still what
+`scripts/trace_request.py`'s stateless CLI path uses (that script has no
+`ConversationSession`, by design, since it's meant to show one ad hoc
+request's real routing/tool-calling/cost, not multi-turn behavior).
+
+Verified fully live against the real Gemini API: a real 2-turn
+conversation stating "My name is Chinmay and I prefer short, bullet-point
+answers" was classified by the real `MemoryWritePolicy` LLM call as
+`importance=0.8` (a preference + identity fact) and correctly queued for
+approval rather than auto-written; calling `approve_pending_memory()`
+then wrote it as a real, persisted `MemoryRecord`. No number or outcome
+here was scripted for this particular verification run.
+
+817 tests passing (was 808).
