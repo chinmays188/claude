@@ -1,0 +1,26 @@
+{
+  "critical_fact": "The project's internal codename for the Q3 launch is 'Project Marigold-7'.",
+  "question": "What is the internal codename for the Q3 launch mentioned in the document above?",
+  "expected_answer_substring": "Marigold-7",
+  "filler_chunk_count": 200,
+  "results": [
+    {
+      "position": "start",
+      "context_char_length": 17817,
+      "answer": "The internal codename for the Q3 launch is **'Project Marigold-7'**.",
+      "correct": true
+    },
+    {
+      "position": "middle",
+      "context_char_length": 17817,
+      "answer": "The internal codename for the Q3 launch is **'Project Marigold-7'**.",
+      "correct": true
+    },
+    {
+      "position": "end",
+      "context_char_length": 17817,
+      "answer": "The internal codename for the Q3 launch is **'Project Marigold-7'**.",
+      "correct": true
+    }
+  ]
+}

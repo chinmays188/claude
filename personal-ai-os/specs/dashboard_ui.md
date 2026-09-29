@@ -584,3 +584,58 @@ not-a-trend-yet disclosure. 788 tests passing (was 772; net +16 — new
 error_analysis.py tests, new failure_traces.py tests, and
 tests/test_tool_agent.py's invalid-args test rewritten to assert the
 fixed recovery behavior instead of the old crash).
+
+## Example 14 — A dedicated Context Engineering & Memory page, with real live experiments
+
+Per the user's ask, after a full context-engineering breakdown and a
+follow-up on what would push it toward 90%: "lets build all 3 + lets
+also build a dedicated page on context engineering + memory on
+streamlit UI to showcase the work done till now. experiments to be
+made live and to be done live on UI for better visualization. specific
+arch diagram on context engineering + memory should be there."
+
+Confirmed with the user first: given this dashboard's standing rule of
+never making a live LLM call on page render, "live" means genuinely
+live/interactive where computation is free (pure Python, no LLM call)
+and pre-generated/committed where it needs a real API call — the same
+convention as the RAG page's chunking/search-vs-generation split.
+
+New page (`render_context_memory()`, "Context & Memory" in the sidebar):
+- A new dedicated Mermaid diagram
+  (`app/dashboard_ui/context_memory_diagram.py`) showing
+  `ConversationSession` → `MemoryRetriever`/`PersonalContextEngine` →
+  selected/excluded → `Orchestrator`, the write-side approval gate,
+  `ContextBuilder`'s compression loop, and the lost-in-the-middle
+  experiment, all in one page-specific diagram.
+- **Live, interactive selection**: real `ContextItem`s (a summary, a
+  recent turn, two memories — one clearly relevant, one clearly not) run
+  through the real `PersonalContextEngine`, with a slider controlling a
+  real token budget. Lowering the budget genuinely excludes items, shown
+  side by side with their real scores.
+- **Live, interactive compression**: 5 real `ContextSection`s with real
+  priorities, a slider controlling a real `max_tokens`, and the actual
+  kept/dropped sections plus the real rendered, compressed prompt —
+  `ContextBuilder`'s real compression path executing and visible for the
+  first time anywhere in this project.
+- **Pre-generated, real lost-in-the-middle results**: loaded from
+  `scripts/generate_lost_in_middle_experiment.py`'s committed output —
+  a real critical fact, ~200 real filler chunks, 3 real Gemini calls (one
+  per position), shown with the real per-position answers and a
+  deterministic correct/wrong verdict.
+
+A real, honest mechanic was caught and disclosed while verifying live,
+not hidden: `PersonalContextEngine.select()`'s greedy-knapsack selection
+can include a cheap, lower-scored item over a pricier, higher-scored one
+that didn't fit — confirmed as correct algorithm behavior (not a bug),
+called out directly in the page's own caption.
+
+Verified live in a real browser (`agent-browser`): selection/exclusion
+render with real scores and the greedy-knapsack disclosure; compression
+correctly drops 3 of 5 sections at the default budget with the real
+rendered prompt shown; the lost-in-the-middle section shows the real
+"✅ start / Correct" metrics and real committed answer text from the
+expander.
+
+Architecture diagram (the main one) and the "Context Engineering"
+learning goal (60% → 90%) updated in the same batch. 825 tests passing
+(was 817).

@@ -120,6 +120,24 @@ HISTORY:
    changed its answer style based on the first turn's real injected
    preference.
 
+8. Updated in the SAME batch again to close the 3 remaining Context
+   Engineering gaps the prior breakdown (item 7) identified but didn't
+   yet fix: (a) PersonalContextEngine's real scoring wired into every
+   ConversationSession turn via the new
+   app/conversation/context_selection.py -- real selection, not just
+   concatenation, with a test proving a low-relevance item is actually
+   excluded under a tight budget; (b) ContextBuilder's real compression
+   demonstrated live on a new dedicated dashboard page (an interactive
+   slider genuinely drops whole sections under a real max_tokens
+   budget); (c) lost_in_middle.py's build_positioned_context() run for
+   the first time against the real live Gemini API (200 real filler
+   chunks, critical fact at start/middle/end, deterministic correctness
+   check) -- committed as an honest real finding (no degradation
+   observed at this scale for gemini-3.5-flash-lite). New dedicated
+   "Context & Memory" dashboard page ties all of this together with its
+   own architecture diagram (app/dashboard_ui/context_memory_diagram.py)
+   and all 3 experiments live/committed on one page.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
@@ -221,10 +239,13 @@ flowchart TB
         CSHISTORY --> CSBUDGET
         CSBUDGET -->|yes| CSSUMMARY --> CSHISTORY
     end
-    CONVSESSION -.->|"injects recent turns +\nreal semantic memory as\nplain text context"| ORCH
+    CTXSELECT["PersonalContextEngine\nreal selection under a real token\nbudget -- see the dedicated\nContext & Memory page/diagram"]
+    CONVSESSION --> CTXSELECT
+    CTXSELECT -.->|"selected items only --\nsee context_memory_diagram.py"| ORCH
     MEMRETRIEVER["MemoryRetriever\nreal 4-factor semantic scoring:\nsimilarity/recency/importance/confirmed"]
     MEMRETRIEVER --> MEMSTORE
     CONVSESSION --> MEMRETRIEVER
+    MEMRETRIEVER --> CTXSELECT
 
     WRITEPOLICY["MemoryWritePolicy\nclassify -> importance threshold ->\nduplicate check -> approval gate"]
     CONVSESSION -->|"after every turn"| WRITEPOLICY

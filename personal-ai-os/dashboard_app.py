@@ -977,6 +977,231 @@ def render_rag(stores: dict) -> None:
         )
 
 
+_LOST_IN_MIDDLE_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "lost_in_middle_results.json"
+
+
+def _load_lost_in_middle_results() -> dict | None:
+    """Loads scripts/generate_lost_in_middle_experiment.py's committed,
+    real output -- generated once against the live Gemini API, not on
+    this page render (this dashboard's standing no-live-LLM-call rule)."""
+    if not _LOST_IN_MIDDLE_PATH.exists():
+        return None
+    return json.loads(_LOST_IN_MIDDLE_PATH.read_text())
+
+
+def render_context_memory(stores: dict) -> None:
+    st.header("Context Engineering & Memory")
+    st.caption(
+        "A full breakdown of this project's session/user/long-term memory, context "
+        "ordering, compression, and turn-summarization -- with the real gaps found and "
+        "fixed, and 3 experiments you can run live below. Selection and compression are "
+        "100% LIVE and interactive (pure Python, no LLM call, free). The lost-in-the-middle "
+        "experiment needs a real Gemini call, so it's pre-generated and committed, "
+        "consistent with this dashboard never making live LLM calls on page render."
+    )
+
+    from app.dashboard_ui.context_memory_diagram import CONTEXT_MEMORY_DIAGRAM
+
+    st.subheader("Context & memory architecture")
+    diagram_id = "context-memory-mermaid-diagram"
+    st.html(
+        f"""
+        <div id="{diagram_id}" class="mermaid">{CONTEXT_MEMORY_DIAGRAM}</div>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+        <script>
+        (function poll() {{
+            if (window.mermaid) {{
+                mermaid.initialize({{ startOnLoad: false, theme: 'neutral' }});
+                mermaid.run({{ nodes: [document.getElementById('{diagram_id}')] }});
+            }} else {{
+                setTimeout(poll, 50);
+            }}
+        }})();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
+
+    st.info(
+        "**The real gap this page closes:** `MemoryRetriever` (real semantic scoring) and "
+        "`PersonalContextEngine` (real 4-factor selection) both existed, tested, correct — "
+        "but were never called from any live request path. `naive_relevance.py`'s "
+        "keyword-overlap stand-in was used instead, and there was no session/turn state at "
+        "all (`Orchestrator.handle()` is one string in, one answer out). Fixed in "
+        "`app/conversation/session.py`'s `ConversationSession` and "
+        "`app/conversation/context_selection.py` — see the Learning page's "
+        "'Context Engineering' and 'AI Memory' entries for the full evidence trail."
+    )
+
+    st.divider()
+    st.subheader("1. Live context selection (PersonalContextEngine)")
+    st.caption(
+        "Real ContextItems (a running summary, recent turns, ranked memories) compete for a "
+        "real token budget by real relevance/importance/freshness/confidence score "
+        "(`PersonalContextEngine.score()`). Tighten the budget below and watch real items "
+        "get genuinely EXCLUDED — this is what makes 'the question is the minimum useful "
+        "context, not the maximum' a real, demonstrable behavior, not just a principle."
+    )
+
+    from datetime import datetime, timedelta, timezone
+
+    from app.context.personal_context_engine import ImportanceLevel, PersonalContextEngine
+    from app.conversation.context_selection import build_context_items
+    from app.conversation.session import ConversationTurn
+    from app.memory.models import MemoryRecord, MemoryType
+    from app.memory.retrieval import RankedMemory
+
+    now = datetime.now(timezone.utc)
+    demo_summary = "User is exploring AI-agent product management and prefers concise, bullet-point answers."
+    demo_turns = [
+        ConversationTurn(
+            user_text="What's the difference between RAG and fine-tuning?",
+            response_text="RAG retrieves relevant context at query time; fine-tuning bakes knowledge into model weights.",
+            created_at=now - timedelta(minutes=5),
+        ),
+    ]
+    demo_memories = [
+        RankedMemory(
+            memory=MemoryRecord(
+                memory_id="demo_m1", tenant_id=TENANT_ID, user_id=USER_ID, type=MemoryType.PREFERENCE,
+                content="Prefers concise, bullet-point explanations.", source="demo",
+                created_at=now - timedelta(days=2), updated_at=now - timedelta(days=2),
+                importance=0.8, confidence=1.0,
+            ),
+            score=0.91,
+        ),
+        RankedMemory(
+            memory=MemoryRecord(
+                memory_id="demo_m2", tenant_id=TENANT_ID, user_id=USER_ID, type=MemoryType.EXPERIENCE,
+                content="Once mentioned enjoying hiking on weekends, unrelated to this conversation.", source="demo",
+                created_at=now - timedelta(days=90), updated_at=now - timedelta(days=90),
+                importance=0.2, confidence=0.6,
+            ),
+            score=0.08,
+        ),
+    ]
+
+    budget = st.slider(
+        "context_token_budget (word-count proxy)", min_value=0, max_value=120, value=40, step=5,
+        help="Real budget passed to PersonalContextEngine.select() — lower it to see real exclusions.",
+    )
+
+    items = build_context_items(demo_summary, demo_turns, demo_memories, now=now)
+    engine = PersonalContextEngine()
+    selected = engine.select(items, token_budget=budget, now=now)
+    excluded = [i for i in items if i not in selected]
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f"**✅ Selected ({len(selected)} item(s), real scores)**")
+        for item in sorted(selected, key=lambda i: engine.score(i, now), reverse=True):
+            st.success(f"[{item.source}] score={engine.score(item, now):.2f}, cost={item.token_cost}\n\n{item.content[:150]}")
+    with col2:
+        st.markdown(f"**❌ Excluded ({len(excluded)} item(s), real scores)**")
+        if not excluded:
+            st.caption("Nothing excluded at this budget — try lowering it.")
+        for item in sorted(excluded, key=lambda i: engine.score(i, now), reverse=True):
+            st.error(f"[{item.source}] score={engine.score(item, now):.2f}, cost={item.token_cost}\n\n{item.content[:150]}")
+
+    st.caption(
+        "**Real, honest mechanic to notice:** `select()` is a greedy knapsack, not an "
+        "optimal one — it walks candidates in score order and skips (not permanently "
+        "excludes) any that would blow the remaining budget, then keeps checking cheaper, "
+        "lower-scored candidates after. So a cheap, lower-scored item can end up included "
+        "while a pricier, higher-scored one is excluded, if the higher-scored one didn't "
+        "fit and the cheaper one did. This is a real, disclosed property of the greedy "
+        "algorithm, not a bug — try the budget slider around 30-45 to see it happen."
+    )
+
+    st.divider()
+    st.subheader("2. Live context compression (ContextBuilder)")
+    st.caption(
+        "Real `ContextBuilder`: sections rendered in a fixed order (system → memory → "
+        "retrieved_context → tool_results → history → user), compressed by dropping the "
+        "LOWEST-priority WHOLE section first when over `max_tokens`. This compression path "
+        "was previously dead code in production (its only real call site always used "
+        "`max_tokens=None`) — demonstrated live here for the first time."
+    )
+
+    from app.context.builder import ContextBuilder, ContextSection, estimate_tokens
+
+    demo_sections = [
+        ContextSection(name="system", content="You are a helpful AI product assistant.", priority=0),
+        ContextSection(name="memory", content="User prefers concise, bullet-point answers.", priority=1),
+        ContextSection(
+            name="retrieved_context",
+            content="[doc1::chunk0] RAG combines retrieval with generation to ground LLM answers in real documents.",
+            priority=2,
+        ),
+        ContextSection(
+            name="history",
+            content="User previously asked about the difference between RAG and fine-tuning.",
+            priority=3,
+        ),
+        ContextSection(name="user", content="Now explain hybrid search in one sentence.", priority=4),
+    ]
+    total_real_tokens = sum(estimate_tokens(s.content) for s in demo_sections)
+    st.caption(f"Full, uncompressed size: {total_real_tokens} tokens (word-count proxy) across {len(demo_sections)} sections.")
+
+    max_tokens = st.slider(
+        "max_tokens (ContextBuilder's real compression budget)",
+        min_value=5, max_value=total_real_tokens, value=total_real_tokens // 2, step=1,
+    )
+    builder = ContextBuilder(max_tokens=max_tokens)
+    compressed = builder.build(demo_sections)
+    kept_sections = builder._compress_to_budget(list(demo_sections))
+    kept_names = {s.name for s in kept_sections}
+
+    col3, col4 = st.columns(2)
+    with col3:
+        st.markdown("**Sections (real priority, lower = kept first)**")
+        for s in demo_sections:
+            icon = "✅" if s.name in kept_names else "❌ dropped"
+            st.text(f"{icon} [priority={s.priority}] {s.name} ({estimate_tokens(s.content)} tokens)")
+    with col4:
+        st.markdown("**Rendered, compressed prompt**")
+        st.code(compressed or "(everything dropped)", language=None)
+
+    st.divider()
+    st.subheader("3. Lost-in-the-middle experiment (pre-generated, real)")
+    lim = _load_lost_in_middle_results()
+    if lim is None:
+        st.warning("No results found — run `python scripts/generate_lost_in_middle_experiment.py` first.")
+        return
+
+    st.caption(
+        f"Real critical fact buried among {lim['filler_chunk_count']} real filler chunks at "
+        "start/middle/end, real Gemini call per position, judged by a deterministic string "
+        "check (not another LLM) for whether the real answer contains the fact's specific value."
+    )
+    with st.expander("The real fact and question used", expanded=False):
+        st.markdown(f"**Critical fact:** {lim['critical_fact']}")
+        st.markdown(f"**Question asked:** {lim['question']}")
+
+    cols = st.columns(3)
+    for col, result in zip(cols, lim["results"]):
+        with col:
+            icon = "✅" if result["correct"] else "❌"
+            st.metric(f"{icon} {result['position']}", "Correct" if result["correct"] else "Wrong/missed")
+            st.caption(f"Context size: {result['context_char_length']:,} chars")
+            st.text(result["answer"][:200])
+
+    all_correct = all(r["correct"] for r in lim["results"])
+    if all_correct:
+        st.success(
+            "**Real, honest finding:** no lost-in-the-middle degradation was observed at this "
+            f"scale ({lim['filler_chunk_count']} filler chunks) for this model "
+            "(gemini-3.5-flash-lite) on this fact-retrieval task — all 3 positions answered "
+            "correctly. This is reported as-is, not pushed further to manufacture a more "
+            "dramatic result."
+        )
+    else:
+        st.warning(
+            "**Real degradation observed** — at least one position failed to recover the "
+            "fact correctly. See the per-position answers above for exactly which."
+        )
+
+
 @st.cache_resource
 def _get_embedder():
     from app.retrieval.embeddings import SentenceTransformerEmbedding
@@ -1108,6 +1333,7 @@ def main() -> None:
         "Architecture": render_architecture,
         "Tools": render_tools,
         "RAG": render_rag,
+        "Context & Memory": render_context_memory,
     }
     page = st.sidebar.radio("View", list(pages.keys()))
     st.sidebar.markdown("---")

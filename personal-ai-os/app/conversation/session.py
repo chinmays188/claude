@@ -44,6 +44,8 @@ from pydantic import BaseModel, Field
 
 from app.agents.orchestrator import ClarificationNeeded, Orchestrator
 from app.context.builder import estimate_tokens
+from app.context.personal_context_engine import PersonalContextEngine
+from app.conversation.context_selection import select_context_text
 from app.memory.models import MemoryRecord, MemoryType
 from app.memory.persistent_store import PersistentMemoryStore
 from app.memory.retrieval import MemoryRetriever
@@ -103,6 +105,8 @@ class ConversationSession:
         session_id: str | None = None,
         history_token_budget: int = 800,
         recent_turns_kept_verbatim: int = 2,
+        context_engine: PersonalContextEngine | None = None,
+        context_token_budget: int = 400,
     ):
         self.session_id = session_id or uuid.uuid4().hex
         self._orchestrator = orchestrator
@@ -114,10 +118,24 @@ class ConversationSession:
         self._user_id = user_id
         self._history_token_budget = history_token_budget
         self._recent_turns_kept_verbatim = recent_turns_kept_verbatim
+        # Real PersonalContextEngine wiring (previously never called from
+        # anywhere): selects which of {running summary, recent turns,
+        # ranked memories} actually earns a place in the prompt, by real
+        # relevance/importance/freshness/confidence score, under a real
+        # token budget -- separate from history_token_budget, which only
+        # governs when to SUMMARIZE, not what's selected into the prompt.
+        self._context_engine = context_engine or PersonalContextEngine()
+        self._context_token_budget = context_token_budget
 
         self.turns: list[ConversationTurn] = []
         self.running_summary: str = ""
         self.pending_memory_approvals: list[PendingMemoryApproval] = []
+        # Populated by _build_prompted_text() every call -- lets a caller
+        # (e.g. the dashboard's live Context Engineering page) inspect
+        # exactly what was selected vs excluded and why, not just the
+        # final rendered text.
+        self.last_selected_context: list = []
+        self.last_excluded_context: list = []
 
     def handle(self, user_text: str) -> str:
         if not user_text or not user_text.strip():
@@ -140,28 +158,31 @@ class ConversationSession:
         context, injected as plain text ahead of the new request --
         Orchestrator.handle() still just sees one string, so every internal
         routing/tool-calling path behaves exactly as it already does and is
-        already tested to."""
-        parts = []
+        already tested to.
 
-        if self.running_summary:
-            parts.append(f"Earlier in this conversation (summarized): {self.running_summary}")
-
+        Real selection, not just concatenation (the "minimum useful
+        context, not the maximum" principle, made demonstrable): every
+        candidate (summary, recent turns, ranked memories) is scored by the
+        real PersonalContextEngine and only included if it earns its place
+        under context_token_budget -- a low-relevance memory or an old
+        turn can now genuinely be excluded, inspectable afterward via
+        self.last_excluded_context."""
         recent = self.turns[-self._recent_turns_kept_verbatim:] if self.turns else []
-        for t in recent:
-            parts.append(f"User previously said: {t.user_text}\nYou previously answered: {t.response_text}")
 
         candidates = self._memory_store.list_all(self._tenant_id, self._user_id)
-        if candidates:
-            ranked = self._memory_retriever.rank(user_text, candidates, top_k=5)
-            if ranked:
-                memory_lines = "\n".join(f"- {rm.memory.content}" for rm in ranked)
-                parts.append(f"Relevant remembered information about this user:\n{memory_lines}")
+        ranked_memories = self._memory_retriever.rank(user_text, candidates, top_k=5) if candidates else []
 
-        if not parts:
+        context_text, selected, excluded = select_context_text(
+            self._context_engine, self.running_summary, recent, ranked_memories,
+            token_budget=self._context_token_budget,
+        )
+        self.last_selected_context = selected
+        self.last_excluded_context = excluded
+
+        if not context_text:
             return user_text
 
-        context_block = "\n\n".join(parts)
-        return f"{context_block}\n\nCurrent request: {user_text}"
+        return f"{context_text}\n\nCurrent request: {user_text}"
 
     def _compress_history_if_needed(self) -> None:
         """Real token-budget trigger, not an arbitrary turn count: the
