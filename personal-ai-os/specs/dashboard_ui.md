@@ -722,3 +722,34 @@ demo correctly computed 67% (2 of 3 valid) and named the invalid id; all
 Architecture diagram (the main one, including its `EVALDATA` node) and
 the "AI Evaluation" learning goal (80% → 92%) updated in the same batch.
 842 tests passing (was 837).
+
+## Example 17 — Evals page: a real low-scoring case, and the real feedback it produced
+
+Follow-up to Example 16. The user asked directly: "there should be low
+scoring runs as well on the eval dashboard and how the feedback got
+translated." (See `specs/evaluation_system.md`'s Example 9 for the full
+technical detail on the 2 new adversarial golden cases and the real
+failure they produced.)
+
+The page gained two changes:
+- **Section 5, "Low-scoring cases"**: shows the real, deliberately
+  adversarial cases added to give the harness a genuine chance at a
+  real failure, with the real one that actually failed
+  (`research_003_adversarial`) expanded by default — its real
+  deterministic-failure reason, real judge score (0.90), and real agent
+  output text.
+- **Section 6, "Feedback tie-back"** (renumbered from 5): now shows the
+  real, generated `HarnessSuggestion` from
+  `scripts/generate_eval_feedback_example.py`, citing the exact real
+  low-scoring case as evidence — the actual, concrete translation from
+  "a real low eval score" to "a real proposed workflow change," not just
+  a description of the mechanism.
+
+Verified live in a real browser (`agent-browser`): the real
+`research_003_adversarial` case renders with its real FAILED
+deterministic reason and 0.90 judge score in both section 3's full
+listing and section 5's low-scoring highlight; section 6 shows the real
+generated suggestion text citing that exact case.
+
+Architecture diagram (main one) and "AI Evaluation" learning goal (92%
+→ 94%) updated in the same batch. 845 tests passing (was 842).

@@ -33,5 +33,21 @@
     "expected_agent": null,
     "expected_capabilities": ["clarification_request"],
     "expected_tools": []
+  },
+  {
+    "id": "research_003_adversarial",
+    "input": "What does our internal knowledge base say about our Q3 roadmap?",
+    "expected_agent": "research_agent",
+    "expected_capabilities": ["grounded_answer"],
+    "expected_tools": ["retrieve"],
+    "_note": "Deliberately adversarial case, added to give this harness a genuine chance of a real low score, not just green results. This harness's Orchestrator has no retrieval_store wired (unlike scripts/trace_request.py's --index-file), so 'retrieve' is never even registered as an available tool -- this case is EXPECTED to genuinely fail the deterministic check every run, a real and honest limitation of this specific harness configuration, not of the agent itself."
+  },
+  {
+    "id": "analysis_002_adversarial",
+    "input": "If I save 15000 a month for 18 months, then a 2.5% annual fee is deducted once at the end, how much do I actually keep?",
+    "expected_agent": "analyst_agent",
+    "expected_capabilities": ["multi_step_calculation", "correct_final_number", "shows_reasoning"],
+    "expected_tools": ["calculator"],
+    "_note": "Deliberately harder multi-step arithmetic than research_002's simple multiplication, phrased as a financial trade-off (AnalystAgent's actual domain) rather than a bare research question -- a genuine, non-staged chance of the agent getting the compounding/fee-order wrong or skipping the calculator tool."
   }
 ]

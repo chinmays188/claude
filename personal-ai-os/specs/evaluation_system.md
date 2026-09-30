@@ -139,3 +139,56 @@ harness-run cases render with their real judge scores and real agent
 output text.
 
 842 tests passing (was 837).
+
+## Example 9 — A real low score, and a real feedback translation
+
+Follow-up to Example 8. The user asked: "there should be low scoring
+runs as well on the eval dashboard and how the feedback got translated."
+The first harness run (all 5 original golden cases) came back 100%
+deterministic pass rate / 1.00 average judge score — honest, but it
+never demonstrated a real failure or a real feedback loop closing.
+
+2 deliberately adversarial cases were added to
+`evals/golden/basic_routing.json` for a genuine, non-staged chance at a
+real low score (each case's own `_note` field documents exactly why it
+was expected to be hard, not fabricated after the fact):
+- `research_003_adversarial`: expects the `retrieve` tool for a
+  "what does our internal knowledge base say" question — but this
+  harness's `Orchestrator` has no `retrieval_store` wired (unlike
+  `scripts/trace_request.py`'s `--index-file` path), so `retrieve` is
+  never even registered as an available tool. This case was expected to
+  genuinely, deterministically fail every run — a real, honest
+  limitation of this specific harness configuration, not of the agent.
+- `analysis_002_adversarial`: a genuinely harder multi-step arithmetic
+  request (savings + a fee deducted at the end) phrased as a real
+  financial trade-off, to give a real, non-staged chance of the agent
+  getting the calculation or tool use wrong.
+
+Real result on rerun (7 cases total): `research_003_adversarial`
+genuinely failed the deterministic check (`Expected tool(s) ['retrieve']
+were not called`) with a judge score of 0.90 — the agent still gave a
+reasonable text answer without the tool, an honest nuance real numbers
+surface that a scripted example wouldn't. `analysis_002_adversarial`
+genuinely passed. Aggregate: 86% deterministic pass rate, 0.99 average
+judge score.
+
+New `scripts/generate_eval_feedback_example.py` reads this real result
+and makes one real, additional call to
+`app/proactive/harness_feedback.py`'s `generate_harness_suggestion()`
+(now with the `eval_harness_run` evidence parameter from Example 8),
+producing a real, evidence-cited `HarnessSuggestion`:
+"Update the prompt, routing logic, or tool-selection constraints for
+the 'research_003_adversarial' golden case to ensure the 'retrieve' tool
+is successfully called when expected" — citing the exact real failing
+case and its exact real deterministic-failure reason as evidence.
+
+A real, honest limitation was found and disclosed, not smoothed over:
+the LLM's suggested fix (prompt/routing/tool-selection) misdiagnoses the
+actual root cause (this harness's `Orchestrator` simply never registers
+the `retrieve` tool at all — no routing or prompt change could fix
+that). This is reported on the dashboard as-is: real evidence correctly
+cited, but the proposed fix itself imperfect — exactly the kind of thing
+a human reviewer (Phase 4's standing rule: propose, never auto-apply)
+would catch and correct.
+
+845 tests passing (was 842).

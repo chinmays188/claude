@@ -1,6 +1,6 @@
 {
   "judge_model": "gemini-3.5-flash-lite",
-  "golden_case_count": 5,
+  "golden_case_count": 7,
   "golden_case_counts_by_domain": {
     "career": 3,
     "pm": 3,
@@ -8,8 +8,8 @@
     "learning": 2,
     "cross_domain": 2
   },
-  "deterministic_pass_rate": 1.0,
-  "average_judge_overall": 1.0,
+  "deterministic_pass_rate": 0.8571428571428571,
+  "average_judge_overall": 0.9857142857142858,
   "results": [
     {
       "case_id": "research_001",
@@ -22,7 +22,7 @@
         "actual_agent": "research_agent",
         "actual_tools": []
       },
-      "agent_output": "### What is RAG?\n\n**Retrieval-Augmented Generation (RAG)** is an architectural pattern used in artificial intelligence\u2014specifically with Large Language Models (LLMs)\u2014to improve the accuracy, relevance, and factual grounding of generated responses. \n\nNormally, an LLM generates text based solely on its internal parametric memory (the weights it learned during training). This creates several issues: it can hallucinate false facts, it has no knowledge of private or proprietary data, and its training data has a fixed cutoff date.\n\nRAG solves this by splitting the process into two phases:\n1. **Retrieval:** When a user asks a question, the system searches an external knowledge base (such as a vector database, document store, or search engine) for information relevant to the query.\n2. **Generation:** The retrieved snippets of text are combined with the original user query and fed into the LLM as context. The LLM then synthesizes an answer using that precise, up-to-date context.\n\n---\n### Concrete Example\n\nImagine you ask a corporate HR chatbot: *\"What is our company's policy on parental leave for adoption?\"*\n\n1. **Retrieval Phase:** Instead of guessing or relying on general web knowledge, the system takes your question and queries the company's internal HR document repository. It finds section 4.2 of the *Employee Handbook 2024*, which details adoption leave.\n2. **Generation Phase:** The chatbot passes both your question *and* the text from section 4.2 into the LLM with a prompt like: *\"Answer the user's question using only the provided context.\"*\n3. **Output:** The LLM responds: *\"According to section 4.2 of the Employee Handbook, eligible employees are entitled to 12 weeks of paid adoption leave...\"*\n\n---\n### Important Limitations and Caveats\n\n* **Garbage In, Garbage Out:** If the retrieval step pulls irrelevant, outdated, or contradictory documents, the LLM will likely generate a poor or incorrect answer, even if the model itself is very capable.\n* **Context Window Limits:** LLMs have finite input token limits. If the retrieved documents are too long or numerous, important details may be truncated or overwhelm the model's attention mechanism.\n* **Latency and Cost:** RAG introduces additional steps (embedding generation, vector database search, and longer prompt lengths), which generally increase response latency and API token costs compared to a pure LLM call.\n* **Chunking Strategy Sensitivity:** How documents are split (chunked) prior to storage can drastically impact retrieval quality. If a sentence is split across two chunks, critical context might be lost.",
+      "agent_output": "### What is RAG?\n\n**RAG (Retrieval-Augmented Generation)** is a technique used in artificial intelligence\u2014specifically with Large Language Models (LLMs)\u2014to improve the accuracy and reliability of generative models by fetching facts from an external knowledge base before generating a response.\n\nStandard LLMs generate text based solely on the patterns and data they were trained on. This means their knowledge is static, they can suffer from hallucinations (making up facts), and they lack access to private or real-time data. RAG addresses this by bridging the model with an external data source (like a company's internal documentation, a database, or the live internet).\n\n#### How RAG Works (The Pipeline):\n1. **Retrieval:** When a user asks a question, the system searches an external knowledge base (often indexed as vector embeddings) for documents or snippets most relevant to the query.\n2. **Augmentation:** The system takes the user's original query and injects the retrieved documents into the prompt as context.\n3. **Generation:** The LLM reads the augmented prompt (which now includes both the question and the authoritative reference text) and generates an informed, context-aware answer.\n\n---\n\n### Concrete Example\n\nImagine you are using an internal HR chatbot at a mid-sized technology company.\n* **User Prompt:** \"What is our policy on remote work stipends for employees based in Texas?\"\n* **Without RAG:** The LLM might guess based on general internet data or its pre-training, potentially giving you outdated information or general company policy that doesn't apply specifically to Texas.\n* **With RAG:** \n  1. The RAG system queries the company\u2019s internal HR knowledge base and retrieves the exact document: *\"Employee Handbook 2024 - Section 4.2: State-Specific Remote Stipends.\"*\n  2. It feeds that document alongside your question into the LLM.\n  3. **LLM Output:** \"According to Section 4.2 of the 2024 Employee Handbook, employees based in Texas are eligible for a monthly $50 remote work stipend...\" \n\n---\n\n### Important Limitations and Caveats\n\n1. **Retrieval Bottleneck:** If the retrieval step fails to find the correct document (due to poor search indexing, ambiguous queries, or missing data), the LLM cannot generate the right answer, sometimes resulting in a confident hallucination.\n2. **Context Window Limits:** While LLM context windows are growing, feeding too many retrieved documents can dilute the signal, increase latency, and drive up API costs.\n3. **Stale Data Propagation:** If the underlying external database is outdated or contains errors, RAG will faithfully retrieve and summarize that incorrect information.\n4. **Latency overhead:** RAG systems require extra computational steps (embedding generation, vector search, and database lookup) before the generation step even begins, making them slightly slower than a pure LLM call.",
       "judge_score": {
         "correctness": 1.0,
         "completeness": 1.0,
@@ -68,7 +68,7 @@
         "actual_agent": "analyst_agent",
         "actual_tools": []
       },
-      "agent_output": "### Comparison of RAG, Fine-Tuning, and Long-Context Prompting\n\nWhen building applications with Large Language Models (LLMs), choosing the right technique to supply domain-specific or large volumes of information is critical. Below is a comparative analysis of **Retrieval-Augmented Generation (RAG)**, **Fine-Tuning**, and **Long-Context Prompting** across key dimensions.\n\n---\n\n### 1. Dimension-by-Dimension Breakdown\n\n| Dimension | RAG (Retrieval-Augmented Generation) | Fine-Tuning | Long-Context Prompting |\n| :--- | :--- | :--- | :--- |\n| **Cost** | **Medium (Infrastructure & Tokens):** Low training cost, but requires maintaining a vector database and embedding pipeline. Inference tokens scale with retrieved chunks. | **High (Upfront Training):** Requires compute resources for training (GPUs), dataset curation, and ongoing maintenance as models evolve. | **High (Inference Tokens):** Extremely high per-query token costs because the entire context is processed on every single call. |\n| **Quality & Accuracy** | **High for Factuality:** Excellent for factual accuracy if chunks are retrieved correctly, as it cites sources and grounds answers in explicit text. | **High for Style & Tone:** Excellent at adapting to specific formats, domain vocabulary, tone, and structured output tasks, but prone to hallucinations on unseen facts. | **High for Comprehensive Synthesis:** Good at cross-referencing information *within* the provided prompt, but performance can degrade (\"lost in the middle\" phenomenon) with massive contexts. |\n| **Complexity** | **Medium-High:** Requires setting up chunking strategies, embedding models, vector databases, retrieval algorithms, and re-ranking. | **High:** Requires ML expertise for data curation, hyperparameter tuning, preventing catastrophic forgetting, and managing model weights/hosting. | **Low:** Technologically simple\u2014just pass the documents into the prompt window. The complexity lies entirely in managing token limits and prompt formatting. |\n| **Data Freshness** | **Real-Time / Dynamic:** Documents in the vector store can be added, updated, or deleted instantly without retraining the model. | **Static:** Knowledge is baked into the weights. Updating knowledge requires retraining or continued fine-tuning. | **Dynamic:** Freshness depends entirely on what documents are passed into the prompt at runtime. |\n| **Context Window Limits** | **Bypasses Limits:** Only feeds relevant snippets to the model, keeping prompt sizes manageable regardless of total knowledge base size. | **Model-Bound:** Bounded by the base model's context window during inference, though the model \"knows\" more implicitly. | **Bounded by Model Max:** Strictly limited by the model's maximum context window (e.g., 128k, 1M+ tokens), though handling very large prompts can be slow and expensive.\n\n---\n\n### 2. Summary of Tradeoffs\n\n*   **RAG:**\n    *   *Pros:* Highly factual, easily updatable, scalable to millions of documents without blowing up context windows.\n    *   *Cons:* Dependent on retrieval quality (garbage in, garbage out); adds architectural complexity.\n*   **Fine-Tuning:**\n    *   *Pros:* Deeply internalizes tone, style, and complex behaviors; fast inference without heavy retrieval pipelines.\n    *   *Cons:* Expensive to set up; rigid (hard to update factual knowledge); prone to hallucinations.\n*   **Long-Context Prompting:**\n    *   *Pros:* Simplest implementation; excellent when you need the model to reason across an entire book or codebase simultaneously.\n    *   *Cons:* Prohibitive token costs at scale; latency overhead; models can still miss details buried in the middle of massive prompts.\n\n---\n\n### 3. Recommendation\n\n*   **Choose RAG if:** Your primary goal is Q&A over a large, frequently changing, or proprietary knowledge base (e.g., enterprise search, customer support bots) where factual grounding and source attribution are paramount.\n*   **Choose Fine-Tuning if:** You need the model to adopt a specific persona, write code in a niche proprietary language, strictly adhere to output formatting (e.g., JSON schemas), or perform specialized classification tasks where general knowledge is already sufficient.\n*   **Choose Long-Context Prompting if:** You have a one-off or moderate-scale document analysis task (e.g., analyzing a 50-page financial report or summarizing a specific codebase repository) where setting up a vector database is overkill and you need holistic cross-document reasoning.",
+      "agent_output": "Here is a comparison of RAG (Retrieval-Augmented Generation), Fine-Tuning, and Long-Context Prompting across key dimensions for adapting Large Language Models:\n\n### 1. Retrieval-Augmented Generation (RAG)\n* **Description**: Dynamically fetches relevant external documents/data at query time and injects them into the model's prompt.\n* **Cost**: \n  * *Setup/Infrastructure*: Medium (requires vector database, embedding pipeline, chunking strategy).\n  * *Operational/Inference*: Low-to-Medium (input tokens increase due to retrieved context, but models remain smaller/base models).\n* **Quality**: \n  * *Factual Accuracy*: High for specific, changing, or proprietary knowledge because it cites sources and reduces hallucination.\n  * *Reasoning*: Depends on the underlying base model's reasoning capabilities.\n* **Complexity**: Medium. Involves managing data pipelines, embedding models, vector search, chunk size, and retrieval relevance (recall/precision).\n* **Best For**: Frequently changing data, large document repositories, question-answering systems, and scenarios requiring source attribution.\n\n### 2. Fine-Tuning\n* **Description**: Modifying the model's internal weights by training on a specific dataset to adapt its style, tone, format, or domain expertise.\n* **Cost**: \n  * *Setup/Infrastructure*: High (requires curated training datasets, GPU compute for training, and validation).\n  * *Operational/Inference*: Low-to-Medium (inference cost is tied to model size, no extra retrieval tokens needed).\n* **Quality**: \n  * *Factual Accuracy*: Moderate. Good for internalizing patterns, tone, code syntax, or stylistic alignment, but prone to hallucinating factual knowledge if facts change post-training.\n  * *Reasoning*: Can specialize a model in domain-specific tasks (e.g., medical diagnosis formatting or specific programming languages).\n* **Complexity**: High. Requires ML expertise to curate clean training data, avoid catastrophic forgetting, tune hyperparameters, and evaluate model checkpoints.\n* **Best For**: Enforcing strict output formats, specific domain styles/tones, specialized tasks (e.g., code generation in a proprietary language), and stable domain knowledge.\n\n### 3. Long-Context Prompting\n* **Description**: Passing entire documents, codebases, or books directly into the model's context window (e.g., 100k\u20132M+ tokens).\n* **Cost**: \n  * *Setup/Infrastructure*: Very Low (no vector databases or training pipelines needed).\n  * *Operational/Inference*: Very High. Processing massive input tokens per request significantly increases API costs and latency.\n* **Quality**: \n  * *Factual Accuracy*: High for synthesis *within* the provided text, though models can suffer from the \"lost-in-the-middle\" phenomenon where they miss details buried in the center of huge contexts.\n  * *Reasoning*: Excellent for cross-document synthesis, holistic analysis, and tasks requiring global understanding of a large corpus.\n* **Complexity**: Low. Simply plug the data into the prompt.\n* **Best For**: Analyzing one-off large documents, rapid prototyping, exploratory data analysis, and tasks where setting up a RAG pipeline is premature.\n\n---\n\n### Summary Matrix\n\n| Dimension | RAG | Fine-Tuning | Long-Context Prompting |\n| :--- | :--- | :--- | :--- |\n| **Setup Cost** | Medium | High | Very Low |\n| **Inference Cost** | Low-to-Medium | Low-to-Medium | Very High |\n| **Data Updates** | Real-time (update vector DB) | Requires retraining | Real-time (change prompt) |\n| **Complexity** | Medium | High | Low |\n| **Primary Strength** | Factual retrieval & citations | Style, tone & task adaptation | Holistic synthesis of large inputs |\n\n### Recommendation & Tradeoffs\n* **Start with RAG** if your primary goal is to provide accurate, up-to-date, and verifiable answers from a large, evolving knowledge base. \n  * *Tradeoff*: You accept the complexity of managing a vector database and retrieval pipeline.\n* **Use Fine-Tuning** if you need the model to consistently adopt a specific persona, output format, or specialized language style that cannot be easily achieved via prompting.\n  * *Tradeoff*: High upfront cost and rigidity\u2014if the underlying data changes, you must retrain.\n* **Use Long-Context Prompting** for rapid prototyping, ad-hoc analysis of large files, or when your data volume is small enough that infrastructure overhead outweighs high per-token inference costs.\n  * *Tradeoff*: Significantly higher token costs at scale and potential retrieval drop-offs (\"lost in the middle\").\n\n*Pro-tip*: In modern architectures, these are not mutually exclusive; **hybrid approaches** (e.g., RAG feeding into a fine-tuned or long-context model) are increasingly common for enterprise applications.",
       "judge_score": {
         "correctness": 1.0,
         "completeness": 1.0,
@@ -89,7 +89,7 @@
         "actual_agent": "planner_agent",
         "actual_tools": []
       },
-      "agent_output": "Here is a concrete, sequenced 30-day learning plan for Docker, broken down into 4 weekly milestones with actionable daily steps.\n\n### **Phase 1 (Days 1\u20137): Fundamentals & Core Concepts**\n*Milestone: Understand containerization vs. virtualization and run your first containers from Docker Hub.*\n- **Day 1:** Learn what Docker is, how containers differ from virtual machines, and the architecture (Docker client, daemon, registry). \n- **Day 2:** Install Docker Desktop (or Docker Engine on Linux) and verify the installation via CLI (`docker version`).\n- **Day 3:** Run your first container using `docker run hello-world`. Explore basic commands like `docker ps`, `docker ps -a`, and `docker images`.\n- **Day 4:** Run an interactive container (e.g., Ubuntu or Nginx) using `docker run -it ubuntu bash`. Practice navigating inside the container.\n- **Day 5:** Learn how to stop, start, and remove containers (`docker stop`, `docker start`, `docker rm`, `docker rmi`).\n- **Day 6:** Understand port mapping (`-p` flag) and detach mode (`-d`). Run an Nginx web server and access it via `http://localhost:8080`.\n- **Day 7:** Review and practice core CLI commands. Write a quick cheat sheet for yourself.\n\n### **Phase 2 (Days 8\u201314): Creating Custom Images & Dockerfiles**\n*Milestone: Build, tag, and push your own custom Docker images to Docker Hub.*\n- **Day 8:** Learn the anatomy of a `Dockerfile` (`FROM`, `WORKDIR`, `COPY`, `RUN`, `CMD`, `EXPOSE`).\n- **Day 9:** Write a simple `Dockerfile` for a static HTML page or a basic Node.js/Python script.\n- **Day 10:** Build your image using `docker build -t my-app:1.0 .` and run it.\n- **Day 11:** Understand image layers and caching to optimize build times and reduce image size.\n- **Day 12:** Create a Docker Hub account, log in via CLI (`docker login`), tag your local image, and push it (`docker push <username>/my-app:1.0`).\n- **Day 13:** Test pulling and running your image from Docker Hub on a clean slate.\n- **Day 14:** Mini-project: Containerize a simple multi-endpoint web application you've built previously.\n\n### **Phase 3 (Days 15\u201321): Data Persistence & Networking**\n*Milestone: Manage persistent data using volumes and connect multiple containers using networks.*\n- **Day 15:** Learn why data is ephemeral in containers. Explore the three data types: Volumes, Bind Mounts, and tmpfs.\n- **Day 16:** Practice creating and managing Docker volumes (`docker volume create`). Mount a volume to a database container (e.g., PostgreSQL or MySQL) to persist data.\n- **Day 17:** Use bind mounts for local development (live-reload code changes inside a running container).\n- **Day 18:** Understand Docker networking drivers (`bridge`, `host`, `none`).\n- **Day 19:** Create a custom user-defined bridge network (`docker network create`) and attach containers to it.\n- **Day 20:** Enable communication between two containers (e.g., a web app talking to a database container) via the custom network.\n- **Day 21:** Mini-project: Deploy a web app + database stack locally, ensuring data persists across container restarts.\n\n### **Phase 4 (Days 22\u201330): Multi-Container Orchestration & Best Practices**\n*Milestone: Define and run multi-container applications using Docker Compose and follow security best practices.*\n- **Day 22:** Introduction to Docker Compose. Learn the structure of a `docker-compose.yml` file (`services`, `networks`, `volumes`).\n- **Day 23:** Convert your web app + database stack from Day 21 into a single `docker-compose.yml` file.\n- **Day 24:** Learn essential Compose commands: `docker compose up -d`, `docker compose down`, `docker compose logs`, and `docker compose ps`.\n- **Day 25:** Manage environment variables in Docker Compose using `.env` files.\n- **Day 26:** Learn Docker security best practices: running as a non-root user, scanning images for vulnerabilities (`docker scout` or Trivy).\n- **Day 27:** Learn basic resource management (limiting CPU and memory per container).\n- **Day 28 & 29:** Capstone Project: Build a complete 3-tier application (Frontend, Backend, Database/Cache) orchestrated entirely with Docker Compose, complete with persistent volumes and custom networking.\n- **Day 30:** Clean up unused Docker assets (`docker system prune`), review learnings, and explore next steps (Kubernetes, ECS, or Docker Swarm).",
+      "agent_output": "Here is a structured, concrete 30-day plan to learn Docker, broken down into weekly milestones with specific, actionable steps.\n\n---\n\n### **Phase 1: Foundations & Core Concepts (Days 1\u20137)**\n*Goal: Understand what Docker is, how it differs from Virtual Machines, and master basic container operations.*\n\n* **Day 1: Theory & Installation**\n  * Understand containerization vs. virtualization (namespaces, cgroups).\n  * Install Docker Desktop (Windows/Mac) or Docker Engine (Linux).\n  * Verify installation by running `docker --version` and `docker run hello-world`.\n* **Day 2: Managing Containers**\n  * Learn core lifecycle commands: `docker run`, `docker ps` (and `-a`), `docker stop`, `docker start`, and `docker rm`.\n  * Practice running an interactive container: `docker run -it ubuntu bash`.\n* **Day 3: Managing Images & Registries**\n  * Pull images from Docker Hub using `docker pull nginx` or `docker pull redis`.\n  * Inspect local images with `docker images` and remove unused ones with `docker rmi`.\n  * Explore Docker Hub to understand official vs. community tags.\n* **Day 4: Ports & Environment Variables**\n  * Run a web server and map ports: `docker run -d -p 8080:80 --name my-web-server nginx`.\n  * Access `http://localhost:8080` in your browser.\n  * Pass environment variables using the `-e` flag (e.g., configuring a database password).\n* **Day 5: Data Persistence (Volumes)**\n  * Understand ephemeral container storage.\n  * Practice using bind mounts (`-v /local/path:/container/path`) and named Docker volumes (`docker volume create`).\n* **Day 6: Inspecting & Troubleshooting**\n  * View container logs using `docker logs <container_id>`.\n  * Execute commands inside a running container using `docker exec -it <container_id> bash`.\n  * Check resource usage with `docker stats`.\n* **Day 7: Milestone 1 Checkpoint**\n  * *Action:* Without looking at notes, spin up a MySQL or PostgreSQL container, map a port, persist data to a local volume, and connect to it from your host machine.\n\n---\n\n### **Phase 2: Custom Images & Dockerfiles (Days 8\u201314)**\n*Goal: Learn how to package your own applications into reproducible container images.*\n\n* **Day 8: Introduction to Dockerfiles**\n  * Learn core instructions: `FROM`, `WORKDIR`, `COPY`, `RUN`, `ENV`, `EXPOSE`, and `CMD` vs. `ENTRYPOINT`.\n* **Day 9: Building Your First Image**\n  * Write a simple Dockerfile for a Node.js, Python, or Go script/web app.\n  * Build the image using `docker build -t my-app:1.0 .`.\n* **Day 10: Understanding Layer Caching**\n  * Learn how Docker caches layers to speed up builds.\n  * Optimize a Dockerfile order (e.g., copying `package.json` before installing dependencies).\n* **Day 11: Multi-stage Builds**\n  * Learn how to reduce final image sizes by separating build environments from production runtimes (crucial for compiled languages or heavy front-end builds).\n* **Day 12: Tagging & Publishing**\n  * Create a Docker Hub account (if you don't have one).\n  * Tag your local image (`docker tag my-app:1.0 username/my-app:1.0`).\n  * Push your image to Docker Hub using `docker push username/my-app:1.0`.\n* **Day 13: Security & Best Practices**\n  * Avoid running containers as the `root` user (`USER` instruction).\n  * Use `.dockerignore` files to exclude unnecessary files (like `node_modules` or `.git`) from the build context.\n* **Day 14: Milestone 2 Checkpoint**\n  * *Action:* Take a small application you've written in the past, write an optimized multi-stage Dockerfile, build it, and successfully run it locally.\n\n---\n\n### **Phase 3: Multi-Container Applications & Networking (Days 15\u201321)**\n*Goal: Run multi-tier applications (e.g., Frontend + Backend + Database) using Docker Compose.*\n\n* **Day 15: Docker Networking Basics**\n  * Understand default bridge networks vs. custom user-defined bridge networks.\n  * Learn how containers communicate by name within a custom network (`docker network create`).\n* **Day 16: Introduction to Docker Compose**\n  * Understand the role of `docker-compose.yml` for local development and orchestration.\n  * Learn key YAML keys: `services`, `image`/`build`, `ports`, `environment`, `volumes`, and `networks`.\n* **Day 17: Building a 2-Tier Stack**\n  * Write a Compose file to run a web app connected to a database (e.g., Flask/Node.js + PostgreSQL).\n  * Use `docker compose up -d` and `docker compose down`.\n* **Day 18: Scaling & Healthchecks**\n  * Learn how to configure container restart policies (`restart: always` / `unless-stopped`).\n  * Use health checks to ensure dependent services wait for databases to fully initialize (`depends_on` with `condition: service_healthy`).\n* **Day 19: Environment Management in Compose**\n  * Use `.env` files to securely inject secrets and configuration variables into your `docker-compose.yml`.\n* **Day 20: Troubleshooting Compose Stacks**\n  * Master `docker compose logs -f`, `docker compose ps`, and inspecting networks via `docker network inspect`.\n* **Day 21: Milestone 3 Checkpoint**\n  * *Action:* Deploy a 3-tier application (e.g., React frontend, Express backend, MongoDB database) entirely via a single `docker-compose.yml` file.\n\n---\n\n### **Phase 4: Production Readiness & Advanced Topics (Days 22\u201330)**\n*Goal: Prepare for real-world deployments, optimization, and ecosystem awareness.*\n\n* **Day 22: Image Scanning & Vulnerability Management**\n  * Use built-in tools like `docker scout` (or integration with Trivy) to scan your custom images for known vulnerabilities.\n* **Day 23: Resource Constraints**\n  * Learn how to limit CPU and memory usage for containers using `--memory` and `--cpus` (or limits in Docker Compose).\n* **Day 24: Logging & Monitoring**\n  * Explore Docker logging drivers (JSON-file, syslog, Fluentd).\n  * Understand how container metrics are collected for tools like Prometheus/Grafana.\n* **Day 25: Introduction to Kubernetes (Conceptually)**\n  * Understand *why* orchestration platforms like Kubernetes, Docker Swarm, or AWS ECS exist beyond single-host Docker.\n* **Day 26: CI/CD Integration**\n  * Learn how Docker is used in CI/CD pipelines (GitHub Actions, GitLab CI) to build, test, and push images automatically.\n* **Day 27\u201328: Capstone Project (Part 1)**\n  * Choose a comprehensive project: Containerize a full-stack open-source application or your own production project. Set up automated builds, multi-stage Dockerfiles, and Docker Compose.\n* **Day 29: Capstone Project (Part 2)**\n  * Test failure recovery: kill containers, test volume persistence, verify network isolation, and review resource usage.\n* **Day 30: Final Review & Next Steps**\n  * Clean up unused disk space (`docker system prune -a`).\n  * Outline your next learning goal (e.g., Kubernetes (CKA/CKAD), Terraform, or Cloud Container Services like AWS ECS/GCP Cloud Run).",
       "judge_score": {
         "correctness": 1.0,
         "completeness": 1.0,
@@ -119,16 +119,64 @@
         "instruction_following": 1.0,
         "overall": 1.0
       }
+    },
+    {
+      "case_id": "research_003_adversarial",
+      "input": "What does our internal knowledge base say about our Q3 roadmap?",
+      "expected_agent": "research_agent",
+      "expected_tools": [
+        "retrieve"
+      ],
+      "deterministic": {
+        "passed": false,
+        "reason": "Expected tool(s) ['retrieve'] were not called.",
+        "actual_agent": "research_agent",
+        "actual_tools": []
+      },
+      "agent_output": "I do not have access to a local retrieval tool to search the internal knowledge base directly, and no relevant information about the Q3 roadmap was provided in the context. Therefore, I cannot provide specifics from your internal documents at this moment.",
+      "judge_score": {
+        "correctness": 1.0,
+        "completeness": 1.0,
+        "groundedness": 1.0,
+        "citation_quality": 1.0,
+        "instruction_following": 0.5,
+        "overall": 0.9
+      }
+    },
+    {
+      "case_id": "analysis_002_adversarial",
+      "input": "If I save 15000 a month for 18 months, then a 2.5% annual fee is deducted once at the end, how much do I actually keep?",
+      "expected_agent": "analyst_agent",
+      "expected_tools": [
+        "calculator"
+      ],
+      "deterministic": {
+        "passed": true,
+        "reason": "All expectations met.",
+        "actual_agent": "analyst_agent",
+        "actual_tools": [
+          "calculator"
+        ]
+      },
+      "agent_output": "If you save 15,000 a month for 18 months, your total accumulated savings before the fee is 15,000 * 18 = 270,000. A 2.5% annual fee deducted once at the end amounts to 270,000 * 0.025 = 6,750. Subtracting this fee leaves you with 270,000 - 6,750 = $263,250.00.",
+      "judge_score": {
+        "correctness": 1.0,
+        "completeness": 1.0,
+        "groundedness": 1.0,
+        "citation_quality": 1.0,
+        "instruction_following": 1.0,
+        "overall": 1.0
+      }
     }
   ],
   "real_usage": [
     {
       "input_tokens": 258,
-      "output_tokens": 15
+      "output_tokens": 20
     },
     {
-      "input_tokens": 240,
-      "output_tokens": 15
+      "input_tokens": 245,
+      "output_tokens": 20
     },
     {
       "input_tokens": 132,
@@ -136,7 +184,7 @@
     },
     {
       "input_tokens": 417,
-      "output_tokens": 682
+      "output_tokens": 657
     },
     {
       "input_tokens": 258,
@@ -152,19 +200,19 @@
     },
     {
       "input_tokens": 417,
-      "output_tokens": 602
+      "output_tokens": 663
     },
     {
-      "input_tokens": 729,
+      "input_tokens": 789,
       "output_tokens": 70
     },
     {
       "input_tokens": 264,
-      "output_tokens": 18
+      "output_tokens": 12
     },
     {
       "input_tokens": 138,
-      "output_tokens": 21
+      "output_tokens": 17
     },
     {
       "input_tokens": 408,
@@ -180,7 +228,7 @@
     },
     {
       "input_tokens": 138,
-      "output_tokens": 21
+      "output_tokens": 16
     },
     {
       "input_tokens": 408,
@@ -188,7 +236,7 @@
     },
     {
       "input_tokens": 411,
-      "output_tokens": 25
+      "output_tokens": 30
     },
     {
       "input_tokens": 196,
@@ -204,11 +252,11 @@
     },
     {
       "input_tokens": 410,
-      "output_tokens": 562
+      "output_tokens": 622
     },
     {
       "input_tokens": 267,
-      "output_tokens": 15
+      "output_tokens": 21
     },
     {
       "input_tokens": 141,
@@ -216,10 +264,10 @@
     },
     {
       "input_tokens": 410,
-      "output_tokens": 1021
+      "output_tokens": 1118
     },
     {
-      "input_tokens": 1149,
+      "input_tokens": 1258,
       "output_tokens": 75
     },
     {
@@ -232,22 +280,22 @@
     },
     {
       "input_tokens": 413,
-      "output_tokens": 1624
+      "output_tokens": 1683
     },
     {
       "input_tokens": 266,
-      "output_tokens": 20
+      "output_tokens": 15
     },
     {
       "input_tokens": 140,
-      "output_tokens": 21
+      "output_tokens": 16
     },
     {
       "input_tokens": 413,
-      "output_tokens": 1136
+      "output_tokens": 1866
     },
     {
-      "input_tokens": 1274,
+      "input_tokens": 1943,
       "output_tokens": 75
     },
     {
@@ -256,7 +304,7 @@
     },
     {
       "input_tokens": 132,
-      "output_tokens": 22
+      "output_tokens": 17
     },
     {
       "input_tokens": 258,
@@ -269,6 +317,86 @@
     {
       "input_tokens": 207,
       "output_tokens": 70
+    },
+    {
+      "input_tokens": 267,
+      "output_tokens": 20
+    },
+    {
+      "input_tokens": 141,
+      "output_tokens": 22
+    },
+    {
+      "input_tokens": 425,
+      "output_tokens": 25
+    },
+    {
+      "input_tokens": 434,
+      "output_tokens": 78
+    },
+    {
+      "input_tokens": 267,
+      "output_tokens": 20
+    },
+    {
+      "input_tokens": 141,
+      "output_tokens": 22
+    },
+    {
+      "input_tokens": 425,
+      "output_tokens": 25
+    },
+    {
+      "input_tokens": 434,
+      "output_tokens": 60
+    },
+    {
+      "input_tokens": 235,
+      "output_tokens": 75
+    },
+    {
+      "input_tokens": 335,
+      "output_tokens": 72
+    },
+    {
+      "input_tokens": 294,
+      "output_tokens": 20
+    },
+    {
+      "input_tokens": 168,
+      "output_tokens": 22
+    },
+    {
+      "input_tokens": 436,
+      "output_tokens": 42
+    },
+    {
+      "input_tokens": 444,
+      "output_tokens": 144
+    },
+    {
+      "input_tokens": 335,
+      "output_tokens": 54
+    },
+    {
+      "input_tokens": 294,
+      "output_tokens": 20
+    },
+    {
+      "input_tokens": 168,
+      "output_tokens": 22
+    },
+    {
+      "input_tokens": 436,
+      "output_tokens": 42
+    },
+    {
+      "input_tokens": 444,
+      "output_tokens": 138
+    },
+    {
+      "input_tokens": 346,
+      "output_tokens": 75
     }
   ]
 }

@@ -1329,6 +1329,18 @@ def _load_eval_harness_run() -> dict | None:
     return json.loads(_EVAL_HARNESS_RUN_PATH.read_text())
 
 
+_EVAL_FEEDBACK_EXAMPLE_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "eval_feedback_example.json"
+
+
+def _load_eval_feedback_example() -> dict | None:
+    """Loads scripts/generate_eval_feedback_example.py's committed, real
+    output -- a real HarnessSuggestion generated from the real eval
+    harness run's low-scoring case(s), not on this page render."""
+    if not _EVAL_FEEDBACK_EXAMPLE_PATH.exists():
+        return None
+    return json.loads(_EVAL_FEEDBACK_EXAMPLE_PATH.read_text())
+
+
 def render_evals(stores: dict) -> None:
     st.header("Evals")
     st.caption(
@@ -1460,24 +1472,55 @@ def render_evals(stores: dict) -> None:
     st.caption("(ILLUSTRATIVE — not from a real human rating session. Real math, invented input numbers, clearly labeled.)")
 
     st.divider()
-    st.subheader("5. Feedback tie-back — how a low eval score becomes a workflow change")
+    st.subheader("5. Low-scoring cases — real, deliberately adversarial")
     st.caption(
-        "Chief of Staff's `harness_feedback.py` (see the Chief of Staff page) now reads this "
-        "harness run's results too, alongside real trace failures and drift, and can cite a "
-        "specific low-scoring case as evidence for a real, proposed workflow change — never "
-        "invented, never auto-applied."
+        "The first 5 golden cases all genuinely passed — an honest, clean result, but one "
+        "that never showed what a real failure looks like. 2 deliberately adversarial cases "
+        "were added to `evals/golden/basic_routing.json` to give this harness a genuine "
+        "chance at a real low score, not a staged one — see each case's own `_note` field "
+        "for exactly why it was expected to be hard."
     )
     low_scoring = [r for r in harness_run["results"] if not r["deterministic"]["passed"] or r["judge_score"]["overall"] < 0.7]
     if low_scoring:
         for r in low_scoring:
-            st.warning(
-                f"**Real signal Chief of Staff can act on:** case `{r['case_id']}` — "
-                f"deterministic {'passed' if r['deterministic']['passed'] else 'FAILED'}, "
-                f"judge overall {r['judge_score']['overall']:.2f}. "
-                f"{r['deterministic']['reason']}"
-            )
+            with st.expander(f"❌ [{r['case_id']}] {r['input'][:70]} — judge overall {r['judge_score']['overall']:.2f}", expanded=True):
+                st.markdown(f"**Input:** {r['input']}")
+                st.markdown(f"**Deterministic:** {'PASS' if r['deterministic']['passed'] else 'FAILED'} — {r['deterministic']['reason']}")
+                st.markdown("**LLM-judge scores:**")
+                st.json(r["judge_score"])
+                st.text(r["agent_output"][:400] + ("…" if len(r["agent_output"]) > 400 else ""))
     else:
-        st.success("No low-scoring cases in this run — nothing for Chief of Staff to flag from this harness pass.")
+        st.success(
+            "No low-scoring cases in this run — even the deliberately adversarial cases "
+            "genuinely passed. An honest result, not evidence the harness lacks teeth."
+        )
+
+    st.divider()
+    st.subheader("6. Feedback tie-back — how a low eval score becomes a workflow change")
+    st.caption(
+        "Chief of Staff's `harness_feedback.py` (see the Chief of Staff page) reads this "
+        "harness run's results, alongside real trace failures and drift, and can cite a "
+        "specific low-scoring case as evidence for a real, proposed workflow change — never "
+        "invented, never auto-applied."
+    )
+    feedback_example = _load_eval_feedback_example()
+    if feedback_example is None:
+        st.warning("No feedback example found — run `python scripts/generate_eval_feedback_example.py` first.")
+        return
+
+    st.markdown(f"**Real low-scoring case(s) fed to the suggestion:** `{feedback_example['low_scoring_case_ids']}`")
+    suggestion = feedback_example["suggestion"]
+    if suggestion["has_suggestion"]:
+        st.success(suggestion["suggestion"])
+        st.caption(f"**Evidence cited:** {suggestion['evidence_cited']}")
+        st.caption(f"**Reasoning:** {suggestion['reasoning']}")
+    else:
+        st.info(f"No suggestion this run: {suggestion['reasoning']}")
+    st.caption(
+        "This is a real, structured LLM call over the real evidence above — not invented for "
+        "this page, and never auto-applied (a human reviews it, same as every other Phase 4 "
+        "proposal in this project)."
+    )
 
 
 @st.cache_resource

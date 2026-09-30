@@ -1,0 +1,14 @@
+{
+  "low_scoring_case_ids": [
+    "research_003_adversarial"
+  ],
+  "suggestion": {
+    "suggestion_id": "f69f5ee53773426f9bc28d46e034dc90",
+    "owner_id": "demo_user",
+    "has_suggestion": true,
+    "suggestion": "Update the prompt, routing logic, or tool-selection constraints for the 'research_003_adversarial' golden case to ensure the 'retrieve' tool is successfully called when expected.",
+    "evidence_cited": "Golden-case eval harness run (7 cases): deterministic pass rate=86%, low-scoring case 'research_003_adversarial': deterministic_passed=False, judge_overall=0.90, reason=Expected tool(s) ['retrieve'] were not called.",
+    "reasoning": "The eval harness data shows that out of 7 cases, exactly one failed ('research_003_adversarial') specifically because the required 'retrieve' tool was not called, bringing the deterministic pass rate down to 86%. Fixing the system's ability to trigger this tool on adversarial research inputs will resolve this specific failure mode.",
+    "created_at": "2026-09-30T02:26:20.050122Z"
+  }
+}

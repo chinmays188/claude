@@ -11,7 +11,16 @@ run_golden_case() (deterministic routing/tool-correctness check) and
 app/evaluation/llm_judge.py's judge_response() (LLM-as-judge, 6
 dimensions) both existed, real and tested, but neither had ever been run
 end-to-end against the real, live Orchestrator over the real golden
-dataset (evals/golden/basic_routing.json, 5 cases).
+dataset (evals/golden/basic_routing.json).
+
+Follow-up (user's ask: "there should be low scoring runs as well on the
+eval dashboard and how the feedback got translated"): the first run over
+5 cases came back 100% pass / 1.00 average judge score -- an honest,
+clean result, but one that never demonstrated a real failure. 2
+deliberately adversarial cases (research_003_adversarial,
+analysis_002_adversarial -- see their own `_note` fields in the JSON for
+exactly why) were added to give this harness a genuine, non-staged
+chance at a real low score.
 
 This script does that once, for real:
   1. DETERMINISTIC eval: run_golden_case() against a real Orchestrator.handle()

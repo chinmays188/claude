@@ -18,7 +18,7 @@ real golden dataset until scripts/generate_eval_harness_run.py.
 
 EVAL_DIAGRAM = r"""
 flowchart TB
-    GOLDEN["evals/golden/basic_routing.json\n(5 real cases: input, expected_agent,\nexpected_tools, expected_capabilities)"]
+    GOLDEN["evals/golden/basic_routing.json\n(7 real cases, incl. 2 deliberately\nadversarial ones: input, expected_agent,\nexpected_tools, expected_capabilities)"]
     DOMAINGOLDEN["evals/{career,pm,finance,learning,\ncross_domain}/*.json\n(domain-specific synthetic cases,\nfabricated-but-labeled-as-such, per\nthis project's synthetic-data convention)"]
     ADVERSARIAL["evals/adversarial/failure_matrix.md\n(known failure modes: malformed JSON,\ntool hallucination, prompt injection, ...)"]
 
@@ -53,6 +53,9 @@ flowchart TB
         EVALHISTORY2 --> HARNESSFEED2
     end
     RESULTS -.->|"a low eval score is exactly the\nkind of real signal this feeds"| HARNESSFEED2
+
+    FEEDBACKEX["eval_feedback_example.json\n(committed, real -- an actual\nHarnessSuggestion generated from\nthis run's low-scoring case(s))"]
+    HARNESSFEED2 --> FEEDBACKEX
 
     ADVERSARIAL -.->|"documents known failure modes\n(not all yet re-run through HARNESS)"| RESULTS
     DOMAINGOLDEN -.->|"counted live on this page\n(count_cases_by_domain()) --\nnot yet run through HARNESS\n(different input shape per domain)"| RESULTS
