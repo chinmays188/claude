@@ -378,3 +378,46 @@ def test_on_multi_agent_planned_observer_receives_the_real_plan():
 
     assert len(observed) == 1
     assert observed[0].mode.value == "PARALLEL"
+
+
+class NamedScriptedProvider(ScriptedProvider):
+    """Same scripting behavior as ScriptedProvider, but records its own
+    model_name so a test can prove WHICH provider actually served a call --
+    needed to verify agent_llm (the real model-routing hook) is genuinely
+    used for agent generation while classification stays on the main llm."""
+
+    def __init__(self, name: str, responses: list[str]):
+        super().__init__(responses)
+        self._name = name
+
+    @property
+    def model_name(self) -> str:
+        return self._name
+
+
+def test_agent_llm_is_used_for_agent_generation_not_classification():
+    """Real model-routing integration point: classification/planning calls
+    always use the main llm; the 3 agents' own generation calls use
+    agent_llm when given. Defaults to llm when not given (every existing
+    caller's behavior, verified by every other test in this file passing
+    unchanged)."""
+    classification_llm = NamedScriptedProvider(
+        "classification-model",
+        [
+            '{"domains": [], "confidence": 0.9}',
+            '{"task_type": "research", "confidence": 0.9}',
+        ],
+    )
+    agent_llm = NamedScriptedProvider(
+        "agent-model",
+        ['{"action": "final_answer", "answer": "answered by the routed agent model"}'],
+    )
+    orchestrator = Orchestrator(classification_llm, agent_llm=agent_llm)
+
+    result = orchestrator.handle("Explain RAG.")
+
+    assert result.output == "answered by the routed agent model"
+    # Classification consumed exactly its 2 scripted responses; if the
+    # agent had used classification_llm instead, this list would be empty
+    # and the agent's own call would have raised IndexError.
+    assert classification_llm._responses == []

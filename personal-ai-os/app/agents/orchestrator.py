@@ -57,7 +57,7 @@ class Orchestrator:
         on_tool_call=None, on_classified=None,
         secure_retriever: SecureRetriever | None = None, requester_id: str | None = None,
         requester_tenant_id: str | None = None, on_multi_agent_planned=None,
-        mcp_tools: list | None = None, on_tool_error=None,
+        mcp_tools: list | None = None, on_tool_error=None, agent_llm: LLMProvider | None = None,
     ):
         # retrieval_store/secure_retriever/requester_* are all optional and
         # additive: passing none of them (the default, matching every
@@ -81,7 +81,15 @@ class Orchestrator:
         # on_tool_call for the real-bug fix in ToolAgent: a tool raising
         # ToolError is now caught and recorded instead of crashing the
         # whole request; this hook exposes that to callers that need
-        # failure visibility (e.g. scripts/trace_request.py).
+        # failure visibility (e.g. scripts/trace_request.py). agent_llm
+        # (optional, real model-routing hook): when given, the 3 agents'
+        # own generation calls use THIS provider instead of llm, while
+        # UnifiedRouter/MultiAgentPlanner's classification/planning calls
+        # always keep using llm -- classification never benefits from a
+        # stronger model and shouldn't burn a routed tier's real quota on
+        # every single request. Defaults to llm (identical behavior to
+        # every existing caller) when not given. This is the real
+        # integration point for app/routing/model_router.py's ModelRouter.
         self._llm = llm  # exposed via the llm property below -- e.g. VoiceSession
         # needs the same real LLMProvider for its own memory-related calls
         # without reaching into a private attribute.
@@ -89,21 +97,22 @@ class Orchestrator:
         self._multi_agent_planner = MultiAgentPlanner(llm)
         self._on_classified = on_classified
         self._on_multi_agent_planned = on_multi_agent_planned
+        effective_agent_llm = agent_llm or llm
         agent_kwargs = dict(
             store=retrieval_store, on_tool_call=on_tool_call, on_tool_error=on_tool_error,
             secure_retriever=secure_retriever, requester_id=requester_id,
             requester_tenant_id=requester_tenant_id, mcp_tools=mcp_tools,
         )
         self._agents = {
-            TaskType.RESEARCH: ResearchAgent(llm, **agent_kwargs),
-            TaskType.ANALYSIS: AnalystAgent(llm, **agent_kwargs),
-            TaskType.PLANNING: PlannerAgent(llm, **agent_kwargs),
+            TaskType.RESEARCH: ResearchAgent(effective_agent_llm, **agent_kwargs),
+            TaskType.ANALYSIS: AnalystAgent(effective_agent_llm, **agent_kwargs),
+            TaskType.PLANNING: PlannerAgent(effective_agent_llm, **agent_kwargs),
         }
         agents_by_name = {
             task_type_to_name: self._agents[task_type]
             for task_type, task_type_to_name in _TASK_TYPE_TO_AGENT_NAME.items()
         }
-        self._coordinator = MultiAgentCoordinator(llm, agents_by_name)
+        self._coordinator = MultiAgentCoordinator(effective_agent_llm, agents_by_name)
 
     @property
     def llm(self) -> LLMProvider:

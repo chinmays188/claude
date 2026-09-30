@@ -1202,6 +1202,121 @@ def render_context_memory(stores: dict) -> None:
         )
 
 
+_MODEL_ROUTING_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "model_routing_examples.json"
+
+
+def _load_model_routing_examples() -> dict | None:
+    """Loads scripts/generate_model_routing_examples.py's committed, real
+    output -- generated against the live Gemini API, not on this page
+    render (this dashboard's standing no-live-LLM-call rule)."""
+    if not _MODEL_ROUTING_EXAMPLES_PATH.exists():
+        return None
+    return json.loads(_MODEL_ROUTING_EXAMPLES_PATH.read_text())
+
+
+def render_model_routing(stores: dict) -> None:
+    st.header("Model Routing & Model Strategy")
+    st.caption(
+        "This project only ever called one Gemini tier in production, despite a real, tested "
+        "ModelRouter/TaskComplexity scaffold existing since Phase 1 (its own spec explicitly "
+        "said 'Not yet wired into Orchestrator'). This page closes that gap. Classification "
+        "here is 100% LIVE (pure Python, no LLM call, free). The routing examples themselves "
+        "needed real Gemini calls, so they're pre-generated and committed, consistent with "
+        "this dashboard never making live LLM calls on page render."
+    )
+
+    from app.dashboard_ui.model_routing_diagram import MODEL_ROUTING_DIAGRAM
+
+    st.subheader("Model routing architecture")
+    diagram_id = "model-routing-mermaid-diagram"
+    st.html(
+        f"""
+        <div id="{diagram_id}" class="mermaid">{MODEL_ROUTING_DIAGRAM}</div>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+        <script>
+        (function poll() {{
+            if (window.mermaid) {{
+                mermaid.initialize({{ startOnLoad: false, theme: 'neutral' }});
+                mermaid.run({{ nodes: [document.getElementById('{diagram_id}')] }});
+            }} else {{
+                setTimeout(poll, 50);
+            }}
+        }})();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
+
+    st.info(
+        "**The real gap this page closes:** `app/routing/model_router.py`'s `ModelRouter`/"
+        "`TaskComplexity` existed, tested, correct — but was never wired into `Orchestrator`. "
+        "Fixed: `Orchestrator` gained an optional `agent_llm` param (classification/planning "
+        "calls always stay on the cheap tier; the 3 agents' own generation calls use the "
+        "routed provider when given). New `app/routing/model_router.py`'s `RoutingLLMProvider` "
+        "wraps `ModelRouter` as a real `LLMProvider` — classifies each request for free, then "
+        "routes to `gemini-3.5-flash-lite` (cheap) or `gemini-3.8-flash` (a real, distinct, "
+        "pricier tier with a real 20 requests/day free-tier quota) wrapped in a real "
+        "`FallbackProvider` for resilience."
+    )
+
+    st.divider()
+    st.subheader("1. Live complexity classification")
+    st.caption(
+        "Real, free, no-LLM-call heuristic (`classify_task_complexity()`) — same pattern as "
+        "`might_need_multiple_agents()`. Type a request below and see which tier it would "
+        "route to, live."
+    )
+
+    from app.routing.model_router import CHEAP_MODEL, STRONG_MODEL, classify_task_complexity
+
+    sample_request = st.text_area(
+        "Try your own request",
+        value="Please give me a comprehensive, in-depth comparison of RAG versus fine-tuning.",
+        height=80,
+    )
+    if sample_request.strip():
+        complexity = classify_task_complexity(sample_request)
+        routed_model = STRONG_MODEL if complexity.value == "complex" else CHEAP_MODEL
+        icon = "🔵" if complexity.value == "simple" else "🟣"
+        st.success(f"{icon} Classified as **{complexity.value.upper()}** → would route to `{routed_model}`")
+        st.caption(f"Word count: {len(sample_request.split())} (≥30 alone is enough to trigger COMPLEX).")
+
+    st.divider()
+    st.subheader("2. Real routing examples (pre-generated, real Gemini calls)")
+    examples = _load_model_routing_examples()
+    if examples is None:
+        st.warning("No examples found — run `python scripts/generate_model_routing_examples.py` first.")
+        return
+
+    st.caption(
+        f"Cheap tier: `{examples['cheap_model']}` · Strong tier: `{examples['strong_model']}` "
+        "(real, hard 20 requests/day free-tier quota)."
+    )
+
+    for ex in examples["examples"]:
+        label = "SIMULATED failure" if ex["simulated"] else ("real call" if not ex["degraded"] else "real failure, real fallback")
+        icon = "⚠️" if ex["degraded"] else "✅"
+        with st.expander(f"{icon} [{ex['predicted_complexity'].upper()}] {ex['request'][:70]} — {label}", expanded=False):
+            st.markdown(f"**Request:** {ex['request']}")
+            st.markdown(f"**Routed to:** `{ex['routed_model']}`  ·  **Degraded:** {ex['degraded']}")
+            st.caption(ex["reason"])
+            st.text(ex["answer"][:500] + ("…" if len(ex["answer"]) > 500 else ""))
+
+    any_real_degraded = any(e["degraded"] and not e["simulated"] for e in examples["examples"])
+    if any_real_degraded:
+        st.warning(
+            "**Real, honest finding:** while generating these examples, the strong tier "
+            "(`gemini-3.8-flash`) genuinely returned a real `503 UNAVAILABLE` (external API "
+            "capacity, not a code bug — consistent with this project's documented history of "
+            "intermittent Gemini capacity issues) on the live attempt, and the real "
+            "`FallbackProvider` genuinely degraded to the cheap tier. This was not scripted — "
+            "it's exactly the real resilience behavior this page exists to demonstrate."
+        )
+
+    with st.expander("Real per-call token usage (from GeminiProvider's own usage_log)", expanded=False):
+        st.json(examples["real_usage"])
+
+
 @st.cache_resource
 def _get_embedder():
     from app.retrieval.embeddings import SentenceTransformerEmbedding
@@ -1334,6 +1449,7 @@ def main() -> None:
         "Tools": render_tools,
         "RAG": render_rag,
         "Context & Memory": render_context_memory,
+        "Model Routing": render_model_routing,
     }
     page = st.sidebar.radio("View", list(pages.keys()))
     st.sidebar.markdown("---")

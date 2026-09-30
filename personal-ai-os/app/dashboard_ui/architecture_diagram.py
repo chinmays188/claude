@@ -138,6 +138,30 @@ HISTORY:
    own architecture diagram (app/dashboard_ui/context_memory_diagram.py)
    and all 3 experiments live/committed on one page.
 
+9. Updated in the SAME batch again for Model Routing & Model Strategy
+   (user's ask: "we are only using gemini for LLM call. what all needs
+   to be done to take the progress to 90%"). Checked first, honestly:
+   app/routing/model_router.py's ModelRouter/TaskComplexity scaffold
+   already existed from Phase 1 -- real, tested -- but its own spec
+   (specs/model_routing.md) explicitly said "Not yet wired into
+   Orchestrator/main.py"; app/providers/fallback_provider.py's
+   FallbackProvider was also real and tested but never used anywhere in
+   real code. Fixed: Orchestrator gained an optional agent_llm param
+   (classification/planning calls always stay on the cheap tier; the 3
+   agents' own generation calls use the routed provider when given).
+   New RoutingLLMProvider wraps ModelRouter as a real LLMProvider --
+   classifies each request for free (classify_task_complexity(), same
+   heuristic pattern as might_need_multiple_agents()), then routes to
+   gemini-3.5-flash-lite (cheap) or gemini-3.8-flash (a real, distinct,
+   pricier tier with a real 20 requests/day free-tier quota) wrapped in
+   a real FallbackProvider. Verified live: while generating the
+   committed dashboard examples, the strong tier genuinely hit a real
+   503 (external API capacity, consistent with this project's
+   documented history) and the real fallback genuinely degraded to the
+   cheap tier -- not scripted. New dedicated "Model Routing" dashboard
+   page with its own diagram, a live classification demo, and the real
+   committed routing examples.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
@@ -173,9 +197,12 @@ flowchart TB
     end
 
     TC --> ORCH["Orchestrator\ninjects classified domain as\ncontext into the dispatched agent"]
+    MODELROUTE["ModelRouter / RoutingLLMProvider\n(optional agent_llm) -- real per-request\nrouting between gemini tiers,\nsee the dedicated Model Routing page/diagram"]
+    ORCH -.->|"agent_llm, when given --\nclassification above always\nstays on the cheap tier"| MODELROUTE
     ORCH -->|RESEARCH| RA["ResearchAgent (ToolAgent)"]
     ORCH -->|ANALYSIS| AA["AnalystAgent (ToolAgent)"]
     ORCH -->|PLANNING| PA["PlannerAgent (ToolAgent)"]
+    MODELROUTE -.-> RA
 
     SEQ -.->|"same 3 agent instances,\nnot rebuilt"| RA
     PAR -.->|"same 3 agent instances,\nnot rebuilt"| RA

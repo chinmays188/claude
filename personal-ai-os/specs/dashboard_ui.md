@@ -639,3 +639,46 @@ expander.
 Architecture diagram (the main one) and the "Context Engineering"
 learning goal (60% → 90%) updated in the same batch. 825 tests passing
 (was 817).
+
+## Example 15 — Model Routing dashboard page: real tier routing, real fallback
+
+Per the user's ask: "we are only using gemini for LLM call. what all
+needs to be done to take the progress to 90%" — followed by building the
+identified gap (see `specs/model_routing.md`'s Example 4 for the full
+technical detail).
+
+New page (`render_model_routing()`, "Model Routing" in the sidebar):
+- A new dedicated Mermaid diagram (`app/dashboard_ui/model_routing_diagram.py`)
+  showing the free complexity heuristic, the two real Gemini tiers, the
+  real `FallbackProvider` path, and where `agent_llm` plugs into
+  `Orchestrator` without touching classification.
+- **Live, interactive classification**: a text box runs the real
+  `classify_task_complexity()` on whatever the user types, showing which
+  tier it would route to and the real word count — free, no LLM call.
+- **Pre-generated, real routing examples**: loaded from
+  `scripts/generate_model_routing_examples.py`'s committed output — a
+  real SIMPLE request routed to the cheap tier, a real COMPLEX request
+  that hit a genuine strong-tier failure and genuinely fell back (not
+  scripted), and one clearly-labeled simulated-failure comparison, each
+  with the real answer text and real per-call token usage shown in an
+  expander.
+
+A real, honest outcome was disclosed directly on the page rather than
+smoothed over: the committed COMPLEX example shows a real fallback (not
+the originally-intended clean strong-tier success), because the strong
+tier genuinely returned a real `503` while these examples were being
+generated. The page calls this out explicitly as a real finding
+consistent with this project's documented history of intermittent Gemini
+capacity issues, not a bug.
+
+Verified live in a real browser (`agent-browser`): typing a new request
+into the live classifier correctly reclassified it (confirmed a
+`text_area` blur-commit timing quirk during manual testing was an
+`agent-browser` interaction artifact, not a real code bug, by re-checking
+directly in Python); the real committed examples render with correct
+routing/degraded/reason fields.
+
+Architecture diagram (the main one) and the "Model Routing & Model
+Strategy" learning goal (45% → 85%, honestly kept short of the "free/
+open-source model" criterion which was explicitly deferred) updated in
+the same batch. 837 tests passing (was 833).
