@@ -162,6 +162,30 @@ HISTORY:
    page with its own diagram, a live classification demo, and the real
    committed routing examples.
 
+10. Updated in the SAME batch again for a dedicated Evals page (user's
+    ask: "arch of eval, golden datasets we have + synthetic data + eval
+    score + model used for eval score + types of eval done - llm judge,
+    human in the loop, deterministic, etc ... feedback from eval score
+    and how it gets tied back"). Checked first, honestly: this
+    diagram's own EVALDATA node already disclosed the real, central gap
+    -- evals/ was "static JSON + .md, no live grading harness."
+    app/evaluation/golden.py's run_golden_case() (deterministic) and
+    app/evaluation/llm_judge.py's judge_response() (LLM-as-judge) both
+    existed, real, tested, but had never been run end-to-end against
+    the real, live Orchestrator until new
+    scripts/generate_eval_harness_run.py, which ran all 5 real golden
+    cases through it: 100% deterministic pass rate, 1.00 average
+    LLM-judge overall score, committed as a real result. New dedicated
+    "Evals" dashboard page: its own diagram, live counts of every
+    golden/synthetic dataset, a live (free, no LLM call) citation_quality()
+    demo, the real committed harness results per case, an illustrative
+    (clearly labeled, not real-human-rated) human-in-the-loop
+    correlation worked example, and a feedback-tie-back section wired
+    to app/proactive/harness_feedback.py (which gained a new, optional
+    eval_harness_run evidence parameter in the same batch, so a low
+    eval score can now be cited as real evidence for a Chief of Staff
+    workflow suggestion, not just trace/drift/goal-run signals).
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
@@ -315,7 +339,7 @@ flowchart TB
     EVALHISTORY --> HARNESSFEED
     GRSTORE --> HARNESSFEED
 
-    EVALDATA["evals/\ncareer, pm, finance, learning,\ncross_domain, golden, adversarial\n(static JSON + .md, no live grading harness)"]
+    EVALDATA["evals/\ncareer, pm, finance, learning,\ncross_domain, golden, adversarial\n(static JSON + .md -- golden/ is now\nreal-harness-graded, see the Evals page/diagram;\ndomain sets still have no live grading harness)"]
 
     TRACESTORE["TraceStore (SQLite)\ntrace_id = execution_id"]
     DECISIONLOOP -.->|"trace_request.py records\nevery span here"| TRACESTORE

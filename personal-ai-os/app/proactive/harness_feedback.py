@@ -87,6 +87,7 @@ class _RawSuggestion(BaseModel):
 
 def _build_evidence_block(
     traces: list[Trace], eval_history: list[dict], goal_runs: list[GoalRun],
+    eval_harness_run: dict | None = None,
 ) -> str:
     """Real numbers only, formatted for the prompt -- every line here is
     traceable back to a real store/file, nothing summarized into a vague
@@ -134,13 +135,32 @@ def _build_evidence_block(
     else:
         lines.append("- Goal-run history: none recorded yet")
 
+    if eval_harness_run:
+        lines.append(
+            f"- Golden-case eval harness run ({eval_harness_run.get('golden_case_count')} cases): "
+            f"deterministic pass rate={eval_harness_run.get('deterministic_pass_rate', 0) * 100:.0f}%, "
+            f"average LLM-judge overall score={eval_harness_run.get('average_judge_overall', 0):.2f}"
+        )
+        failing = [
+            r for r in eval_harness_run.get("results", [])
+            if not r["deterministic"]["passed"] or r["judge_score"]["overall"] < 0.7
+        ]
+        for r in failing[:2]:
+            lines.append(
+                f"    low-scoring case '{r['case_id']}': deterministic_passed={r['deterministic']['passed']}, "
+                f"judge_overall={r['judge_score']['overall']:.2f}, reason={r['deterministic']['reason']}"
+            )
+    else:
+        lines.append("- Golden-case eval harness run: none recorded yet")
+
     return "\n".join(lines)
 
 
 def generate_harness_suggestion(
     llm: LLMProvider, owner_id: str, traces: list[Trace], eval_history: list[dict], goal_runs: list[GoalRun],
+    eval_harness_run: dict | None = None,
 ) -> HarnessSuggestion:
-    evidence_block = _build_evidence_block(traces, eval_history, goal_runs)
+    evidence_block = _build_evidence_block(traces, eval_history, goal_runs, eval_harness_run)
     generator = RepairableGenerator(llm, _RawSuggestion)
     raw = generator.generate(SUGGESTION_PROMPT.format(evidence_block=evidence_block))
     return HarnessSuggestion(

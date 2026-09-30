@@ -1317,6 +1317,169 @@ def render_model_routing(stores: dict) -> None:
         st.json(examples["real_usage"])
 
 
+_EVAL_HARNESS_RUN_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "eval_harness_run.json"
+
+
+def _load_eval_harness_run() -> dict | None:
+    """Loads scripts/generate_eval_harness_run.py's committed, real output
+    -- generated against the live Gemini API + the real Orchestrator, not
+    on this page render (this dashboard's standing no-live-LLM-call rule)."""
+    if not _EVAL_HARNESS_RUN_PATH.exists():
+        return None
+    return json.loads(_EVAL_HARNESS_RUN_PATH.read_text())
+
+
+def render_evals(stores: dict) -> None:
+    st.header("Evals")
+    st.caption(
+        "Architecture of evaluation in this project: golden datasets, synthetic domain "
+        "cases, deterministic checks, LLM-as-judge, human-in-the-loop, and how a low eval "
+        "score feeds back into real workflow changes via Chief of Staff. Deterministic "
+        "checks below are 100% LIVE (pure Python, no LLM call, free). LLM-as-judge scoring "
+        "needed real Gemini calls, so it's pre-generated and committed, consistent with "
+        "this dashboard never making live LLM calls on page render."
+    )
+
+    from app.dashboard_ui.eval_diagram import EVAL_DIAGRAM
+
+    st.subheader("Eval architecture")
+    diagram_id = "eval-mermaid-diagram"
+    st.html(
+        f"""
+        <div id="{diagram_id}" class="mermaid">{EVAL_DIAGRAM}</div>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+        <script>
+        (function poll() {{
+            if (window.mermaid) {{
+                mermaid.initialize({{ startOnLoad: false, theme: 'neutral' }});
+                mermaid.run({{ nodes: [document.getElementById('{diagram_id}')] }});
+            }} else {{
+                setTimeout(poll, 50);
+            }}
+        }})();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
+
+    st.info(
+        "**The real gap this page closes:** this project's own Architecture page already "
+        "disclosed it — `evals/` was 'static JSON + .md, no live grading harness.' "
+        "`run_golden_case()` (deterministic) and `judge_response()` (LLM-as-judge) both "
+        "existed, real and tested, but neither had ever been run end-to-end against the "
+        "real, live `Orchestrator`. New `scripts/generate_eval_harness_run.py` does that."
+    )
+
+    st.divider()
+    st.subheader("1. Golden datasets + synthetic data (live counts)")
+    from app.evaluation.domain_golden import count_cases_by_domain
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Router golden set** (`evals/golden/basic_routing.json`)")
+        st.caption("Real cases: input → expected_agent, expected_tools, expected_capabilities. Run through the real harness below.")
+    with col2:
+        st.markdown("**Domain synthetic cases** (fabricated-but-labeled-as-such, per this project's convention)")
+        counts = count_cases_by_domain()
+        for domain, count in counts.items():
+            st.text(f"• {domain}: {count} case(s)")
+        st.caption("Not yet run through the harness (different input shape per domain — see the diagram's honest disclosure).")
+
+    st.divider()
+    st.subheader("2. Live deterministic eval — citation quality")
+    st.caption(
+        "Real, free, no-LLM-call check: `citation_quality()` — the fraction of an agent's "
+        "cited chunk ids that actually exist in the valid set. Try it below."
+    )
+    col3, col4 = st.columns(2)
+    with col3:
+        cited_ids_text = st.text_area(
+            "Chunk ids the agent cited (one per line)",
+            value="doc1::chunk0\ndoc1::chunk2\ndoc9::chunk5",
+            height=100,
+        )
+    with col4:
+        valid_ids_text = st.text_area(
+            "Valid chunk ids that actually exist (one per line)",
+            value="doc1::chunk0\ndoc1::chunk1\ndoc1::chunk2",
+            height=100,
+        )
+
+    from app.evaluation.grounding_eval import Citation, GroundingResult, citation_quality
+
+    cited_ids = [line.strip() for line in cited_ids_text.splitlines() if line.strip()]
+    valid_ids = {line.strip() for line in valid_ids_text.splitlines() if line.strip()}
+    fake_result = GroundingResult(
+        grounded_claim_count=len(cited_ids), unsupported_claim_count=0, groundedness_score=1.0,
+        citations=[Citation(claim=f"claim {i}", chunk_id=cid) for i, cid in enumerate(cited_ids)],
+    )
+    score = citation_quality(fake_result, valid_ids)
+    st.metric("Real citation_quality() score", f"{score * 100:.0f}%")
+    invalid = [cid for cid in cited_ids if cid not in valid_ids]
+    if invalid:
+        st.caption(f"Invalid citation(s), real check: {invalid}")
+
+    st.divider()
+    st.subheader("3. LLM-as-judge + deterministic eval (pre-generated, real harness run)")
+    harness_run = _load_eval_harness_run()
+    if harness_run is None:
+        st.warning("No harness run found — run `python scripts/generate_eval_harness_run.py` first.")
+        return
+
+    col5, col6, col7 = st.columns(3)
+    col5.metric("Cases run", harness_run["golden_case_count"])
+    col6.metric("Deterministic pass rate", f"{harness_run['deterministic_pass_rate'] * 100:.0f}%")
+    col7.metric("Avg LLM-judge overall", f"{harness_run['average_judge_overall']:.2f}")
+    st.caption(f"Judge model: `{harness_run['judge_model']}` (this project's existing cheap-tier default — judging doesn't need a stronger model).")
+
+    for r in harness_run["results"]:
+        icon = "✅" if r["deterministic"]["passed"] else "❌"
+        judge_overall = r["judge_score"]["overall"]
+        with st.expander(f"{icon} [{r['case_id']}] {r['input'][:70]} — judge overall {judge_overall:.2f}", expanded=False):
+            st.markdown(f"**Input:** {r['input']}")
+            st.markdown(f"**Deterministic:** {'PASS' if r['deterministic']['passed'] else 'FAIL'} — {r['deterministic']['reason']}")
+            st.markdown("**LLM-judge scores (6 dimensions, each 0.0–1.0):**")
+            st.json(r["judge_score"])
+            st.text(r["agent_output"][:400] + ("…" if len(r["agent_output"]) > 400 else ""))
+
+    st.divider()
+    st.subheader("4. Human-in-the-loop eval (illustrative, real math)")
+    st.caption(
+        "`app/evaluation/human_eval.py`'s `HumanRating` (1–5 scale, 6 dimensions) and "
+        "`judge_human_correlation()` (real Pearson correlation math) both exist and are "
+        "tested — but need a REAL human's ratings, which this harness cannot fabricate. "
+        "Below is a worked, clearly-labeled illustrative example of the correlation math, "
+        "not a claim that these specific numbers were rated by a real human."
+    )
+    from app.evaluation.human_eval import judge_human_correlation
+
+    illustrative_judge_scores = [0.9, 0.6, 0.8, 0.4, 0.95]
+    illustrative_human_scores = [4.5, 3.0, 4.0, 2.0, 5.0]  # on this file's real 1-5 scale
+    correlation = judge_human_correlation(illustrative_judge_scores, illustrative_human_scores)
+    st.metric("Illustrative judge↔human correlation", f"{correlation:.2f}")
+    st.caption("(ILLUSTRATIVE — not from a real human rating session. Real math, invented input numbers, clearly labeled.)")
+
+    st.divider()
+    st.subheader("5. Feedback tie-back — how a low eval score becomes a workflow change")
+    st.caption(
+        "Chief of Staff's `harness_feedback.py` (see the Chief of Staff page) now reads this "
+        "harness run's results too, alongside real trace failures and drift, and can cite a "
+        "specific low-scoring case as evidence for a real, proposed workflow change — never "
+        "invented, never auto-applied."
+    )
+    low_scoring = [r for r in harness_run["results"] if not r["deterministic"]["passed"] or r["judge_score"]["overall"] < 0.7]
+    if low_scoring:
+        for r in low_scoring:
+            st.warning(
+                f"**Real signal Chief of Staff can act on:** case `{r['case_id']}` — "
+                f"deterministic {'passed' if r['deterministic']['passed'] else 'FAILED'}, "
+                f"judge overall {r['judge_score']['overall']:.2f}. "
+                f"{r['deterministic']['reason']}"
+            )
+    else:
+        st.success("No low-scoring cases in this run — nothing for Chief of Staff to flag from this harness pass.")
+
+
 @st.cache_resource
 def _get_embedder():
     from app.retrieval.embeddings import SentenceTransformerEmbedding
@@ -1450,6 +1613,7 @@ def main() -> None:
         "RAG": render_rag,
         "Context & Memory": render_context_memory,
         "Model Routing": render_model_routing,
+        "Evals": render_evals,
     }
     page = st.sidebar.radio("View", list(pages.keys()))
     st.sidebar.markdown("---")

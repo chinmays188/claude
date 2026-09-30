@@ -682,3 +682,43 @@ Architecture diagram (the main one) and the "Model Routing & Model
 Strategy" learning goal (45% → 85%, honestly kept short of the "free/
 open-source model" criterion which was explicitly deferred) updated in
 the same batch. 837 tests passing (was 833).
+
+## Example 16 — Evals dashboard page: a real grading harness, finally run
+
+Per the user's ask for a dedicated Evals page covering "arch of eval,
+golden datasets we have + synthetic data + eval score + model used for
+eval score + types of eval done - llm judge, human in the loop,
+deterministic, etc ... feedback from eval score and how it gets tied
+back" (see `specs/evaluation_system.md`'s Example 8 for the full
+technical detail).
+
+New page (`render_evals()`, "Evals" in the sidebar):
+- A new dedicated Mermaid diagram (`app/dashboard_ui/eval_diagram.py`)
+  showing golden/synthetic/adversarial data sources, the real harness
+  (deterministic + LLM-as-judge), a `MetricSnapshot`, the
+  human-in-the-loop path, and how a low score feeds into Chief of
+  Staff's `harness_feedback.py`.
+- **Live counts**: golden case count and domain-synthetic case counts
+  via the real `count_cases_by_domain()`.
+- **Live, interactive deterministic eval**: two text areas (cited chunk
+  ids, valid chunk ids) run the real `citation_quality()` function live
+  — free, no LLM call.
+- **Pre-generated, real harness results**: loaded from
+  `scripts/generate_eval_harness_run.py`'s committed output — all 5 real
+  golden cases, each with its real deterministic pass/fail and real
+  6-dimension LLM-judge score, plus the real agent output text.
+- **Illustrative human-in-the-loop example**: real correlation math
+  (`judge_human_correlation()`) run on invented input numbers, explicitly
+  and repeatedly labeled as illustrative, not a real human rating
+  session.
+- **Feedback tie-back**: shows exactly what `harness_feedback.py` would
+  flag from this run's results (honestly: nothing, since the real run
+  came back 100% pass / 1.00 judge score).
+
+Verified live in a real browser (`agent-browser`): the live citation
+demo correctly computed 67% (2 of 3 valid) and named the invalid id; all
+5 committed harness-run cases render with their real content.
+
+Architecture diagram (the main one, including its `EVALDATA` node) and
+the "AI Evaluation" learning goal (80% → 92%) updated in the same batch.
+842 tests passing (was 837).

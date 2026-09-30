@@ -69,6 +69,34 @@ def test_evidence_block_includes_goal_run_stats():
     assert "achieved" in block
 
 
+def test_evidence_block_includes_eval_harness_run_when_given():
+    eval_run = {
+        "golden_case_count": 5,
+        "deterministic_pass_rate": 0.8,
+        "average_judge_overall": 0.62,
+        "results": [
+            {
+                "case_id": "research_002",
+                "deterministic": {"passed": False, "reason": "Expected tool(s) ['calculator'] were not called."},
+                "judge_score": {"overall": 0.5},
+            },
+        ],
+    }
+
+    block = _build_evidence_block([], [], [], eval_harness_run=eval_run)
+
+    assert "5 cases" in block
+    assert "80%" in block
+    assert "research_002" in block
+    assert "calculator" in block
+
+
+def test_evidence_block_reports_no_eval_harness_run_honestly():
+    block = _build_evidence_block([], [], [], eval_harness_run=None)
+
+    assert "none recorded yet" in block
+
+
 def test_generate_harness_suggestion_parses_real_llm_response():
     llm = ScriptedProvider(
         '{"has_suggestion": true, "suggestion": "Review calculator tool error handling.", '
