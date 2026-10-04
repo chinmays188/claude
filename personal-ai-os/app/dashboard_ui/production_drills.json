@@ -1,0 +1,34 @@
+{
+  "disaster_recovery": {
+    "backup_path": "data/production_drills/backups/backup_20261004T040847932460Z.db",
+    "backup_integrity_ok": true,
+    "goals_before_corruption": 18,
+    "restored_integrity_ok": true,
+    "goals_after_restore": 18,
+    "data_survived": true
+  },
+  "release_versioning": {
+    "v1_content_preview": "You are a research agent. Explain the topic clearly, include a concrete example, and note any important limitations or c",
+    "v2_published": true,
+    "v2_version": 2,
+    "rollback_version": 1,
+    "rollback_matches_real_v1": true
+  },
+  "eval_gated_release": {
+    "previous_metrics": {
+      "deterministic_pass_rate": 0.8571428571428571,
+      "average_judge_overall": 0.9857142857142858
+    },
+    "same_candidate_passed": true,
+    "regressed_candidate_blocked": true,
+    "block_message": "Release blocked: regression detected in average_judge_overall (0.986 -> 0.786)"
+  },
+  "queue_workflow_runtime": {
+    "task_id": "bd1f5bb9e8d945c6ad1084df0821a561",
+    "initial_state": "PENDING",
+    "job_status": "succeeded",
+    "final_state": "COMPLETED",
+    "final_state_is_completed": true,
+    "result": "Processed real eval harness run: 7 cases, 86% deterministic pass rate, 0.99 avg judge score."
+  }
+}

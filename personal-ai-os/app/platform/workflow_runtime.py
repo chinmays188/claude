@@ -57,9 +57,19 @@ class WorkflowRuntime:
         except Exception as exc:
             self._tasks.transition(task_id, TaskState.FAILED, result=str(exc))
             self._queue.fail(job.job_id, str(exc))
-            return job
+            # Same fix as the success path below: return the real,
+            # re-fetched row (QUEUED or DEAD_LETTER per the queue's own
+            # retry logic), not the stale pre-failure local `job`.
+            return self._queue.get(job.job_id)
 
         self._tasks.transition(task_id, TaskState.EVALUATING)
         self._tasks.transition(task_id, TaskState.COMPLETED, result=result)
+        # Real bug fixed (found while running a real job through this
+        # runtime for the first time -- scripts/run_production_drills.py):
+        # self._queue.complete() updates the real row in the database, but
+        # returning the stale local `job` (captured before complete()) left
+        # its .status still IN_PROGRESS even though the real row was
+        # SUCCEEDED -- a misleading return value, not a correctness bug in
+        # the task state machine itself (which was always correct).
         self._queue.complete(job.job_id)
-        return job
+        return self._queue.get(job.job_id)

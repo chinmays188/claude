@@ -794,3 +794,34 @@ node) and the "AI Safety & Guardrails" (65% → 88%) and "Production AI
 Engineering" (50% → 60%) learning goals updated in the same batch, both
 remaining gaps (the security scanner's scope, Docker never actually
 run) honestly kept open. 860 tests passing (was 856).
+
+## Example 19 — "Governance & Sandbox" page gains a real production-ops drills section
+
+Per the user's follow-up: "lets keep focusing on Production AI
+engineering ... what do we need to do / learn ... take the progress to
+90%" → "build 1 to 4" (see `specs/production_platform.md`'s follow-up
+section for the full technical detail).
+
+The existing "Governance & Sandbox" page gained a new section 3,
+"Production ops drills": 4 real, committed results
+(`scripts/run_production_drills.py`'s output) each shown in its own
+expander — disaster recovery (real backup/corrupt/restore against a
+copy of the real `data/personal_ai.db`, with real before/after goal
+counts), release versioning (the real `ResearchAgent.system_prompt`
+versioned, published, and rolled back), eval-gated release (a real
+`gate_release()` pass and a real block, with the real regression message
+shown), and a real job run through the real queue + workflow runtime
+(with the real bug found and fixed in `WorkflowRuntime.process_one()`
+disclosed directly in the page's own caption).
+
+The page's top caption was also updated to reflect the expanded scope
+(governance + sandbox + production-ops drills, not just the first two).
+
+Verified live in a real browser (`agent-browser`): all 4 drill
+expanders render with their real content, including the corrected
+`succeeded` job status after the bug fix.
+
+Architecture diagram (main one) and "Production AI Engineering" learning
+goal (60% → 82%) updated in the same batch, both remaining gaps (Docker
+never run, AI SLO/incident-management partial) honestly kept open. 867
+tests passing (was 860).

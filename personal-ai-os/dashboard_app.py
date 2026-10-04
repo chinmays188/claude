@@ -1540,11 +1540,13 @@ def render_governance(stores: dict) -> None:
     st.header("Production AI Engineering: Governance & Guardrails")
     st.caption(
         "A real governance pipeline (classify → permission check → approval → execute → "
-        "audit) and a real process-level sandbox for tool execution — both wired into the "
-        "actual live chat-agent path, not just a separate, unused subsystem. The sandbox demo "
-        "below is 100% LIVE (pure Python subprocess isolation, no LLM call, free). The full "
-        "governed chat-request examples needed real Gemini calls, so they're pre-generated and "
-        "committed, consistent with this dashboard never making live LLM calls on page render."
+        "audit), a real process-level sandbox for tool execution, and real production-ops "
+        "drills (disaster recovery, release versioning, eval-gated releases, the async job "
+        "queue) — all wired into or run against this project's actual live system, not just "
+        "separate, unused subsystems. The sandbox demo below is 100% LIVE (pure Python "
+        "subprocess isolation, no LLM call, free). The governed chat-request examples needed "
+        "real Gemini calls, so they're pre-generated and committed, consistent with this "
+        "dashboard never making live LLM calls on page render."
     )
 
     from app.dashboard_ui.governance_diagram import GOVERNANCE_DIAGRAM
@@ -1642,6 +1644,73 @@ def render_governance(stores: dict) -> None:
     with st.expander("⏱️ Real sandbox timeout — a slow tool genuinely killed", expanded=False):
         st.error(timeout_example["error"])
         st.caption(f"Real enforced timeout: {timeout_example['timeout_seconds']}s.")
+
+    st.divider()
+    st.subheader("3. Production ops drills — real, run against this project's real system")
+    st.caption(
+        "4 real, previously-unused `app/platform/` modules — disaster recovery, release "
+        "versioning, eval-gated releases, and the async job queue/workflow runtime — each run "
+        "for real, once, and committed (`scripts/run_production_drills.py`). Not simulated: "
+        "the disaster-recovery drill backs up and restores a copy of this project's actual "
+        "`data/personal_ai.db`; the release drill versions `ResearchAgent`'s actual real "
+        "system prompt."
+    )
+    drills = _load_production_drills()
+    if drills is None:
+        st.warning("No drill results found — run `python scripts/run_production_drills.py` first.")
+        return
+
+    dr = drills["disaster_recovery"]
+    with st.expander(f"💾 Disaster recovery — {'✅ data survived' if dr['data_survived'] else '❌ DATA LOST'}", expanded=True):
+        st.markdown(f"**Real backup:** `{dr['backup_path']}`")
+        col1, col2 = st.columns(2)
+        col1.metric("Goals before corruption", dr["goals_before_corruption"])
+        col2.metric("Goals after restore", dr["goals_after_restore"])
+        st.caption(
+            "A copy of the real database was deliberately corrupted (never the original file), "
+            "then restored from a real backup and its integrity re-verified with SQLite's own "
+            "`PRAGMA integrity_check`."
+        )
+
+    rv = drills["release_versioning"]
+    with st.expander(f"🔖 Release versioning + rollback — {'✅' if rv['rollback_matches_real_v1'] else '❌'}", expanded=True):
+        st.markdown(f"**Real v1 content (ResearchAgent's actual system prompt):** {rv['v1_content_preview']}…")
+        st.markdown(f"**v2 published:** {rv['v2_published']} (version {rv['v2_version']})")
+        st.markdown(f"**Rolled back to version {rv['rollback_version']}, content matches real v1:** {rv['rollback_matches_real_v1']}")
+
+    gate = drills["eval_gated_release"]
+    with st.expander("🚦 Eval-gated release — a real regression genuinely blocks, a real non-regression passes", expanded=True):
+        st.markdown(f"**Real baseline metrics (from this session's own eval harness run):** `{gate['previous_metrics']}`")
+        col3, col4 = st.columns(2)
+        with col3:
+            st.success("✅ Identical candidate: PASSED") if gate["same_candidate_passed"] else st.error("Unexpected block")
+        with col4:
+            st.error("❌ Regressed candidate: BLOCKED") if gate["regressed_candidate_blocked"] else st.warning("Unexpected pass")
+        st.caption(gate["block_message"])
+
+    qwr = drills["queue_workflow_runtime"]
+    with st.expander(f"⚙️ Real job through the queue + workflow runtime — {qwr['final_state']}", expanded=True):
+        st.markdown(f"**Real task:** `{qwr['task_id']}` — {qwr['initial_state']} → {qwr['final_state']}")
+        st.markdown(f"**Real job status:** `{qwr['job_status']}`")
+        st.markdown(f"**Real result:** {qwr['result']}")
+        st.caption(
+            "A real bug was found and fixed while running this live for the first time: "
+            "`WorkflowRuntime.process_one()` used to return the stale, pre-completion job "
+            "object, so `.status` read `in_progress` even after the real database row was "
+            "already `succeeded` — fixed to re-fetch the real row after completing it."
+        )
+
+
+_PRODUCTION_DRILLS_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "production_drills.json"
+
+
+def _load_production_drills() -> dict | None:
+    """Loads scripts/run_production_drills.py's committed, real output --
+    generated by actually running 4 real app/platform/ modules against
+    this project's real system, not on this page render."""
+    if not _PRODUCTION_DRILLS_PATH.exists():
+        return None
+    return json.loads(_PRODUCTION_DRILLS_PATH.read_text())
 
 
 @st.cache_resource

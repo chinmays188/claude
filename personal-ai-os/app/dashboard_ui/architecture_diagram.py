@@ -235,6 +235,36 @@ HISTORY:
     terminated or complete), and the 3 real committed governed-chat-request
     examples.
 
+12. Updated in the SAME batch again to close 4 more real, previously-
+    unused Production AI Engineering gaps (user's follow-up: "build 1
+    to 4"). Checked first: app/platform/disaster_recovery.py,
+    release_management.py, evaluation_gate.py, queue.py, and
+    workflow_runtime.py were all real, independently tested modules --
+    but NONE had ever been run against this project's real, live
+    system. New scripts/run_production_drills.py runs all 4, for real,
+    at once: (1) backs up the REAL data/personal_ai.db, deliberately
+    corrupts a COPY (never the original), restores from the real
+    backup, and re-verifies integrity -- real data genuinely survived
+    (18 goals before and after); (2) versions the REAL
+    ResearchAgent.system_prompt with ReleaseManager, publishes a real
+    v2, rolls back, and confirms the restored content matches the real
+    v1 exactly; (3) builds two real MetricSnapshots from this session's
+    own real eval-harness-run data and calls the real gate_release() --
+    an identical candidate genuinely passes, a deliberately regressed
+    one genuinely raises ReleaseBlockedError; (4) wraps this session's
+    real eval-harness-run summary as a real WorkflowHandler, submits it
+    as a real queued job (not a direct function call), and runs
+    process_one() to genuinely dequeue and execute it, observing the
+    real LongRunningTask state machine transition PENDING ->
+    PLANNING -> RUNNING -> EVALUATING -> COMPLETED against the real
+    TaskStore. A real bug was found and fixed while running this live
+    for the first time: WorkflowRuntime.process_one() returned the
+    stale, pre-completion Job object, so .status read "in_progress"
+    even after the real database row was already "succeeded" -- fixed
+    to re-fetch the real row after completing (or failing) it, on both
+    paths. New dashboard section 3 on the "Governance & Sandbox" page
+    shows all 4 real drill results.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline

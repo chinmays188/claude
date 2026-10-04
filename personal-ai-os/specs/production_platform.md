@@ -120,3 +120,73 @@ piece here wraps or extends an existing Phase 1-4 component (regression
 comparison, cost tracking, the trace schema) rather than reinventing it, and
 every claim of "this works" is backed by a test or an actual run in this
 sandbox — not asserted from the milestone list alone.
+
+## Follow-up — 4 real drills, run for the first time against this project's actual system
+
+The user's follow-up ask, after the governance/sandbox work: "lets keep
+focusing on Production AI engineering ... what do we need to do / learn
+in this project to take the progress to 90%" followed by "build 1 to 4."
+
+Checked first, honestly: this entire document's own claim ("every claim
+of 'this works' is backed by a test or an actual run") held for the
+*code* but not for *this project's own real system* — `disaster_recovery.py`,
+`release_management.py`, `evaluation_gate.py`, and `queue.py`/
+`workflow_runtime.py` were each independently tested with fakes/`:memory:`
+databases, but none had ever touched this project's real
+`data/personal_ai.db`, the real `ResearchAgent.system_prompt`, or this
+session's own real eval metrics.
+
+New `scripts/run_production_drills.py` runs all 4, for real, in one pass:
+
+1. **Disaster recovery** (Milestone 57's `backup_database()`/
+   `restore_database()`/`verify_backup_integrity()`): backs up the REAL
+   `data/personal_ai.db`, verifies the backup's integrity, deliberately
+   corrupts a *copy* of it (never the original file this project
+   actually uses for everything else — a real safety boundary in the
+   script itself), restores from the real backup, and re-verifies
+   integrity. Real result: 18 goals before corruption, 18 goals after
+   restore — data genuinely survived a real corrupt-then-restore cycle.
+
+2. **Release versioning + rollback** (Milestone 54's `ReleaseManager`):
+   versions `ResearchAgent.system_prompt`'s actual real content (not
+   placeholder text) as v1, publishes a genuine, deliberate v2 edit,
+   then rolls back — the restored content matches the real v1 exactly,
+   byte for byte.
+
+3. **Eval-gated release** (Milestone 53's `gate_release()`): builds two
+   real `MetricSnapshot`s from this session's own real eval-harness-run
+   data (`app/dashboard_ui/eval_harness_run.json`'s real 85.7%
+   deterministic pass rate / 0.99 average judge score) — an identical
+   candidate genuinely passes the gate; a deliberately regressed
+   candidate genuinely raises `ReleaseBlockedError`, naming the exact
+   regressed metric and its before/after values.
+
+4. **A real job through the queue + workflow runtime** (Milestones 46-47):
+   wraps this session's own real eval-harness-run summary as a real
+   `WorkflowHandler`, submits it as a real queued job (not a direct
+   function call), and calls `process_one()` to genuinely dequeue and
+   execute it — the real `LongRunningTask` state machine transitions
+   (`PENDING` → `PLANNING` → `RUNNING` → `EVALUATING` → `COMPLETED`) are
+   observed directly against the real `TaskStore`, not asserted.
+
+**A real bug was found and fixed** while running drill 4 live for the
+first time: `WorkflowRuntime.process_one()` called `self._queue.complete(job.job_id)`
+(updating the real database row) but then returned the *stale local*
+`job` variable captured before that call — so `.status` read
+`in_progress` even though the real row was already `succeeded`. Not a
+correctness bug in the task state machine itself (which was always
+right), but a genuinely misleading return value that no existing test
+caught, because no test had ever checked the returned job's own status
+after a real completion. Fixed on both the success and failure paths to
+re-fetch the real row via `self._queue.get(job.job_id)`.
+
+New dashboard section 3 on the "Governance & Sandbox" page (renamed in
+scope, not just title, to "Production AI Engineering: Governance &
+Guardrails") shows all 4 real drill results. "Production AI Engineering"
+learning-goal progress updated 60% → 82%, honestly kept below 90%
+because Docker itself still has never actually been run in this
+environment, and the "AI SLO / AI incident management" criterion is
+still only partially covered (eval-gating is real; a monitored,
+alerting SLO threshold is not).
+
+867 tests passing (was 860).
