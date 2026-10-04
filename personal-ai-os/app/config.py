@@ -9,6 +9,12 @@ class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     GEMINI_MODEL = "gemini-3.5-flash-lite"
+    # A real, distinct, multimodal-capable tier -- deliberately NOT the
+    # text-only default above. app/multimodal/gemini_multimodal.py uses
+    # this for image/PDF/audio understanding rather than silently
+    # inheriting GEMINI_MODEL and hoping the cheap text-only tier happens
+    # to also handle binary media reliably.
+    MULTIMODAL_MODEL = "gemini-3.5-flash"
     GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 

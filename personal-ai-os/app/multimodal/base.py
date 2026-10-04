@@ -6,6 +6,7 @@ class MediaType(str, Enum):
     IMAGE = "image"
     SCREENSHOT = "screenshot"
     PDF = "pdf"
+    AUDIO = "audio"
 
 
 class MultimodalProvider(ABC):

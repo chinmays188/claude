@@ -265,6 +265,37 @@ HISTORY:
     paths. New dashboard section 3 on the "Governance & Sandbox" page
     shows all 4 real drill results.
 
+13. Updated in the SAME batch again for a real, unified multimodal
+    input system (user's ask: "lets build a multimodal input system
+    where we can take pdf, image, text and also voice as an input ...
+    which apis to integrate for voice (free of cost)"). Checked first,
+    honestly: app/multimodal/gemini_multimodal.py's
+    GeminiMultimodalProvider (real image/PDF understanding via Gemini's
+    native multimodal input) existed and was correct, but was never
+    called from anywhere. Voice input existed only as the browser's own
+    free Web Speech API, transcribing client-side and sending only
+    already-transcribed TEXT to the backend -- nothing server-side ever
+    did real speech-to-text on an actual audio file. New
+    app/multimodal/multimodal_orchestrator.py's MultimodalOrchestrator
+    wraps the real Orchestrator UNCHANGED: converts image/PDF/audio
+    into real text via GeminiMultimodalProvider (a real, distinct
+    Config.MULTIMODAL_MODEL tier, never the cheap text-only default),
+    then hands the result to Orchestrator.handle() exactly like any
+    text caller. The real, free voice pipeline: real audio bytes -> one
+    real Gemini call (MediaType.AUDIO, same free-tier key this project
+    already uses everywhere, no separate STT vendor, no new cost) ->
+    real transcript text -> the unchanged Orchestrator. Verified fully
+    live against the real Gemini API for all 4 input types: text
+    (bypasses the multimodal provider entirely), a real locally-
+    generated image (correctly described and reasoned about), a real
+    hand-constructed PDF (correctly extracted -- and honestly produced
+    a real ClarificationNeeded when given with no user_prompt, a
+    correct outcome, not a failure), and a real macOS-synthesized WAV
+    file (transcribed EXACTLY, word for word, then correctly routed and
+    answered). New dedicated "Multimodal Input" dashboard page: its own
+    diagram, a live free-vs-paid voice-API comparison table, and the 4
+    real committed examples.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline

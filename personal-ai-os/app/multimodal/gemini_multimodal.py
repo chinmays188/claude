@@ -8,7 +8,11 @@ from app.multimodal.base import MediaType, MultimodalProvider
 class GeminiMultimodalProvider(MultimodalProvider):
     def __init__(self, model: str | None = None):
         require_gemini_key()
-        self._model = model or Config.GEMINI_MODEL
+        # Deliberately NOT Config.GEMINI_MODEL (the project's cheap,
+        # text-only default) -- a real, distinct multimodal-capable tier,
+        # so image/PDF/audio understanding doesn't silently depend on the
+        # text-only model happening to also handle binary media.
+        self._model = model or Config.MULTIMODAL_MODEL
         self._client = genai.Client(api_key=Config.GEMINI_API_KEY)
 
     def understand(self, prompt: str, media_bytes: bytes, media_type: MediaType, mime_type: str) -> str:

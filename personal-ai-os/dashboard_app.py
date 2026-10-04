@@ -1713,6 +1713,128 @@ def _load_production_drills() -> dict | None:
     return json.loads(_PRODUCTION_DRILLS_PATH.read_text())
 
 
+_MULTIMODAL_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "multimodal_examples.json"
+
+
+def _load_multimodal_examples() -> dict | None:
+    """Loads scripts/generate_multimodal_examples.py's committed, real
+    output -- GeminiMultimodalProvider.understand() is a real LLM call,
+    so this dashboard's standing no-live-LLM-call rule means these 4
+    examples (text/image/pdf/audio) are pre-generated, not run on page
+    render."""
+    if not _MULTIMODAL_EXAMPLES_PATH.exists():
+        return None
+    return json.loads(_MULTIMODAL_EXAMPLES_PATH.read_text())
+
+
+def render_multimodal(stores: dict) -> None:
+    st.header("Multimodal Input")
+    st.caption(
+        "Text, image, PDF, and voice all flow into the same real Orchestrator through one "
+        "real, unified entry point. `GeminiMultimodalProvider.understand()` is a real LLM "
+        "call, so — consistent with this dashboard's standing no-live-LLM-call rule — the "
+        "4 examples below are pre-generated and committed, not run on page render. The "
+        "architecture itself and the real free-vs-paid voice API comparison are live."
+    )
+
+    from app.dashboard_ui.multimodal_diagram import MULTIMODAL_DIAGRAM
+
+    st.subheader("Multimodal input architecture")
+    diagram_id = "multimodal-mermaid-diagram"
+    st.html(
+        f"""
+        <div id="{diagram_id}" class="mermaid">{MULTIMODAL_DIAGRAM}</div>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+        <script>
+        (function poll() {{
+            if (window.mermaid) {{
+                mermaid.initialize({{ startOnLoad: false, theme: 'neutral' }});
+                mermaid.run({{ nodes: [document.getElementById('{diagram_id}')] }});
+            }} else {{
+                setTimeout(poll, 50);
+            }}
+        }})();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
+
+    st.info(
+        "**The real gap this page closes:** `GeminiMultimodalProvider` (real image/PDF "
+        "understanding) existed, correct, but was never called from anywhere. Voice input "
+        "existed only as the browser's own free Web Speech API, transcribing client-side — "
+        "nothing server-side ever did real speech-to-text on an actual audio file. Fixed: "
+        "new `MultimodalOrchestrator` converts image/PDF/audio into real text via "
+        "`GeminiMultimodalProvider`, then hands it to the real, **unchanged** "
+        "`Orchestrator.handle()` — every existing text caller and every already-tested "
+        "routing/tool-calling path is completely unaffected."
+    )
+
+    st.divider()
+    st.subheader("1. Which voice API, free of cost? (live comparison)")
+    st.caption("A real trade-off table, evaluated live — no LLM call needed for this part.")
+
+    voice_api_rows = [
+        {"Option": "Browser Web Speech API (already used)", "Cost": "$0", "Where it runs": "Client-side only",
+         "Works on uploaded audio files?": "No", "New API key needed?": "No"},
+        {"Option": "Gemini native audio understanding (chosen)", "Cost": "$0 (same free-tier key)",
+         "Where it runs": "Server-side", "Works on uploaded audio files?": "Yes", "New API key needed?": "No"},
+        {"Option": "Self-hosted Whisper", "Cost": "$0 (local compute)", "Where it runs": "Server-side",
+         "Works on uploaded audio files?": "Yes", "New API key needed?": "No (new dependency instead)"},
+        {"Option": "Deepgram / AssemblyAI / ElevenLabs", "Cost": "Paid (free tier limits)",
+         "Where it runs": "Server-side (3rd-party)", "Works on uploaded audio files?": "Yes",
+         "New API key needed?": "Yes"},
+    ]
+    st.table(voice_api_rows)
+    st.success(
+        "**Chosen: Gemini native audio understanding.** Reuses this project's existing, "
+        "already-configured free-tier API key and quota — genuinely $0 marginal cost, no new "
+        "dependency, no new vendor relationship, and works on real uploaded audio files "
+        "(not just a live browser mic session)."
+    )
+
+    st.divider()
+    st.subheader("2. The real voice pipeline, step by step")
+    st.markdown(
+        "1. **Real audio bytes in** — any format Gemini accepts (wav/mp3/flac/aiff/...).\n"
+        "2. **One real Gemini call** — `GeminiMultimodalProvider.understand()` with "
+        "`MediaType.AUDIO` and a real transcription-focused prompt. Same API key, same "
+        "quota, no separate STT vendor.\n"
+        "3. **Real transcript text** flows into `Orchestrator.handle()` exactly like any "
+        "other text request — real routing, real tool-calling, unchanged.\n"
+        "4. **TTS stays client-side**: the browser's free `speechSynthesis` "
+        "(`app/api/voice_api.py`'s voice page) speaks the response — already free, already "
+        "works, deliberately not duplicated server-side."
+    )
+
+    st.divider()
+    st.subheader("3. 4 real examples (pre-generated, real Gemini calls)")
+    examples = _load_multimodal_examples()
+    if examples is None:
+        st.warning("No examples found — run `python scripts/generate_multimodal_examples.py` first.")
+        return
+
+    icons = {"text": "💬", "image": "🖼️", "pdf": "📄", "audio": "🎙️"}
+    for kind in ("text", "image", "pdf", "audio"):
+        ex = examples[kind]
+        outcome = ex["result"]["outcome"]
+        outcome_label = "answered" if outcome == "answered" else "asked for clarification"
+        with st.expander(f"{icons[kind]} {kind.upper()} — {outcome_label}", expanded=(kind != "pdf")):
+            if ex["extracted_text"]:
+                st.markdown(f"**Real extracted/transcribed content** (`{ex['multimodal_model']}`):")
+                st.text(ex["extracted_text"][:400] + ("…" if len(ex["extracted_text"]) > 400 else ""))
+            if outcome == "answered":
+                st.markdown(f"**Real agent answer** (`{ex['result']['agent']}`):")
+                st.success(ex["result"]["output"][:400] + ("…" if len(ex["result"]["output"]) > 400 else ""))
+            else:
+                st.info(
+                    f"**Real, honest outcome:** {ex['result']['message']} — the extracted "
+                    "content alone was ambiguous enough that the real router correctly asked "
+                    "for clarification rather than guessing, instead of being hidden as a "
+                    "failure."
+                )
+
+
 @st.cache_resource
 def _get_embedder():
     from app.retrieval.embeddings import SentenceTransformerEmbedding
@@ -1848,6 +1970,7 @@ def main() -> None:
         "Model Routing": render_model_routing,
         "Evals": render_evals,
         "Governance & Sandbox": render_governance,
+        "Multimodal Input": render_multimodal,
     }
     page = st.sidebar.radio("View", list(pages.keys()))
     st.sidebar.markdown("---")

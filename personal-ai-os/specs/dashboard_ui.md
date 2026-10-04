@@ -825,3 +825,38 @@ Architecture diagram (main one) and "Production AI Engineering" learning
 goal (60% → 82%) updated in the same batch, both remaining gaps (Docker
 never run, AI SLO/incident-management partial) honestly kept open. 867
 tests passing (was 860).
+
+## Example 20 — Multimodal Input dashboard page: a real, unified text/image/PDF/voice entry point
+
+Per the user's ask: "lets build a multimodal input system where we can
+take pdf, image, text and also voice as an input ... which apis to
+integrate for voice (free of cost) and how to understand the entire
+pipeline of voice" (see `specs/multimodal.md`'s Example 4 for the full
+technical detail).
+
+New page (`render_multimodal()`, "Multimodal Input" in the sidebar):
+- A new dedicated Mermaid diagram (`app/dashboard_ui/multimodal_diagram.py`)
+  showing the `InputKind` branch, the real `GeminiMultimodalProvider`
+  conversion step, the real voice (STT) pipeline specifically called out
+  in its own subgraph, the unchanged `Orchestrator.handle()` contract,
+  and the real `ClarificationNeeded` outcome as an honest, first-class
+  possibility, not a hidden failure path.
+- **Live, free voice-API comparison**: a real trade-off table (browser
+  Web Speech API vs. Gemini native audio vs. self-hosted Whisper vs. paid
+  third-party STT vendors) — no LLM call needed, just real, evaluated
+  facts about each option's cost/where-it-runs/capability.
+- **Pre-generated, real examples for all 4 input types**: loaded from
+  `scripts/generate_multimodal_examples.py`'s committed output —
+  `GeminiMultimodalProvider.understand()` is a real LLM call, so per this
+  dashboard's standing no-live-LLM-call rule these are pre-generated, not
+  run on page render. Each expander shows the real extracted/transcribed
+  content and the real agent outcome (including the real, honestly-shown
+  `ClarificationNeeded` for the PDF example).
+
+Verified live in a real browser (`agent-browser`): all 4 example
+expanders render with their real content, the voice-API comparison table
+renders correctly, and the diagram text confirms it rendered (not just
+the HTML container).
+
+Architecture diagram (main one) and "Multimodal AI" learning goal (20% →
+85%) updated in the same batch. 879 tests passing (was 874).
