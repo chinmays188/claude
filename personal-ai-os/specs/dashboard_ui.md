@@ -753,3 +753,44 @@ generated suggestion text citing that exact case.
 
 Architecture diagram (main one) and "AI Evaluation" learning goal (92%
 → 94%) updated in the same batch. 845 tests passing (was 842).
+
+## Example 18 — Governance & Sandbox dashboard page: real process isolation, real approval gating
+
+Per the user's ask: "lets get into production ai engineering and
+establish governance, guardrail ... i'm thinking of sandboxes" (see
+`specs/action_layer.md`'s Example 7 for the full technical detail on the
+real sandbox and the ToolAgent/PolicyEngine wiring).
+
+New page (`render_governance()`, "Governance & Sandbox" in the sidebar):
+- A new dedicated Mermaid diagram (`app/dashboard_ui/governance_diagram.py`)
+  showing the full real pipeline: the agent's tool-call decision, the
+  `policy_engine`-given branch vs. the legacy direct `tool.call()`
+  branch, `PolicyEngine`'s classify/permission/approval gate, the real
+  sandbox's process/timeout/memory limits (with the macOS limitation
+  called out directly on the diagram), the audit log, and an explicit
+  cross-reference to the separate Dockerfile/compose layer (not what
+  this sandbox replaces).
+- **Live, interactive sandbox demo**: two sliders (a real tool delay, a
+  real sandbox timeout) and a button that genuinely runs
+  `SandboxedToolExecutor.execute()` in a real subprocess — the user can
+  watch a real process either complete or get genuinely terminated,
+  and the page honestly reports whether the memory limit was actually
+  enforced on this platform. Free, no LLM call.
+- **Pre-generated, real governed-chat-request examples**: loaded from
+  `scripts/generate_governance_examples.py`'s committed output — the
+  real READ-path success, the real ACT-path approval-pending-then-executed
+  flow (with the real `pending_action_id` and real post-approval
+  result), and the real sandbox-timeout violation.
+
+Verified live in a real browser (`agent-browser`): the live sandbox demo
+was run twice — once with a delay exceeding the timeout (genuinely
+terminated, real `SandboxViolation` shown) and once within it (genuinely
+completed, `done` shown) — with the memory-limit-enforcement caption
+correctly flipping between runs (`None` when the process never reached
+that check, `False` on this macOS dev machine when it did).
+
+Architecture diagram (main one, with a new `GOVREF` cross-reference
+node) and the "AI Safety & Guardrails" (65% → 88%) and "Production AI
+Engineering" (50% → 60%) learning goals updated in the same batch, both
+remaining gaps (the security scanner's scope, Docker never actually
+run) honestly kept open. 860 tests passing (was 856).

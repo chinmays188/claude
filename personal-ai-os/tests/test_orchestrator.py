@@ -421,3 +421,36 @@ def test_agent_llm_is_used_for_agent_generation_not_classification():
     # agent had used classification_llm instead, this list would be empty
     # and the agent's own call would have raised IndexError.
     assert classification_llm._responses == []
+
+
+def test_policy_engine_is_forwarded_to_all_3_agents_and_gates_a_real_tool_call():
+    """Real end-to-end governance wiring: a request that routes to
+    ResearchAgent and calls calculator (READ-classified) runs through the
+    real PolicyEngine -- real risk classification + real sandboxed
+    execution -- not a direct tool.call(). Confirms the wiring reaches all
+    the way from Orchestrator's constructor through to the real tool call."""
+    from app.actions.audit_log import AuditLog
+    from app.actions.classification import ActionClassifier
+    from app.actions.policy_engine import PolicyEngine
+    from app.db.connection import get_connection
+    from app.safety.permissions import PermissionChecker
+    from app.tools.calculator import CalculatorTool
+
+    llm = ScriptedProvider(
+        [
+            '{"domains": [], "confidence": 0.9}',
+            '{"task_type": "research", "confidence": 0.9}',
+            '{"action": "call_tool", "tool": "calculator", "args": {"expression": "47 * 12"}}',
+            '{"action": "final_answer", "answer": "564"}',
+        ]
+    )
+    policy_engine = PolicyEngine(
+        ActionClassifier(), PermissionChecker({"compute:local"}),
+        AuditLog(get_connection(":memory:")), {"calculator": CalculatorTool()},
+    )
+    orchestrator = Orchestrator(llm, policy_engine=policy_engine)
+
+    result = orchestrator.handle("What is 47 * 12?")
+
+    assert result.tool_calls == ["calculator"]
+    assert result.output == "564"

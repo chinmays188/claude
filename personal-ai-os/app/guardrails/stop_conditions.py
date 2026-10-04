@@ -8,3 +8,4 @@ class StopReason(str, Enum):
     TIMEOUT = "timeout"
     SAFETY_BLOCKED = "safety_blocked"
     TOOL_FAILED = "tool_failed"
+    APPROVAL_PENDING = "approval_pending"

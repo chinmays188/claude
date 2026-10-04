@@ -1,6 +1,7 @@
 from app.actions.audit_log import AuditLog
 from app.actions.classification import ActionClassifier
 from app.actions.models import ActionProposal, ApprovalStatus, AuditRecord
+from app.platform.sandbox import SandboxedToolExecutor
 from app.safety.permissions import PermissionChecker, PermissionDeniedError
 from app.tools.base import Tool, ToolError
 
@@ -27,11 +28,21 @@ class PolicyEngine:
         permission_checker: PermissionChecker,
         audit_log: AuditLog,
         tools_by_name: dict[str, Tool],
+        sandbox: SandboxedToolExecutor | None = None,
     ):
         self._classifier = classifier
         self._permissions = permission_checker
         self._audit = audit_log
         self._tools = tools_by_name
+        # Real process-level sandbox (app/platform/sandbox.py), previously
+        # never wired in anywhere: every tool call used to run as plain
+        # Python inside the main process, with no isolation and no real
+        # limits. Defaults to a fresh SandboxedToolExecutor (every existing
+        # caller gets the real sandbox for free -- there was never a
+        # legitimate reason to run a tool unsandboxed, so this isn't gated
+        # behind an explicit opt-in the way most additive params in this
+        # project are).
+        self._sandbox = sandbox or SandboxedToolExecutor()
 
     def propose_and_execute(self, tool_name: str, args: dict, description: str) -> str:
         """READ actions run immediately (still audited). WRITE/ACT actions raise
@@ -87,7 +98,11 @@ class PolicyEngine:
             )
             raise
 
-        result = tool.call(proposal.args)
+        # Real sandboxed execution, risk-aware: a HIGH-risk (ACT-class)
+        # tool call gets the tightest real limits, matching how much a
+        # misbehaving call could actually cost -- not a direct, unsandboxed
+        # tool.call() anymore.
+        result = self._sandbox.execute(tool, proposal.args, risk_level=proposal.risk_level)
         verified, verification_note = self._verify(proposal, result)
 
         self._audit.record(

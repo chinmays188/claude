@@ -1523,6 +1523,127 @@ def render_evals(stores: dict) -> None:
     )
 
 
+_GOVERNANCE_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "governance_examples.json"
+
+
+def _load_governance_examples() -> dict | None:
+    """Loads scripts/generate_governance_examples.py's committed, real
+    output -- generated against the live Gemini API + the real
+    Orchestrator, not on this page render (this dashboard's standing
+    no-live-LLM-call rule)."""
+    if not _GOVERNANCE_EXAMPLES_PATH.exists():
+        return None
+    return json.loads(_GOVERNANCE_EXAMPLES_PATH.read_text())
+
+
+def render_governance(stores: dict) -> None:
+    st.header("Production AI Engineering: Governance & Guardrails")
+    st.caption(
+        "A real governance pipeline (classify → permission check → approval → execute → "
+        "audit) and a real process-level sandbox for tool execution — both wired into the "
+        "actual live chat-agent path, not just a separate, unused subsystem. The sandbox demo "
+        "below is 100% LIVE (pure Python subprocess isolation, no LLM call, free). The full "
+        "governed chat-request examples needed real Gemini calls, so they're pre-generated and "
+        "committed, consistent with this dashboard never making live LLM calls on page render."
+    )
+
+    from app.dashboard_ui.governance_diagram import GOVERNANCE_DIAGRAM
+
+    st.subheader("Governance & sandbox architecture")
+    diagram_id = "governance-mermaid-diagram"
+    st.html(
+        f"""
+        <div id="{diagram_id}" class="mermaid">{GOVERNANCE_DIAGRAM}</div>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+        <script>
+        (function poll() {{
+            if (window.mermaid) {{
+                mermaid.initialize({{ startOnLoad: false, theme: 'neutral' }});
+                mermaid.run({{ nodes: [document.getElementById('{diagram_id}')] }});
+            }} else {{
+                setTimeout(poll, 50);
+            }}
+        }})();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
+
+    st.info(
+        "**The real gap this page closes:** a real `PolicyEngine` (classify/permission/approval/"
+        "audit) existed and was tested — but the live chat-agent path (`ToolAgent`, behind "
+        "`Orchestrator` — what every real request actually goes through) called `tool.call()` "
+        "directly, completely bypassing it. Only separate domain-workflow code ever used "
+        "`PolicyEngine`. And no tool call anywhere ran with any real process isolation or "
+        "resource limits. Fixed: `ToolAgent` (and `Orchestrator`) gained an optional "
+        "`policy_engine` param, and a new `SandboxedToolExecutor` (real, separate OS process "
+        "per tool call, real timeout, real memory ceiling) is wired into `PolicyEngine`'s own "
+        "execution step."
+    )
+
+    st.divider()
+    st.subheader("1. Live sandbox demo — real process isolation")
+    st.caption(
+        "Real `multiprocessing.Process(spawn)` — a genuinely separate OS process, not a thread. "
+        "Pick a tool delay and a timeout below; if the delay exceeds the timeout, the sandbox "
+        "genuinely terminates the process and raises a real `SandboxViolation`."
+    )
+
+    from app.actions.models import RiskLevel
+    from app.platform.sandbox import SandboxedToolExecutor, SandboxLimits, SandboxViolation
+    from tests.fakes.slow_tool import SlowTool
+
+    col1, col2 = st.columns(2)
+    with col1:
+        delay = st.slider("Tool delay (real seconds it will actually sleep)", min_value=0.5, max_value=8.0, value=3.0, step=0.5)
+    with col2:
+        timeout = st.slider("Sandbox timeout (real enforced limit)", min_value=0.5, max_value=8.0, value=2.0, step=0.5)
+
+    if st.button("Run tool in the real sandbox"):
+        executor = SandboxedToolExecutor({RiskLevel.HIGH: SandboxLimits(timeout_seconds=timeout, memory_limit_mb=256)})
+        with st.spinner(f"Running in a real subprocess (will sleep {delay}s, sandbox timeout {timeout}s)..."):
+            try:
+                result = executor.execute(SlowTool(), {"seconds": delay}, risk_level=RiskLevel.HIGH)
+                st.success(f"✅ Completed within the real timeout: `{result}`")
+            except SandboxViolation as exc:
+                st.error(f"❌ Real SandboxViolation: {exc}")
+        st.caption(
+            f"Memory limit actually enforced on this platform: **{executor.last_memory_limit_applied}** "
+            "— on macOS, `RLIMIT_AS` often can't be lowered at all (a real, confirmed Darwin/XNU "
+            "kernel limitation, not a bug in this code); it's real and enforced on Linux, where "
+            "this project's own Dockerfile actually deploys."
+        )
+
+    st.divider()
+    st.subheader("2. Real, governed chat requests (pre-generated, real Gemini calls)")
+    examples = _load_governance_examples()
+    if examples is None:
+        st.warning("No examples found — run `python scripts/generate_governance_examples.py` first.")
+        return
+
+    read_path = examples["read_path"]
+    with st.expander(f"✅ READ path — \"{read_path['request']}\" — {read_path['stop_reason']}", expanded=True):
+        st.markdown(f"**Output:** {read_path['output']}")
+        st.markdown(f"**Tool calls:** `{read_path['tool_calls']}`")
+        st.caption("calculator is READ-classified — no approval needed, but it genuinely ran through the real sandbox.")
+
+    act_path = examples["act_path"]
+    with st.expander(f"⏸️ ACT path — \"{act_path['request']}\" — blocked for approval, then executed", expanded=True):
+        st.markdown(f"**Pending output (first attempt):** {act_path['pending_output']}")
+        st.markdown(f"**Pending action id:** `{act_path['pending_action_id']}`")
+        st.markdown(f"**Execution result after real approval:** `{act_path['execution_result_after_approval']}`")
+        st.caption(
+            "calculator was deliberately overridden to ACT-classification for this example — "
+            "the real request genuinely stopped mid-flight, and only produced a result after a "
+            "real `PolicyEngine.resume_after_approval()` call."
+        )
+
+    timeout_example = examples["sandbox_timeout"]
+    with st.expander("⏱️ Real sandbox timeout — a slow tool genuinely killed", expanded=False):
+        st.error(timeout_example["error"])
+        st.caption(f"Real enforced timeout: {timeout_example['timeout_seconds']}s.")
+
+
 @st.cache_resource
 def _get_embedder():
     from app.retrieval.embeddings import SentenceTransformerEmbedding
@@ -1657,6 +1778,7 @@ def main() -> None:
         "Context & Memory": render_context_memory,
         "Model Routing": render_model_routing,
         "Evals": render_evals,
+        "Governance & Sandbox": render_governance,
     }
     page = st.sidebar.radio("View", list(pages.keys()))
     st.sidebar.markdown("---")

@@ -1,0 +1,25 @@
+{
+  "read_path": {
+    "scenario": "READ-classified tool, real sandbox, no approval needed",
+    "request": "What is 47 times 12?",
+    "output": "47 times 12 is 564.",
+    "tool_calls": [
+      "calculator"
+    ],
+    "stop_reason": "task_completed"
+  },
+  "act_path": {
+    "scenario": "ACT-classified tool, real request stops for human approval, then executes after approval",
+    "request": "What is 47 times 12?",
+    "pending_output": "This request needs a human to approve calling 'calculator' before I can continue (real PolicyEngine risk gate -- action_id: 0c786da92c7649e383c7bb5a569050c1). Once approved, re-run this request and I'll pick up where I left off.",
+    "stop_reason": "approval_pending",
+    "pending_action_id": "0c786da92c7649e383c7bb5a569050c1",
+    "execution_result_after_approval": "564"
+  },
+  "sandbox_timeout": {
+    "scenario": "A real slow tool, genuinely killed by the real sandbox timeout",
+    "violated": true,
+    "error": "Tool 'slow_tool' exceeded its sandbox timeout of 2.0s (risk_level=HIGH) and was terminated.",
+    "timeout_seconds": 2.0
+  }
+}

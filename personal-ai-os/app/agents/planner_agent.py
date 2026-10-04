@@ -29,6 +29,7 @@ class PlannerAgent(ToolAgent):
         self, llm: LLMProvider, store: VectorStore | None = None, on_tool_call=None, on_tool_error=None,
         secure_retriever: SecureRetriever | None = None, requester_id: str | None = None,
         requester_tenant_id: str | None = None, mcp_tools: list[Tool] | None = None,
+        policy_engine=None,
     ):
         tools = build_shared_tools(llm, store, secure_retriever, requester_id, requester_tenant_id, mcp_tools)
-        super().__init__(llm, tools=ToolRegistry(tools), on_tool_call=on_tool_call, on_tool_error=on_tool_error)
+        super().__init__(llm, tools=ToolRegistry(tools), on_tool_call=on_tool_call, on_tool_error=on_tool_error, policy_engine=policy_engine)

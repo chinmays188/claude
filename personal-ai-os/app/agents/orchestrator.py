@@ -58,6 +58,7 @@ class Orchestrator:
         secure_retriever: SecureRetriever | None = None, requester_id: str | None = None,
         requester_tenant_id: str | None = None, on_multi_agent_planned=None,
         mcp_tools: list | None = None, on_tool_error=None, agent_llm: LLMProvider | None = None,
+        policy_engine=None,
     ):
         # retrieval_store/secure_retriever/requester_* are all optional and
         # additive: passing none of them (the default, matching every
@@ -90,6 +91,15 @@ class Orchestrator:
         # every single request. Defaults to llm (identical behavior to
         # every existing caller) when not given. This is the real
         # integration point for app/routing/model_router.py's ModelRouter.
+        # policy_engine (optional, real governance hook): when given, ALL 3
+        # agents' tool calls go through it -- real risk classification,
+        # real sandboxed execution (app/platform/sandbox.py), and a real
+        # human-approval gate for WRITE/ACT-risk tools -- instead of
+        # calling tool.call() directly. A real, previously-undisclosed gap
+        # this closes: the live chat-agent path never went through
+        # PolicyEngine at all before this, only separate domain-workflow
+        # code did. Defaults to None (every existing caller's identical,
+        # unsandboxed, ungoverned behavior) when not given.
         self._llm = llm  # exposed via the llm property below -- e.g. VoiceSession
         # needs the same real LLMProvider for its own memory-related calls
         # without reaching into a private attribute.
@@ -102,6 +112,7 @@ class Orchestrator:
             store=retrieval_store, on_tool_call=on_tool_call, on_tool_error=on_tool_error,
             secure_retriever=secure_retriever, requester_id=requester_id,
             requester_tenant_id=requester_tenant_id, mcp_tools=mcp_tools,
+            policy_engine=policy_engine,
         )
         self._agents = {
             TaskType.RESEARCH: ResearchAgent(effective_agent_llm, **agent_kwargs),

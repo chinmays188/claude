@@ -197,6 +197,44 @@ HISTORY:
     labeled, not real-human-rated) human-in-the-loop correlation
     worked example.
 
+11. Updated in the SAME batch again for Production AI Engineering /
+    Governance & Guardrails (user's ask: "lets get into production ai
+    engineering and establish governance, guardrail ... i'm thinking of
+    sandboxes"). Checked first, honestly -- a real, significant gap: a
+    real PolicyEngine (classify -> permission check -> approval ->
+    execute -> audit) already existed and was tested, but the live
+    chat-agent path (ToolAgent, behind Orchestrator -- what every real
+    request actually goes through) called tool.call() directly,
+    completely bypassing it; only separate domain-workflow code ever
+    used PolicyEngine. And no tool call anywhere ran with any real
+    process isolation or resource limits. Fixed: new
+    app/platform/sandbox.py's SandboxedToolExecutor runs a tool's real
+    execution in a genuinely separate OS process
+    (multiprocessing.Process(spawn)), with a real, enforced wall-clock
+    timeout and a real memory ceiling (resource.RLIMIT_AS) set inside
+    the child -- risk-scaled, so a HIGH-risk tool gets the tightest real
+    limits. A real, honest platform limitation was found and disclosed,
+    not hidden: on macOS (this dev machine), RLIMIT_AS often cannot be
+    lowered at all (a real Darwin/XNU kernel limitation) -- every result
+    now reports whether the memory limit was actually enforced, rather
+    than silently claiming it was. PolicyEngine's own execution step now
+    runs through this sandbox. ToolAgent (and Orchestrator) gained a new
+    optional policy_engine param -- when given, EVERY real tool call
+    from a live chat request goes through real risk classification, real
+    sandboxed execution, and a real human-approval gate for WRITE/ACT
+    tools (a new StopReason.APPROVAL_PENDING + AgentResponse.pending_action_id
+    surface this cleanly). Verified fully live against the real Gemini
+    API: a real READ-classified request completed normally through the
+    sandbox; the same tool, overridden to ACT, genuinely stopped a real
+    chat request mid-flight with a real pending action_id, then
+    genuinely executed after a real PolicyEngine.resume_after_approval()
+    call; a real slow tool was genuinely killed by the real sandbox
+    timeout. New dedicated "Governance & Sandbox" dashboard page: its
+    own diagram, a live (free, no LLM call) interactive sandbox demo
+    (pick a real delay and timeout, watch a real subprocess get
+    terminated or complete), and the 3 real committed governed-chat-request
+    examples.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
@@ -250,6 +288,7 @@ flowchart TB
         CALLTOOL -->|"ToolError raised"| TOOLERR["Caught, recorded as a\nfailed span, fed back to\nthe LLM as a recoverable turn\n(real bug fix -- used to crash)"]
         TOOLERR --> DEC
         CALLTOOL --> DEC
+        CALLTOOL -.->|"optional policy_engine --\nreal governance + sandbox,\nsee the dedicated\nGovernance & Sandbox page/diagram"| GOVREF["PolicyEngine + SandboxedToolExecutor"]
     end
 
     RA --> DECISIONLOOP

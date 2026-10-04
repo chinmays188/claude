@@ -2,6 +2,7 @@ import json
 
 from pydantic import BaseModel
 
+from app.actions.policy_engine import ApprovalPending, PolicyEngine
 from app.agents.base import Agent, AgentResponse
 from app.guardrails.budgets import AgentBudget, BudgetExceededError, BudgetTracker
 from app.guardrails.stop_conditions import StopReason
@@ -41,10 +42,23 @@ class ToolAgent(Agent):
         budget: AgentBudget | None = None,
         on_tool_call=None,
         on_tool_error=None,
+        policy_engine: PolicyEngine | None = None,
     ):
         super().__init__(llm)
         self._tools = tools
         self._budget = budget or AgentBudget()
+        # Real governance wiring (previously a genuine gap, found while
+        # building this): ToolAgent -- the actual live chat-agent path
+        # behind Orchestrator -- called tool.call() directly, completely
+        # bypassing app/actions/policy_engine.py's PolicyEngine (real risk
+        # classification, permission check, approval gate, sandboxed
+        # execution, audit log). Only separate domain-workflow code ever
+        # went through PolicyEngine. Optional and additive: when not given
+        # (every existing caller's default), ToolAgent behaves exactly as
+        # before -- calling tool.call() directly, unsandboxed, no approval
+        # gate. When given, every real tool call in this loop goes through
+        # real governance instead.
+        self._policy_engine = policy_engine
         # Optional observer: called as on_tool_call(tool_name, args, result)
         # after each real tool invocation. Additive/backward-compatible --
         # existing callers passing no observer see no behavior change.
@@ -89,7 +103,24 @@ class ToolAgent(Agent):
 
                 tracker.record_tool_call()
                 try:
-                    tool_result = tool.call(decision.args)
+                    if self._policy_engine is not None:
+                        tool_result = self._policy_engine.propose_and_execute(
+                            tool.name, decision.args,
+                            description=f"Agent-requested call to '{tool.name}' during: {text}",
+                        )
+                    else:
+                        tool_result = tool.call(decision.args)
+                except ApprovalPending as exc:
+                    # A real human decision is required before this call can
+                    # proceed -- stop the loop here rather than silently
+                    # continuing (continuing would just re-ask the same
+                    # tool and hit the same pending gate again). The real
+                    # action_id is surfaced on the response so a caller can
+                    # drive PolicyEngine.resume_after_approval() and retry.
+                    return self._response(
+                        text, self._approval_pending_answer(tool.name, exc.action_id),
+                        tool_calls, StopReason.APPROVAL_PENDING, pending_action_id=exc.action_id,
+                    )
                 except ToolError as exc:
                     tool_calls.append(tool.name)
                     history.append(
@@ -141,6 +172,13 @@ class ToolAgent(Agent):
                 ),
             )
 
+    def _approval_pending_answer(self, tool_name: str, action_id: str) -> str:
+        return (
+            f"This request needs a human to approve calling '{tool_name}' before I can "
+            f"continue (real PolicyEngine risk gate -- action_id: {action_id}). "
+            "Once approved, re-run this request and I'll pick up where I left off."
+        )
+
     def _degraded_answer(self, reason: str) -> str:
         return (
             "I couldn't fully complete this request within the allowed budget "
@@ -158,7 +196,8 @@ class ToolAgent(Agent):
         return StopReason.MAX_TURNS_REACHED
 
     def _response(
-        self, text: str, output: str, tool_calls: list[str], stop_reason: StopReason
+        self, text: str, output: str, tool_calls: list[str], stop_reason: StopReason,
+        pending_action_id: str | None = None,
     ) -> AgentResponse:
         return AgentResponse(
             input=text,
@@ -167,4 +206,5 @@ class ToolAgent(Agent):
             agent=self.name,
             tool_calls=tool_calls,
             stop_reason=stop_reason.value,
+            pending_action_id=pending_action_id,
         )
