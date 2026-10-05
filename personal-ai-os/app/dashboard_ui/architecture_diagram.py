@@ -296,6 +296,32 @@ HISTORY:
     diagram, a live free-vs-paid voice-API comparison table, and the 4
     real committed examples.
 
+14. Updated in the SAME batch again for a real AI Product Strategy
+    decision framework (user's ask: "lets check the AI product
+    strategy, build this decision framework as we go along ... we have
+    already taken lot of decisions in this project"). Checked first,
+    honestly: app/evaluation/adaptation_advisor.py already codified
+    ONE real, narrow slice (RAG vs. fine-tuning vs. in-context learning
+    vs. distillation) -- correct, but only one rung of the full chain
+    this project's own learning goal names: deterministic logic ->
+    traditional ML -> LLM -> RAG -> tool calling -> agent -> multi-
+    agent -> human approval -> autonomous execution. New
+    app/evaluation/ai_product_decision_framework.py is the rest of the
+    chain, built the same way: explicit, testable if/then logic over
+    real signals, verified against 5 of this project's own real
+    architectural scenarios (UnifiedRouter's classification, ToolAgent
+    + calculator, send_email's real ACT classification,
+    PersonalRagPipeline, MultiAgentCoordinator) -- every one mapped to
+    the real tier that was actually built for it. New
+    app/evaluation/ai_product_decision_log.py: a real, populated log of
+    12 decisions this project ACTUALLY made (not invented case
+    studies), each citing its real commit hash or spec file -- verified
+    by a test that every cited commit hash genuinely exists in this
+    repo's git history. New dedicated "Decision Framework" dashboard
+    page: its own diagram, a fully live (free, deterministic, no LLM
+    call) interactive recommender, and the real decision log browsable
+    by tier.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline

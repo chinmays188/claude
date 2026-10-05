@@ -1835,6 +1835,104 @@ def render_multimodal(stores: dict) -> None:
                 )
 
 
+def render_decision_framework(stores: dict) -> None:
+    st.header("AI Product Strategy: Decision Framework")
+    st.caption(
+        "The real decision framework this project's own learning goal names but never had a "
+        "dedicated artifact for — plus a real, populated log of decisions this project has "
+        "already made, each citing its real commit/spec source. Everything on this page is "
+        "100% LIVE (pure Python, deterministic, no LLM call, free)."
+    )
+
+    from app.dashboard_ui.decision_framework_diagram import DECISION_FRAMEWORK_DIAGRAM
+
+    st.subheader("The decision chain")
+    diagram_id = "decision-framework-mermaid-diagram"
+    st.html(
+        f"""
+        <div id="{diagram_id}" class="mermaid">{DECISION_FRAMEWORK_DIAGRAM}</div>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+        <script>
+        (function poll() {{
+            if (window.mermaid) {{
+                mermaid.initialize({{ startOnLoad: false, theme: 'neutral' }});
+                mermaid.run({{ nodes: [document.getElementById('{diagram_id}')] }});
+            }} else {{
+                setTimeout(poll, 50);
+            }}
+        }})();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
+
+    st.info(
+        "**The real gap this page closes:** `app/evaluation/adaptation_advisor.py` already "
+        "codified ONE real, narrow slice of this (RAG vs. fine-tuning vs. in-context learning "
+        "vs. distillation) — correct, but only one rung of the full chain this project's own "
+        "learning goal names: deterministic logic → traditional ML → LLM → RAG → tool calling "
+        "→ agent → multi-agent → human approval → autonomous execution. New "
+        "`app/evaluation/ai_product_decision_framework.py` is the rest of the chain, built the "
+        "same way: explicit, testable if/then logic over real signals."
+    )
+
+    st.divider()
+    st.subheader("1. Try it live — describe a real need, get a real recommendation")
+    st.caption("Check the real signals that apply. The recommendation updates live.")
+
+    from app.evaluation.ai_product_decision_framework import ProductDecisionInputs, recommend_tier
+
+    col1, col2 = st.columns(2)
+    with col1:
+        fixed_rules = st.checkbox("Can be solved with fixed rules")
+        labeled_data = st.checkbox("Enough labeled data for traditional ML")
+        needs_nl = st.checkbox("Needs natural language understanding/generation")
+        needs_grounding = st.checkbox("Needs grounding in real, retrievable knowledge")
+    with col2:
+        needs_actions = st.checkbox("Needs to take real actions, not just answer")
+        needs_multi = st.checkbox("Needs multiple distinct kinds of work coordinated")
+        consequential = st.checkbox("Action is consequential or hard to reverse")
+        zero_human = st.checkbox("Needs zero human in the loop")
+
+    inputs = ProductDecisionInputs(
+        can_be_solved_with_fixed_rules=fixed_rules,
+        has_enough_labeled_data_for_traditional_ml=labeled_data,
+        needs_natural_language_understanding_or_generation=needs_nl,
+        needs_grounding_in_retrievable_knowledge=needs_grounding,
+        needs_to_take_real_actions_not_just_answer=needs_actions,
+        needs_multiple_distinct_kinds_of_work_coordinated=needs_multi,
+        action_is_consequential_or_hard_to_reverse=consequential,
+        needs_zero_human_in_the_loop=zero_human,
+    )
+    try:
+        decision = recommend_tier(inputs)
+        st.success(f"**Recommended tier: {decision.tier.value.replace('_', ' ').upper()}**")
+        st.markdown(f"**Why:** {decision.reasoning}")
+        st.caption(f"**What would go wrong with a cheaper tier:** {decision.failure_mode_if_under_built}")
+    except ValueError as exc:
+        st.warning(f"No tier matched: {exc}")
+
+    st.divider()
+    st.subheader("2. Real decisions this project has already made")
+    from app.evaluation.ai_product_decision_log import DECISION_LOG, tier_distribution
+
+    st.caption(
+        f"{len(DECISION_LOG)} real, logged decisions — not invented case studies. Each cites "
+        "its real commit hash or spec file."
+    )
+    st.bar_chart(tier_distribution())
+
+    for d in DECISION_LOG:
+        with st.expander(f"🔀 {d.title} — `{d.tier.value}`", expanded=False):
+            st.markdown(f"**Chosen:** {d.what_was_chosen}")
+            st.markdown(f"**Rejected:** {d.what_was_rejected}")
+            st.markdown(f"**Real rationale:** {d.real_rationale}")
+            if d.source.endswith(".md"):
+                st.caption(f"Source: `{d.source}`")
+            else:
+                st.caption(f"Source: commit `{d.source}`")
+
+
 @st.cache_resource
 def _get_embedder():
     from app.retrieval.embeddings import SentenceTransformerEmbedding
@@ -1971,6 +2069,7 @@ def main() -> None:
         "Evals": render_evals,
         "Governance & Sandbox": render_governance,
         "Multimodal Input": render_multimodal,
+        "Decision Framework": render_decision_framework,
     }
     page = st.sidebar.radio("View", list(pages.keys()))
     st.sidebar.markdown("---")

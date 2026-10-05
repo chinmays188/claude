@@ -860,3 +860,36 @@ the HTML container).
 
 Architecture diagram (main one) and "Multimodal AI" learning goal (20% →
 85%) updated in the same batch. 879 tests passing (was 874).
+
+## Example 21 — Decision Framework dashboard page: a live recommender plus this project's own real decision history
+
+Per the user's ask: "lets check the AI product strategy, build this
+decision framework as we go along ... we have already taken lot of
+decisions in this project" (see `specs/model_adaptation.md`'s follow-up
+section for the full technical detail).
+
+New page (`render_decision_framework()`, "Decision Framework" in the
+sidebar) — the first page this session that is **entirely free and live**,
+with no pre-generated/committed examples at all, since the whole
+framework is deterministic Python:
+- A new dedicated Mermaid diagram (`app/dashboard_ui/decision_framework_diagram.py`)
+  showing the real decision chain, question by question, in the real
+  order `recommend_tier()` actually checks them.
+- **Live, interactive recommender**: 8 real checkboxes map directly to
+  `ProductDecisionInputs`'s real fields; the recommended tier, reasoning,
+  and failure-mode explanation update live as the user checks boxes —
+  verified by checking the exact 3 boxes matching this project's own
+  real `send_email` (ACT-classified) scenario and confirming the page
+  correctly recommends `HUMAN APPROVAL REQUIRED`.
+- **The real decision log**: all 12 real, logged decisions from
+  `app/evaluation/ai_product_decision_log.py`, each in its own expander
+  showing what was chosen, what was rejected, the real rationale, and
+  the real commit/spec source — plus a real tier-distribution bar chart.
+
+Verified live in a real browser (`agent-browser`): the live recommender
+correctly updated to `HUMAN APPROVAL REQUIRED` when the real `send_email`
+signals were checked; all 12 decision-log entries render with their
+correct real titles and tiers; the tier-distribution bar chart rendered.
+
+Architecture diagram (main one) and "AI Product Strategy" learning goal
+(30% → 90%) updated in the same batch. 902 tests passing (was 879).
