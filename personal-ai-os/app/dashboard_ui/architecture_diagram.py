@@ -322,6 +322,29 @@ HISTORY:
     call) interactive recommender, and the real decision log browsable
     by tier.
 
+15. Updated in the SAME batch again while investigating "AI Cost &
+    Latency Engineering" (user's ask: "what is still missing"). Found
+    and fixed a real, significant bug: MultiAgentCoordinator._run_parallel()
+    was labeled/named "PARALLEL" everywhere (enum value, method name,
+    this diagram's own prior text) but was actually a plain sequential
+    Python list comprehension -- zero real concurrency, so PARALLEL mode
+    delivered no real latency benefit over SEQUENTIAL. Fixed with
+    ThreadPoolExecutor.map() (each agent only touches its own LLM
+    instance, so this is safe); a new regression test proves real
+    wall-clock concurrency (3 agents each sleeping 0.3s finish in
+    well under the ~0.9s a sequential run would take). Also found two
+    real, silent gaps and closed them: Span.duration_ms was already
+    captured per span but never aggregated anywhere -- new
+    app/observability/latency_breakdown.py aggregates it by kind
+    (classification/agent/tool/retrieval/etc.), now shown per-trace on
+    the Traces page. And nothing tied real $ cost to real outcome -- new
+    app/observability/cost_per_success.py joins TraceStore's own
+    status + cost into a real $/successful-request vs. $/failed-request
+    metric (not just $/million tokens), now shown as a Traces page
+    section across all stored traces. No caching layer (semantic or
+    prompt) and no TTFT/streaming measurement exist yet -- confirmed
+    real, disclosed, and still out of scope for this batch.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
@@ -346,7 +369,7 @@ flowchart TB
     subgraph COORDINATOR["MultiAgentCoordinator -- runs Orchestrator's OWN agent instances"]
         direction TB
         SEQ["SEQUENTIAL:\neach agent's real output becomes\ncontext for the next agent's input"]
-        PAR["PARALLEL:\nagents run independently on the\nsame input, then 1 LLM call\nsynthesizes their outputs"]
+        PAR["PARALLEL:\nagents run independently on the\nsame input via ThreadPoolExecutor\n(genuinely concurrent -- real fix,\nsee HISTORY item 15), then\n1 LLM call synthesizes their outputs"]
     end
 
     subgraph UNIFIED["UnifiedRouter -- ONE router, two classification stages"]
@@ -485,6 +508,13 @@ flowchart TB
 
     ERRANALYSIS["error_analysis.py\nerror rate / failures-by-kind /\nstop reasons / example trace ids\n-- pure computation over TraceStore"]
     TRACESTORE --> ERRANALYSIS
+
+    LATENCYBREAK["latency_breakdown.py\naggregates each trace's existing\nSpan.duration_ms by kind\n(classification/agent/tool/retrieval)"]
+    COSTPERSUCCESS["cost_per_success.py\nreal $/successful request\nvs $/failed request, joined\nfrom TraceStore's status + cost"]
+    TRACESTORE --> LATENCYBREAK
+    TRACESTORE --> COSTPERSUCCESS
+    LATENCYBREAK --> TRACESPAGE
+    COSTPERSUCCESS --> TRACESPAGE
 
     EVALHISTORY["eval_history.json\nappended by track_eval_drift.py\nrerunning the SAME fixed RAG\nground truth over time"]
     ERRANALYSIS -.->|"shown together on"| TRACESPAGE["Dashboard Traces page:\nError rates & failures +\nModel drift over time"]

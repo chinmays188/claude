@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from app.agents.base import AgentResponse
@@ -22,6 +24,21 @@ class ScriptedProvider(LLMProvider):
     @property
     def model_name(self) -> str:
         return "scripted-model"
+
+
+class SlowStubAgent:
+    """Sleeps for a real, measurable duration before returning -- used to
+    prove _run_parallel() actually runs agents concurrently (real wall-clock
+    time ~= max(delays), not sum(delays))."""
+
+    def __init__(self, name: str, output: str, delay_seconds: float):
+        self.name = name
+        self._output = output
+        self._delay_seconds = delay_seconds
+
+    def run(self, text: str) -> AgentResponse:
+        time.sleep(self._delay_seconds)
+        return AgentResponse(input=text, output=self._output, model="stub-model", agent=self.name)
 
 
 class StubAgent:
@@ -140,3 +157,30 @@ def test_sequential_combines_tool_calls_from_all_agents():
     result = coordinator.run("some request", plan)
 
     assert result.tool_calls == ["retrieve", "calculator"]
+
+
+def test_parallel_coordination_actually_runs_concurrently():
+    """Real regression guard for the bug found while investigating 'AI Cost
+    & Latency Engineering': _run_parallel() used to be a plain list
+    comprehension (each agent run one after another despite the PARALLEL
+    name). Three agents each sleeping 0.3s should finish in ~0.3-0.6s if
+    genuinely concurrent, not ~0.9s+ if sequential."""
+    research = SlowStubAgent("research_agent", "r", delay_seconds=0.3)
+    analysis = SlowStubAgent("analyst_agent", "a", delay_seconds=0.3)
+    planning = SlowStubAgent("planner_agent", "p", delay_seconds=0.3)
+
+    llm = ScriptedProvider(["combined"])
+    coordinator = MultiAgentCoordinator(
+        llm, {AgentName.RESEARCH: research, AgentName.ANALYSIS: analysis, AgentName.PLANNING: planning}
+    )
+    plan = MultiAgentPlan(
+        agents=[AgentName.RESEARCH, AgentName.ANALYSIS, AgentName.PLANNING],
+        mode=CoordinationMode.PARALLEL, reasoning="test",
+    )
+
+    started = time.monotonic()
+    result = coordinator.run("some request", plan)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 0.7  # would be >=0.9s if sequential
+    assert result.output == "combined"

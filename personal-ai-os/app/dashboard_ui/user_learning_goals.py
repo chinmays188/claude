@@ -338,10 +338,18 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand TTFT, streaming, retrieval latency, tool latency, parallel tool calls",
             "Be able to reason in terms of cost per successful customer workflow, not just $/million tokens",
         ],
-        0.6,
+        0.75,
         "Real per-call token usage tracking (GeminiProvider's track_usage) and real "
         "$/request cost computation (CostTracker), verified live for full trace runs "
-        "(router + agent turns). No caching layer (semantic or prompt) has been built.",
+        "(router + agent turns). Found and fixed a real bug: MultiAgentCoordinator's "
+        "'PARALLEL' mode was actually sequential (plain list comprehension, zero real "
+        "concurrency) -- now genuinely concurrent via ThreadPoolExecutor, proven by a "
+        "wall-clock regression test. Added real per-kind latency breakdown "
+        "(latency_breakdown.py, aggregating Span.duration_ms -- captured but never "
+        "aggregated before) and real cost-per-successful-workflow "
+        "(cost_per_success.py, joining TraceStore's status+cost), both shown on the "
+        "Traces page. Still missing, honestly: no caching layer (semantic or prompt) "
+        "at all, and no TTFT/streaming measurement anywhere.",
     ),
     (
         "learn_production_ai_engineering",

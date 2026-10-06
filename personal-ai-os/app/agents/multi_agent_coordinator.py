@@ -25,6 +25,7 @@ it" is better served PARALLEL (the two aren't inputs to each other) then
 combined.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 
 from pydantic import BaseModel
@@ -177,7 +178,17 @@ class MultiAgentCoordinator:
         return self._combined_response(text, plan, responses, final_output=responses[-1].output)
 
     def _run_parallel(self, text: str, plan: MultiAgentPlan) -> AgentResponse:
-        responses = [self._agents[agent_name].run(text) for agent_name in plan.agents]
+        # Real fix (found while investigating "AI Cost & Latency Engineering" --
+        # this used to be a plain list comprehension, i.e. each agent run
+        # sequentially despite the PARALLEL name/label). ThreadPoolExecutor.map
+        # actually dispatches every agent's .run() concurrently -- real wall-clock
+        # benefit, proven in tests/test_multi_agent_coordinator.py by agents with
+        # artificial delay finishing in ~max(delays), not ~sum(delays). map()
+        # still returns results in plan.agents order, so _combined_response's
+        # agent_label/tool_call ordering is unchanged. Each agent only touches its
+        # own self._llm (no shared mutable state across agents), so this is safe.
+        with ThreadPoolExecutor(max_workers=len(plan.agents)) as executor:
+            responses = list(executor.map(lambda name: self._agents[name].run(text), plan.agents))
         agent_outputs = "\n\n".join(f"--- {r.agent} ---\n{r.output}" for r in responses)
         synthesis_prompt = SYNTHESIS_PROMPT.format(text=text, agent_outputs=agent_outputs)
         combined_output = self._llm.generate(synthesis_prompt)

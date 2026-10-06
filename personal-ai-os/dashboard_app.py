@@ -35,6 +35,8 @@ from app.domains.cross_domain.goal_store import GoalStore
 from app.evaluation.domain_golden import count_cases_by_domain
 from app.graph.store import GraphStore
 from app.memory.persistent_store import PersistentMemoryStore
+from app.observability.cost_per_success import compute_cost_per_success
+from app.observability.latency_breakdown import compute_latency_breakdown
 from app.observability.error_analysis import (
     failure_examples,
     span_failure_counts_by_kind,
@@ -514,6 +516,45 @@ def _render_error_rates_section(trace_store, summaries: list[dict]) -> None:
         st.caption("No failed spans to show examples for.")
 
 
+def _render_cost_per_success_section(summaries: list[dict]) -> None:
+    """Real join of cost against outcome, computed from TraceStore's own
+    summaries (each already carries real status + real cost) -- found
+    missing while investigating 'AI Cost & Latency Engineering': the
+    existing CostTracker/JourneyCost total $ per journey, but nothing tied
+    that $ to whether the request actually succeeded."""
+    st.subheader("Cost per successful workflow")
+    st.caption(
+        "Joins each stored trace's real cost against its real status — not just "
+        "$/million tokens, but $ per successful request vs. $ per failed one. "
+        "Computed from every trace currently in TraceStore; an empty section means "
+        "no trace has been recorded yet, not a hidden zero."
+    )
+
+    if not summaries:
+        st.info("No traces recorded yet.")
+        return
+
+    report = compute_cost_per_success(summaries)
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric(
+        "Cost per successful request",
+        f"${report.cost_per_success:.6f}" if report.cost_per_success is not None else "n/a",
+    )
+    col2.metric(
+        "Cost per failed request",
+        f"${report.cost_per_failure:.6f}" if report.cost_per_failure is not None else "n/a",
+    )
+    col3.metric(
+        "Success rate",
+        f"{report.success_rate * 100:.1f}%" if report.success_rate is not None else "n/a",
+    )
+    st.caption(
+        f"{report.successful_count} successful / {report.failed_count} failed trace(s) analyzed · "
+        f"total cost ${report.total_cost:.6f}."
+    )
+
+
 def _render_model_drift_section() -> None:
     """Real model/eval-drift section, from app/dashboard_ui/eval_history.json
     (appended to by scripts/track_eval_drift.py re-running the same real,
@@ -575,6 +616,7 @@ def render_traces(stores: dict) -> None:
     summaries = trace_store.list_summaries(limit=200)
 
     _render_error_rates_section(trace_store, summaries)
+    _render_cost_per_success_section(summaries)
     _render_model_drift_section()
     st.markdown("---")
 
@@ -625,6 +667,27 @@ def render_traces(stores: dict) -> None:
     col6.metric("Output tokens", full_trace.output_tokens)
 
     st.markdown(f"**Model:** {full_trace.model}  ·  **Agent:** {full_trace.agent}")
+
+    st.subheader("Latency breakdown")
+    st.caption(
+        "Real aggregation of this trace's own Span.duration_ms data, by span kind "
+        "(classification/agent/tool/retrieval/etc.) — found missing while investigating "
+        "'AI Cost & Latency Engineering': duration_ms was already captured per span, but "
+        "never aggregated anywhere before this."
+    )
+    if not full_trace.spans:
+        st.caption("No spans recorded for this trace.")
+    else:
+        breakdown = compute_latency_breakdown(full_trace)
+        if breakdown.by_kind_ms:
+            st.bar_chart(breakdown.by_kind_ms)
+            shares = breakdown.share_by_kind()
+            st.caption(
+                " · ".join(f"{kind}: {ms:.0f}ms ({shares[kind] * 100:.0f}%)" for kind, ms in breakdown.by_kind_ms.items())
+                + f" · unaccounted: {breakdown.unaccounted_ms:.0f}ms"
+            )
+        else:
+            st.caption("No span had a recorded duration.")
 
     st.subheader("Journey")
     if not full_trace.spans:
