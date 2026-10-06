@@ -28,6 +28,24 @@ def test_write_then_get():
     assert result.memory_id == "m1"
 
 
+def test_delete_removes_the_memory():
+    store = _store()
+    store.write(_record("m1"))
+
+    store.delete("t1", "u1", "m1")
+
+    assert store.get("t1", "u1", "m1") is None
+
+
+def test_delete_is_scoped_to_tenant_and_user():
+    store = _store()
+    store.write(_record("m1", tenant="t1", user="u1"))
+
+    store.delete("t2", "u2", "m1")  # wrong scope -- should not delete
+
+    assert store.get("t1", "u1", "m1") is not None
+
+
 def test_get_missing_returns_none():
     store = _store()
 

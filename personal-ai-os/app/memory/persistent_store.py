@@ -68,6 +68,16 @@ class PersistentMemoryStore:
         ).fetchall()
         return [_row_to_record(row) for row in rows]
 
+    def delete(self, tenant_id: str, user_id: str, memory_id: str) -> None:
+        """Found missing while building a real undo path for write_memory
+        (Human-in-the-Loop AI investigation) -- scoped by tenant/user like
+        every other real lookup here, so undo can't cross a scope boundary."""
+        self._conn.execute(
+            "DELETE FROM memories WHERE tenant_id = ? AND user_id = ? AND memory_id = ?",
+            (tenant_id, user_id, memory_id),
+        )
+        self._conn.commit()
+
     def count(self, tenant_id: str, user_id: str) -> int:
         row = self._conn.execute(
             "SELECT COUNT(*) AS n FROM memories WHERE tenant_id = ? AND user_id = ?",

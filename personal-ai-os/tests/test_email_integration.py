@@ -63,6 +63,11 @@ def test_email_tool_reports_no_emails():
     assert "No emails" in result
 
 
-def test_email_client_never_writes():
-    assert not hasattr(EmailClient, "send_email")
-    assert not hasattr(EmailClient, "delete_email")
+def test_email_client_now_supports_real_write_and_undo():
+    # Section 25's original read-only rule was explicitly reversed while
+    # investigating "Human-in-the-Loop AI" -- replaces the old "never
+    # writes" guarantee with the new, deliberate one. send_email/
+    # recall_email are simulated (same in-memory fidelity the read
+    # methods already had), not a real SMTP/Gmail call.
+    assert hasattr(EmailClient, "send_email")
+    assert hasattr(EmailClient, "recall_email")

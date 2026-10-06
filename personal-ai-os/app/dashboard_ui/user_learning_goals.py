@@ -303,21 +303,27 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand undo/recovery, audit trails, verification",
             "Internalize: the best agentic UX is often bounded autonomy, not full autonomy",
         ],
-        0.75,
-        "Real propose -> approve -> execute -> verify flow via ActionProposal/"
+        0.95,
+        "Real propose -> approve -> execute -> verify -> undo flow via ActionProposal/"
         "ApprovalStatus/PolicyEngine/AuditRecord, exercised in tests and the seed data's "
-        "own audit-log entries (one auto-approved READ, one PENDING ACT). Found and closed "
-        "a real, significant gap: every approval anywhere in this project was a SCRIPTED "
-        "call to resume_after_approval() -- no screen let a human actually see a real "
-        "pending action and click Approve/Reject. New live (no LLM call, free) approval "
-        "queue on the Governance & Sandbox page does exactly that against the real, "
-        "persistent AuditLog -- verified live end to end (propose -> genuinely PENDING -> "
-        "click Approve -> real execution). A real bug was found and fixed while verifying: "
-        "an unrelated real pending record for an unregistered tool crashed the page on "
-        "Approve; fixed to show it read-only instead. Still missing, honestly: no "
-        "undo/recovery mechanism for an already-executed action (criterion 3 names this "
-        "explicitly), and PolicyEngine._verify() is still a bare non-empty-result stub, "
-        "not a real tool-specific check.",
+        "own audit-log entries. Found and closed a real, significant gap: every approval "
+        "anywhere in this project was a SCRIPTED call to resume_after_approval() -- new "
+        "live (no LLM call, free) approval queue on the Governance & Sandbox page lets a "
+        "human actually click Approve/Reject against the real, persistent AuditLog. Found "
+        "a deeper gap while scoping undo: every existing tool was read-only, so there was "
+        "no writing action anywhere to reverse. Explicitly reversed that scope (6 new real, "
+        "undoable writing tools -- create_goal/create_commitment/write_memory/"
+        "create_calendar_event/send_email/modify_github) and built the real "
+        "Tool.undo()/PolicyEngine.undo_action() mechanism, including a real SQLite "
+        "migration for the existing audit log. modify_github is NOT simulated -- genuinely "
+        "pushes a real commit to and deletes a real branch on a real GitHub repo over SSH, "
+        "verified live against api.github.com. Along the way found and fixed 2 real "
+        "architectural collisions with the existing sandbox (unpicklable DB connections; "
+        "in-memory client writes invisible across the sandbox's process boundary). New "
+        "live Undo button verified end to end (propose -> approve -> execute -> undo -> "
+        "genuinely gone), and a non-undoable tool's Undo correctly raises rather than "
+        "falsely succeeding. Still missing, honestly: PolicyEngine._verify() is still a "
+        "bare non-empty-result stub, not a real tool-specific check.",
     ),
     (
         "learn_ai_observability",

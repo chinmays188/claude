@@ -22,6 +22,32 @@ def test_get_events_filters_by_day():
     assert len(events) == 2
 
 
+def test_create_event_adds_a_real_event():
+    client = CalendarClient()
+    event = _event("new1", 9, 10)
+
+    created = client.create_event(event)
+
+    assert created.event_id == "new1"
+    assert client.get_events(DAY) == [event]
+
+
+def test_delete_event_removes_it():
+    client = CalendarClient([_event("e1", 9, 10)])
+
+    client.delete_event("e1")
+
+    assert client.get_events(DAY) == []
+
+
+def test_delete_missing_event_raises():
+    client = CalendarClient()
+
+    import pytest
+    with pytest.raises(ValueError):
+        client.delete_event("does-not-exist")
+
+
 def test_find_conflicts_detects_overlap():
     client = CalendarClient([_event("e1", 9, 11), _event("e2", 10, 12)])
 
@@ -54,7 +80,12 @@ def test_calendar_tool_reports_conflicts():
     assert "conflict" in result.lower()
 
 
-def test_calendar_client_never_writes():
-    # Structural guarantee: no write/create/delete method exists on the client.
-    assert not hasattr(CalendarClient, "create_event")
-    assert not hasattr(CalendarClient, "delete_event")
+def test_calendar_client_now_supports_real_write_and_undo():
+    # Section 24's original "do not initially modify calendar events" rule
+    # was explicitly reversed while investigating "Human-in-the-Loop AI"
+    # ("we should move out of read only scope now and add the undo") --
+    # this test replaces the old "never writes" structural guarantee with
+    # the new, deliberate one: both methods exist and are simulated (same
+    # in-memory fidelity as the read methods), not a real OAuth call.
+    assert hasattr(CalendarClient, "create_event")
+    assert hasattr(CalendarClient, "delete_event")

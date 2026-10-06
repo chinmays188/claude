@@ -1,0 +1,86 @@
+{
+  "examples": [
+    {
+      "tool": "create_goal",
+      "description": "Create a new tracked goal",
+      "args": {
+        "owner_id": "demo_user",
+        "title": "Learn Kubernetes",
+        "domain": "LEARNING"
+      },
+      "execution_result": "474e298ea59c42b090547cb784274fab",
+      "exists_after_create": true,
+      "undo_result": "Deleted goal '474e298ea59c42b090547cb784274fab'.",
+      "exists_after_undo": false
+    },
+    {
+      "tool": "create_commitment",
+      "description": "Record a new commitment",
+      "args": {
+        "owner_id": "demo_user",
+        "description": "Send follow-up email",
+        "owner": "user"
+      },
+      "execution_result": "33cb4946e3954edb9ac25d736f25cac0",
+      "exists_after_create": true,
+      "undo_result": "Deleted commitment '33cb4946e3954edb9ac25d736f25cac0'.",
+      "exists_after_undo": false
+    },
+    {
+      "tool": "write_memory",
+      "description": "Save a piece of long-term memory",
+      "args": {
+        "tenant_id": "demo_tenant",
+        "user_id": "demo_user",
+        "type": "preference",
+        "content": "Prefers concise answers"
+      },
+      "execution_result": "03b0ee02833a4d638ce863bec50ae98c",
+      "exists_after_create": true,
+      "undo_result": "Deleted memory '03b0ee02833a4d638ce863bec50ae98c'.",
+      "exists_after_undo": false
+    },
+    {
+      "tool": "create_calendar_event",
+      "description": "Create a new calendar event",
+      "args": {
+        "title": "Team Sync",
+        "start": "2026-02-01T09:00:00+00:00",
+        "end": "2026-02-01T10:00:00+00:00"
+      },
+      "execution_result": "b01e961ba83c40839e4fa55fcb1eddfc",
+      "went_through_approval": true,
+      "exists_after_create": true,
+      "undo_result": "Deleted calendar event 'b01e961ba83c40839e4fa55fcb1eddfc'.",
+      "exists_after_undo": false
+    },
+    {
+      "tool": "send_email",
+      "description": "Send an email",
+      "args": {
+        "sender": "demo_user@example.com",
+        "subject": "Follow-up",
+        "body": "Just checking in."
+      },
+      "execution_result": "719b614d770d41d689f400faec39e8dd",
+      "went_through_approval": true,
+      "exists_after_create": true,
+      "undo_result": "Recalled email '719b614d770d41d689f400faec39e8dd'.",
+      "exists_after_undo": false
+    },
+    {
+      "tool": "modify_github",
+      "description": "Push a new branch with a commit (REAL, live, not simulated)",
+      "args": {
+        "branch_name": "hitl-undo-demo-e08838f7",
+        "commit_message": "Real Human-in-the-Loop undo demo (will be deleted)"
+      },
+      "execution_result": "hitl-undo-demo-e08838f7@2220c7c1d2bf01cfec5ae88c9cadd79cbafeca15",
+      "went_through_approval": true,
+      "exists_after_create": true,
+      "undo_result": "Deleted real remote branch 'hitl-undo-demo-e08838f7'.",
+      "exists_after_undo": false,
+      "repo": "chinmays188/linkedin-mcp-server"
+    }
+  ]
+}

@@ -7,7 +7,7 @@ from app.actions.models import ActionClass, ApprovalStatus
 from app.actions.policy_engine import ApprovalPending, PolicyEngine
 from app.db.connection import get_connection
 from app.safety.permissions import PermissionChecker, PermissionDeniedError
-from app.tools.base import Tool
+from app.tools.base import Tool, UndoNotSupportedError
 from app.tools.calculator import CalculatorTool
 
 
@@ -24,6 +24,17 @@ class FakeSendEmailTool(Tool):
 
     def run(self, args: SendArgs) -> str:
         return f"Sent to {args.to}: {args.message}"
+
+
+class FakeUndoableSendEmailTool(FakeSendEmailTool):
+    undoable = True
+
+    def __init__(self):
+        self.undone_args = None
+
+    def undo(self, args: SendArgs, result: str) -> str:
+        self.undone_args = args
+        return f"Recalled: {result}"
 
 
 def _engine(granted_permissions: set[str], overrides=None) -> PolicyEngine:
@@ -141,3 +152,76 @@ def test_full_pipeline_produces_verified_audit_record():
     assert record.executed is True
     assert record.verified is True
     assert record.approved_by == "alice"
+
+
+def test_undo_action_reverses_an_executed_undoable_action():
+    classifier = ActionClassifier()
+    permission_checker = PermissionChecker({"write:email"})
+    audit_log = AuditLog(get_connection(":memory:"))
+    tool = FakeUndoableSendEmailTool()
+    engine = PolicyEngine(classifier, permission_checker, audit_log, {"send_email": tool})
+
+    try:
+        engine.propose_and_execute("send_email", {"to": "a@b.com", "message": "hi"}, "notify")
+    except ApprovalPending as e:
+        action_id = e.action_id
+    engine.resume_after_approval(action_id, approved=True, approved_by="alice")
+
+    result = engine.undo_action(action_id, undone_by="alice")
+
+    assert "Recalled" in result
+    assert tool.undone_args.to == "a@b.com"
+    record = audit_log.get(action_id)
+    assert record.undone is True
+    assert record.undo_result == result
+    assert record.undone_by == "alice"
+
+
+def test_undo_action_raises_when_tool_does_not_support_it():
+    engine = _engine(granted_permissions={"write:email"})  # FakeSendEmailTool: undoable=False
+
+    try:
+        engine.propose_and_execute("send_email", {"to": "a@b.com", "message": "hi"}, "notify")
+    except ApprovalPending as e:
+        action_id = e.action_id
+    engine.resume_after_approval(action_id, approved=True, approved_by="alice")
+
+    with pytest.raises(UndoNotSupportedError):
+        engine.undo_action(action_id, undone_by="alice")
+
+
+def test_undo_action_raises_for_unexecuted_action():
+    engine = _engine(granted_permissions={"write:email"})
+
+    try:
+        engine.propose_and_execute("send_email", {"to": "a@b.com", "message": "hi"}, "notify")
+    except ApprovalPending as e:
+        action_id = e.action_id
+
+    with pytest.raises(ValueError):
+        engine.undo_action(action_id, undone_by="alice")
+
+
+def test_undo_action_raises_when_already_undone():
+    classifier = ActionClassifier()
+    permission_checker = PermissionChecker({"write:email"})
+    audit_log = AuditLog(get_connection(":memory:"))
+    tool = FakeUndoableSendEmailTool()
+    engine = PolicyEngine(classifier, permission_checker, audit_log, {"send_email": tool})
+
+    try:
+        engine.propose_and_execute("send_email", {"to": "a@b.com", "message": "hi"}, "notify")
+    except ApprovalPending as e:
+        action_id = e.action_id
+    engine.resume_after_approval(action_id, approved=True, approved_by="alice")
+    engine.undo_action(action_id, undone_by="alice")
+
+    with pytest.raises(ValueError):
+        engine.undo_action(action_id, undone_by="alice")
+
+
+def test_undo_action_raises_for_unknown_action_id():
+    engine = _engine(granted_permissions=set())
+
+    with pytest.raises(ValueError):
+        engine.undo_action("does-not-exist", undone_by="alice")

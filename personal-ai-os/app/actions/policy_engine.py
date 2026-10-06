@@ -3,7 +3,7 @@ from app.actions.classification import ActionClassifier
 from app.actions.models import ActionProposal, ApprovalStatus, AuditRecord
 from app.platform.sandbox import SandboxedToolExecutor
 from app.safety.permissions import PermissionChecker, PermissionDeniedError
-from app.tools.base import Tool, ToolError
+from app.tools.base import Tool, ToolError, UndoNotSupportedError
 
 
 class ApprovalPending(Exception):
@@ -113,6 +113,35 @@ class PolicyEngine:
             )
         )
         return result
+
+    def undo_action(self, action_id: str, undone_by: str) -> str:
+        """Found missing while investigating "Human-in-the-Loop AI"
+        (criterion: "understand undo/recovery"): an executed action had no
+        path back at all. Only genuinely reverses an action that was
+        actually executed and whose Tool explicitly declares undoable=True
+        -- raises UndoNotSupportedError otherwise, never silently no-ops."""
+        record = self._audit.get(action_id)
+        if record is None:
+            raise ValueError(f"No action with id '{action_id}'.")
+        if not record.executed:
+            raise ValueError(f"Action '{action_id}' was never executed; nothing to undo.")
+        if record.undone:
+            raise ValueError(f"Action '{action_id}' was already undone.")
+
+        tool = self._tools.get(record.proposal.tool_name)
+        if tool is None:
+            raise ToolError(f"Tool '{record.proposal.tool_name}' is not registered.")
+        if not tool.undoable:
+            raise UndoNotSupportedError(f"Tool '{record.proposal.tool_name}' does not support undo.")
+
+        args = tool.validate_args(record.proposal.args)
+        undo_result = tool.undo(args, record.execution_result or "")
+
+        record.undone = True
+        record.undo_result = undo_result
+        record.undone_by = undone_by
+        self._audit.record(record)
+        return undo_result
 
     def _verify(self, proposal: ActionProposal, result: str) -> tuple[bool, str]:
         """Minimal post-execution verification: the tool returned something

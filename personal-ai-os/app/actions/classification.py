@@ -13,6 +13,13 @@ _DEFAULT_CLASSIFICATIONS: dict[str, ActionClass] = {
     "create_calendar_event": ActionClass.ACT,
     "modify_github": ActionClass.ACT,
     "create_draft": ActionClass.WRITE,
+    # Found missing while investigating "Human-in-the-Loop AI": every real
+    # tool before these was read-only, so every ACT entry above pointed at
+    # a tool that was never actually built. These 3 now have real
+    # implementations too (app/tools/writing_tools.py).
+    "create_goal": ActionClass.WRITE,
+    "create_commitment": ActionClass.WRITE,
+    "write_memory": ActionClass.WRITE,
 }
 
 _DEFAULT_RISK: dict[ActionClass, RiskLevel] = {

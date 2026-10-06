@@ -68,6 +68,15 @@ class GoalStore:
         self._save(goal)
         return goal
 
+    def delete(self, goal_id: str) -> None:
+        """Found missing while building a real undo path for create_goal
+        (Human-in-the-Loop AI investigation): raises GoalNotFoundError if
+        the goal doesn't exist, same as every other lookup here, rather
+        than silently no-op'ing on an already-deleted/invalid id."""
+        self.get(goal_id)
+        self._conn.execute("DELETE FROM goals WHERE goal_id = ?", (goal_id,))
+        self._conn.commit()
+
     def _save(self, goal: Goal) -> None:
         self._conn.execute(
             """INSERT OR REPLACE INTO goals

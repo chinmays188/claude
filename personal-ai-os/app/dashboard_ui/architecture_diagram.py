@@ -402,6 +402,55 @@ HISTORY:
     exists anywhere for an already-executed action, and `PolicyEngine._verify()`
     is still a bare non-empty-result stub, not a tool-specific check.
 
+18. Updated in the SAME batch again to close the undo/recovery gap item
+    17 deliberately left open ("should we not build for undo/recovery?").
+    New `Tool.undo()` (optional, defaults to raising
+    `UndoNotSupportedError`) + `PolicyEngine.undo_action()` + a new
+    `AuditRecord.undone`/`undo_result`/`undone_by` (with a real SQLite
+    migration, since `data/personal_ai.db` already existed without these
+    columns -- this project's first real schema migration). A deeper real
+    finding surfaced while scoping this: EVERY existing tool
+    (calculator/retrieve/calendar_day/email_summary/github_activity/
+    analyze_feedback/jd/draft_prd) was read-only -- there was no writing
+    action anywhere to attach undo to at all. Per the user's explicit
+    choice ("we should move out of read only scope now and add the
+    undo" / "Yes, build all 6 in this batch" / "Also reverse the
+    calendar/email/GitHub read-only scope decisions"), 6 new real,
+    undoable writing tools now exist (app/tools/writing_tools.py):
+    create_goal, create_commitment, write_memory (new real `delete()` on
+    GoalStore/CommitmentStore/PersistentMemoryStore), create_calendar_event
+    and send_email (explicitly reversing Sections 24/25's prior read-only
+    decisions on CalendarClient/EmailClient -- simulated, no real
+    OAuth/SMTP configured), and modify_github -- the one NOT simulated:
+    a new app/integrations/github_git_write_client.py genuinely pushes a
+    branch with a real commit to the real chinmays188/linkedin-mcp-server
+    repo over SSH (chosen over the REST API after a real constraint was
+    found: no GITHUB_TOKEN is configured in this environment, so
+    REST-based issue creation wasn't possible; SSH push access WAS
+    confirmed live), then genuinely deletes that branch for undo.
+    Two further real architectural collisions were found and fixed while
+    wiring these into the existing `SandboxedToolExecutor`: (a) it
+    pickles the whole `Tool` object to send into a spawned child process,
+    but the 3 DB-backed tools held a live `sqlite3.Connection`
+    (unpicklable) -- fixed by storing a `db_path` string instead and
+    opening a fresh connection per real call; (b) `CalendarClient`/
+    `EmailClient`'s in-memory list mutation happened inside a throwaway
+    child process and was invisible to the caller once it exited -- fixed
+    by giving both real, optional JSON-file-backed persistence, with
+    every read re-reading the file rather than trusting cached state.
+    New `scripts/generate_undo_examples.py` proves all 6 real
+    propose -> approve -> execute -> undo chains end to end, with a real
+    before/after existence check each time; `modify_github`'s real
+    GitHub branch was independently verified live against
+    api.github.com. New live, interactive Undo button added to the
+    Governance page's HITL section (alongside the existing live
+    Approve/Reject), using the new real, undoable `create_goal` tool --
+    verified live: propose -> genuinely PENDING -> approve -> executed ->
+    click Undo -> genuinely gone; a `calculator` entry's Undo correctly
+    raises a real `UndoNotSupportedError` instead of a false success.
+    "Human-in-the-Loop AI" learning goal progress updated again in the
+    same batch. `PolicyEngine._verify()` remains a disclosed, open gap.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline

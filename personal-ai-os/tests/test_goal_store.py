@@ -34,6 +34,24 @@ def test_get_missing_raises():
         store.get("does-not-exist")
 
 
+def test_delete_removes_the_goal():
+    store = _store()
+    goal = _goal()
+    store.create(goal)
+
+    store.delete(goal.goal_id)
+
+    with pytest.raises(GoalNotFoundError):
+        store.get(goal.goal_id)
+
+
+def test_delete_missing_raises():
+    store = _store()
+
+    with pytest.raises(GoalNotFoundError):
+        store.delete("does-not-exist")
+
+
 def test_list_by_owner_scoped_correctly():
     store = _store()
     store.create(_goal(owner="alice"))

@@ -127,6 +127,13 @@ class CommitmentStore:
         self.save(commitment)
         return commitment
 
+    def delete(self, commitment_id: str) -> None:
+        """Found missing while building a real undo path for
+        create_commitment (Human-in-the-Loop AI investigation)."""
+        self.get(commitment_id)
+        self._conn.execute("DELETE FROM commitments WHERE commitment_id = ?", (commitment_id,))
+        self._conn.commit()
+
     def overdue(self, owner_id: str, as_of: date | None = None) -> list[Commitment]:
         """Milestone 33's follow-up half: a commitment past its due date and
         still open/followed-up (not fulfilled) needs the user's attention."""

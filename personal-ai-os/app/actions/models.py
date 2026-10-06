@@ -32,6 +32,7 @@ class ApprovalStatus(str, Enum):
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     AUTO_APPROVED = "AUTO_APPROVED"  # READ actions never need a human, but still logged
+    UNDONE = "UNDONE"  # an executed action that was genuinely reversed via Tool.undo()
 
 
 class AuditRecord(BaseModel):
@@ -43,4 +44,10 @@ class AuditRecord(BaseModel):
     execution_result: str | None = None
     verified: bool = False
     verification_note: str | None = None
+    # Found missing while investigating "Human-in-the-Loop AI": an executed
+    # action had no path back to "undone" at all. Set only after a real
+    # Tool.undo() call genuinely succeeds -- never optimistically.
+    undone: bool = False
+    undo_result: str | None = None
+    undone_by: str | None = None
     recorded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -1687,6 +1687,20 @@ def _load_governance_examples() -> dict | None:
     return json.loads(_GOVERNANCE_EXAMPLES_PATH.read_text())
 
 
+_UNDO_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "undo_examples.json"
+
+
+def _load_undo_examples() -> dict | None:
+    """Loads scripts/generate_undo_examples.py's committed, real output --
+    one of the 6 examples (modify_github) is a genuinely live network
+    call against a real GitHub repo, not simulated, so this is
+    pre-generated rather than run on page render (this dashboard's
+    standing no-live-network-call rule)."""
+    if not _UNDO_EXAMPLES_PATH.exists():
+        return None
+    return json.loads(_UNDO_EXAMPLES_PATH.read_text())
+
+
 def render_governance(stores: dict) -> None:
     st.header("Production AI Engineering: Governance & Guardrails")
     st.caption(
@@ -1783,13 +1797,15 @@ def render_governance(stores: dict) -> None:
     from app.actions.models import ActionClass
     from app.actions.policy_engine import ApprovalPending, PolicyEngine
     from app.safety.permissions import PermissionChecker
+    from app.tools.base import UndoNotSupportedError
     from app.tools.calculator import CalculatorTool
+    from app.tools.writing_tools import CreateGoalTool
 
     hitl_policy_engine = PolicyEngine(
         ActionClassifier(overrides={"calculator": ActionClass.ACT}),
-        PermissionChecker({"compute:local"}),
+        PermissionChecker({"compute:local", "write:goals"}),
         stores["audit"],
-        {"calculator": CalculatorTool()},
+        {"calculator": CalculatorTool(), "create_goal": CreateGoalTool(DB_PATH)},
     )
 
     propose_col1, propose_col2 = st.columns([3, 1])
@@ -1805,15 +1821,36 @@ def render_governance(stores: dict) -> None:
             except ApprovalPending as exc:
                 st.success(f"Real `ApprovalPending` raised — action `{exc.action_id}` is now genuinely PENDING below.")
 
+    st.caption(
+        "Found missing while investigating undo/recovery: every tool used to be read-only, so "
+        "there was never anything executed to reverse. `create_goal` is real and undoable (it "
+        "writes to the same real `data/personal_ai.db` the rest of this dashboard reads) — "
+        "propose one below to try a real Undo after it executes."
+    )
+    goal_title = st.text_input("Goal title (real create_goal tool, WRITE-classified, undoable)", value="Learn Kubernetes")
+    if st.button("Propose create_goal"):
+        from app.domains.router import Domain
+
+        try:
+            hitl_policy_engine.propose_and_execute(
+                "create_goal",
+                {"owner_id": USER_ID, "title": goal_title, "domain": Domain.LEARNING.value},
+                description=f"Create goal: {goal_title}",
+            )
+        except ApprovalPending as exc:
+            st.success(f"Real `ApprovalPending` raised — action `{exc.action_id}` is now genuinely PENDING below.")
+
     all_pending = stores["audit"].list_pending_approval()
-    # This demo's PolicyEngine only has calculator registered -- real
-    # pending records for other tools (e.g. seeded send_email examples
-    # from scripts/generate_governance_examples.py) share the same real
-    # AuditLog table but genuinely can't be executed by THIS instance.
-    # Shown separately rather than crashing with a real ToolError on
-    # Approve, or silently hiding real data this page didn't create.
-    actionable_pending = [r for r in all_pending if r.proposal.tool_name in {"calculator"}]
-    other_pending = [r for r in all_pending if r.proposal.tool_name not in {"calculator"}]
+    # This demo's PolicyEngine only has calculator/create_goal registered
+    # -- real pending records for other tools (e.g. seeded send_email
+    # examples from scripts/generate_governance_examples.py) share the
+    # same real AuditLog table but genuinely can't be executed by THIS
+    # instance. Shown separately rather than crashing with a real
+    # ToolError on Approve, or silently hiding real data this page didn't
+    # create.
+    actionable_tool_names = {"calculator", "create_goal"}
+    actionable_pending = [r for r in all_pending if r.proposal.tool_name in actionable_tool_names]
+    other_pending = [r for r in all_pending if r.proposal.tool_name not in actionable_tool_names]
 
     if not all_pending:
         st.caption("No real pending actions right now — propose one above.")
@@ -1844,6 +1881,25 @@ def render_governance(stores: dict) -> None:
                     st.warning(result)
                     st.rerun()
 
+    executed_not_undone = [
+        r for r in stores["audit"].list_executed_not_undone() if r.proposal.tool_name in actionable_tool_names
+    ]
+    if executed_not_undone:
+        st.markdown("**Executed actions you can undo:**")
+        for record in executed_not_undone:
+            with st.container(border=True):
+                st.markdown(
+                    f"**Action `{record.action_id[:8]}…`** — `{record.proposal.tool_name}` · "
+                    f"result: `{record.execution_result}`"
+                )
+                if st.button("↩️ Undo", key=f"undo_{record.action_id}"):
+                    try:
+                        undo_result = hitl_policy_engine.undo_action(record.action_id, undone_by=USER_ID)
+                        st.success(f"Real undo result: `{undo_result}`")
+                        st.rerun()
+                    except UndoNotSupportedError as exc:
+                        st.error(f"Real `UndoNotSupportedError`: {exc}")
+
     with st.expander("Real full audit trail (every proposal, decision, and outcome)", expanded=False):
         all_records = stores["audit"].list_all()
         if all_records:
@@ -1857,6 +1913,8 @@ def render_governance(stores: dict) -> None:
                         "executed": r.executed,
                         "verified": r.verified,
                         "result": r.execution_result,
+                        "undone": r.undone,
+                        "undo_result": r.undo_result,
                     }
                     for r in all_records
                 ]
@@ -1865,7 +1923,36 @@ def render_governance(stores: dict) -> None:
             st.caption("No audit records yet.")
 
     st.divider()
-    st.subheader("3. Real, governed chat requests (pre-generated, real Gemini calls)")
+    st.subheader("3. Real writing tools with real undo (pre-generated, 1 genuinely live against GitHub)")
+    st.caption(
+        "Found while investigating undo/recovery: every real tool in this project was read-only "
+        "before this batch -- there was no WRITING action anywhere to attach undo to. 6 new real "
+        "writing tools now exist (app/tools/writing_tools.py), each with a real Tool.undo(). "
+        "5 operate on real stores/clients this project already has; `modify_github` is NOT "
+        "simulated -- it genuinely pushes a branch with a real commit to a real GitHub repo over "
+        "SSH, then genuinely deletes it. Pre-generated since modify_github needs a real network "
+        "call; re-run `python scripts/generate_undo_examples.py` to regenerate all 6."
+    )
+    undo_examples = _load_undo_examples()
+    if undo_examples is None:
+        st.warning("No examples found — run `python scripts/generate_undo_examples.py` first.")
+    else:
+        for ex in undo_examples["examples"]:
+            icon = "🌐" if ex["tool"] == "modify_github" else "✅"
+            with st.expander(f"{icon} {ex['tool']} — {ex['description']}", expanded=False):
+                st.json(ex["args"])
+                st.markdown(f"**Execution result:** `{ex['execution_result']}`")
+                st.markdown(f"**Existed after create:** {ex['exists_after_create']}")
+                st.markdown(f"**Undo result:** `{ex['undo_result']}`")
+                st.markdown(f"**Existed after undo:** {ex['exists_after_undo']}")
+                if ex["tool"] == "modify_github":
+                    st.caption(
+                        f"Real, live, verified against api.github.com — repo: {ex['repo']}, "
+                        f"branch: {ex['args']['branch_name']}."
+                    )
+
+    st.divider()
+    st.subheader("4. Real, governed chat requests (pre-generated, real Gemini calls)")
     examples = _load_governance_examples()
     if examples is None:
         st.warning("No examples found — run `python scripts/generate_governance_examples.py` first.")
@@ -1894,7 +1981,7 @@ def render_governance(stores: dict) -> None:
         st.caption(f"Real enforced timeout: {timeout_example['timeout_seconds']}s.")
 
     st.divider()
-    st.subheader("4. Production ops drills — real, run against this project's real system")
+    st.subheader("5. Production ops drills — real, run against this project's real system")
     st.caption(
         "4 real, previously-unused `app/platform/` modules — disaster recovery, release "
         "versioning, eval-gated releases, and the async job queue/workflow runtime — each run "
