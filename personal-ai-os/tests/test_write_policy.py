@@ -1,5 +1,6 @@
-from app.memory.write_policy import MemoryWritePolicy, is_duplicate
+from app.memory.write_policy import MemoryWritePolicy, is_duplicate, is_semantic_duplicate
 from app.providers.base import LLMProvider
+from tests.fakes.fake_summary_embedding import FakeSummaryEmbedding
 
 
 class ScriptedProvider(LLMProvider):
@@ -85,3 +86,61 @@ def test_is_duplicate_case_and_whitespace_insensitive():
 
 def test_is_duplicate_empty_existing_list():
     assert not is_duplicate("anything", [])
+
+
+def test_is_semantic_duplicate_catches_a_real_paraphrase():
+    embedding_model = FakeSummaryEmbedding()
+
+    assert is_semantic_duplicate(
+        embedding_model, "User wants to learn Docker within a month.",
+        ["Learn Docker in 30 days."],
+    )
+
+
+def test_is_semantic_duplicate_does_not_flag_distinct_memories():
+    embedding_model = FakeSummaryEmbedding()
+
+    assert not is_semantic_duplicate(
+        embedding_model, "Prefers dark mode in the dashboard UI.",
+        ["Learn Docker in 30 days.", "Chose RAG over fine-tuning for the spec doc Q&A feature."],
+    )
+
+
+def test_is_semantic_duplicate_empty_existing_list():
+    assert not is_semantic_duplicate(FakeSummaryEmbedding(), "anything", [])
+
+
+def test_policy_without_embedding_model_only_catches_exact_duplicates():
+    llm = ScriptedProvider(
+        ['{"should_remember": true, "type": "goal", "importance": 0.6, '
+         '"summary": "User wants to learn Docker within a month."}']
+    )
+    policy = MemoryWritePolicy(llm)  # no embedding_model given -- backward-compatible default
+
+    candidate, _ = policy.evaluate("some text", existing_summaries=["Learn Docker in 30 days."])
+
+    assert candidate is not None  # not caught -- exact-match only, as before this change
+
+
+def test_policy_with_embedding_model_catches_semantic_duplicates():
+    llm = ScriptedProvider(
+        ['{"should_remember": true, "type": "goal", "importance": 0.6, '
+         '"summary": "User wants to learn Docker within a month."}']
+    )
+    policy = MemoryWritePolicy(llm, embedding_model=FakeSummaryEmbedding())
+
+    candidate, _ = policy.evaluate("some text", existing_summaries=["Learn Docker in 30 days."])
+
+    assert candidate is None  # now caught as a real semantic duplicate
+
+
+def test_policy_with_embedding_model_still_allows_distinct_memories():
+    llm = ScriptedProvider(
+        ['{"should_remember": true, "type": "preference", "importance": 0.6, '
+         '"summary": "Prefers dark mode in the dashboard UI."}']
+    )
+    policy = MemoryWritePolicy(llm, embedding_model=FakeSummaryEmbedding())
+
+    candidate, _ = policy.evaluate("some text", existing_summaries=["Learn Docker in 30 days."])
+
+    assert candidate is not None

@@ -93,7 +93,24 @@ def _default_conversation_session(orchestrator: Orchestrator, session_id: str) -
     conn.row_factory = sqlite3.Row
     memory_store = PersistentMemoryStore(conn)
     memory_retriever = MemoryRetriever(_WordCountEmbedding())
-    write_policy = MemoryWritePolicy(orchestrator.llm)
+    # Found missing while investigating "AI Memory": the real semantic
+    # duplicate check (is_semantic_duplicate, write_policy.py) existed as
+    # a library function but was never wired into this default
+    # construction -- MemoryWritePolicy ran exact-match-only duplicate
+    # detection here, same gap the module's own docstring admitted.
+    # Deliberately uses the REAL SentenceTransformerEmbedding, not
+    # MemoryRetriever's _WordCountEmbedding stand-in above -- a "semantic"
+    # duplicate check needs real semantic understanding, which the
+    # word-count embedding explicitly does not provide. Imported here,
+    # not at module level: a real, found issue -- loading torch (via
+    # sentence-transformers) in the same process as faiss (already used
+    # elsewhere in this project) triggers a real libomp double-init
+    # crash on macOS when both load into one process; deferring the
+    # import to first real use avoids forcing that collision for every
+    # caller of this module, not just the ones that actually hit this path.
+    from app.retrieval.embeddings import SentenceTransformerEmbedding
+
+    write_policy = MemoryWritePolicy(orchestrator.llm, embedding_model=SentenceTransformerEmbedding())
     return ConversationSession(
         orchestrator, orchestrator.llm, memory_store, memory_retriever, write_policy,
         tenant_id=DEFAULT_TENANT_ID, user_id=DEFAULT_USER_ID, session_id=session_id,

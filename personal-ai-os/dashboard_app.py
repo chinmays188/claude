@@ -14,7 +14,7 @@ First run: seed demo data so every page has something to show —
 
 import json
 import os
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import streamlit as st
@@ -1263,6 +1263,58 @@ def render_context_memory(stores: dict) -> None:
             "**Real degradation observed** — at least one position failed to recover the "
             "fact correctly. See the per-position answers above for exactly which."
         )
+
+    st.divider()
+    st.subheader("4. Live memory decay (found missing while investigating 'AI Memory')")
+    st.caption(
+        "MemoryRetriever's recency scoring only ever affected retrieval RANKING — an old "
+        "memory scored lower but its stored confidence/importance never actually changed, "
+        "and nothing was ever flagged for review. This section is 100% LIVE (pure Python, "
+        "no LLM call, free): pick an age and see the real decayed confidence "
+        "(`compute_decayed_confidence`), using the same half-life pattern MemoryRetriever "
+        "already uses for recency. A confirmed memory never decays — a human already "
+        "validated it, so staleness from age alone isn't the same signal."
+    )
+
+    from app.memory.decay import compute_decayed_confidence, find_decay_candidates
+    from app.memory.models import MemoryRecord, MemoryType
+
+    decay_col1, decay_col2, decay_col3 = st.columns(3)
+    with decay_col1:
+        age_days = st.slider("Memory age (real days since last updated)", 0, 365, 90)
+    with decay_col2:
+        half_life = st.slider("Half-life (days)", 10, 180, 90)
+    with decay_col3:
+        confirmed = st.checkbox("user_confirmed", value=False)
+
+    now = datetime.now(timezone.utc)
+    sample_memory = MemoryRecord(
+        memory_id="demo", tenant_id="demo", user_id="demo", type=MemoryType.PREFERENCE,
+        content="Prefers dark mode", source="demo", confidence=1.0,
+        created_at=now, updated_at=now - timedelta(days=age_days), user_confirmed=confirmed,
+    )
+    decayed = compute_decayed_confidence(sample_memory, now, half_life_days=half_life)
+    st.metric("Real decayed confidence", f"{decayed:.3f}", delta=f"{decayed - 1.0:+.3f}")
+    if confirmed:
+        st.caption("Unchanged — user_confirmed memories never decay.")
+
+    st.markdown("**Real decay candidates in this project's own seeded memory data:**")
+    real_memories = stores["memory"].list_all(TENANT_ID, USER_ID)
+    if not real_memories:
+        st.caption("No real memories seeded yet.")
+    else:
+        candidates = find_decay_candidates(real_memories, now, half_life_days=90.0, review_threshold=0.3)
+        if candidates:
+            for memory, decayed_confidence in candidates:
+                st.warning(
+                    f"⚠️ `{memory.memory_id[:8]}…` ({memory.type.value}) — real decayed confidence "
+                    f"{decayed_confidence:.3f}, flagged for human review (never auto-deleted)."
+                )
+        else:
+            st.caption(
+                f"None of this project's {len(real_memories)} real seeded memories have decayed "
+                "below the review threshold yet (all are either recent or user_confirmed)."
+            )
 
 
 _MODEL_ROUTING_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "model_routing_examples.json"

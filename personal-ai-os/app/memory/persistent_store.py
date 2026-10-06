@@ -78,6 +78,20 @@ class PersistentMemoryStore:
         )
         self._conn.commit()
 
+    def update_confidence(self, tenant_id: str, user_id: str, memory_id: str, confidence: float) -> None:
+        """Found missing while investigating "AI Memory": nothing ever
+        updated a memory's confidence over time. Deliberately does NOT
+        touch updated_at -- a decay update should record a lower
+        confidence without resetting the age clock that decay itself is
+        computed from (unlike write(), which is a full INSERT OR REPLACE
+        and would wrongly make a just-decayed memory look freshly
+        updated)."""
+        self._conn.execute(
+            "UPDATE memories SET confidence = ? WHERE tenant_id = ? AND user_id = ? AND memory_id = ?",
+            (confidence, tenant_id, user_id, memory_id),
+        )
+        self._conn.commit()
+
     def count(self, tenant_id: str, user_id: str) -> int:
         row = self._conn.execute(
             "SELECT COUNT(*) AS n FROM memories WHERE tenant_id = ? AND user_id = ?",

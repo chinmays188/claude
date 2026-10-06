@@ -65,7 +65,7 @@ flowchart TB
 
     subgraph WRITE["Write side -- real gate, never silent"]
         direction TB
-        POLICY["MemoryWritePolicy\nclassify -> importance threshold ->\nduplicate check -> approval gate"]
+        POLICY["MemoryWritePolicy\nclassify -> importance threshold ->\nexact duplicate check -> real semantic\nduplicate check (optional embedding_model) ->\napproval gate"]
         LOWIMP["Low importance:\nwritten immediately"]
         HIGHIMP["High importance:\nqueued for real human approval\n(never auto-written)"]
         POLICY --> LOWIMP
@@ -74,6 +74,16 @@ flowchart TB
     ORCH2 -.->|"after every turn"| POLICY
     LOWIMP --> MEMSTORE2
     HIGHIMP -->|"approved"| MEMSTORE2
+
+    subgraph DECAY["Memory decay -- found missing, closed while investigating 'AI Memory'"]
+        direction TB
+        DECAYCHECK{"user_confirmed?"}
+        DECAYCHECK -->|"yes -- human\nalready validated it"| NODECAY["confidence unchanged"]
+        DECAYCHECK -->|no| HALFLIFE["Real half-life decay\n(same pattern MemoryRetriever\nalready uses for recency)"]
+        HALFLIFE --> REVIEWCHECK{"decayed confidence <\nreview_threshold?"}
+        REVIEWCHECK -->|yes| FLAGGED["Flagged for human review --\nNEVER auto-deleted"]
+    end
+    MEMSTORE2 -.->|"apply_decay() --\nupdate_confidence() only,\nnever touches updated_at"| DECAY
 
     subgraph CBUILDER["ContextBuilder -- real compression, demonstrated live on this page"]
         direction TB

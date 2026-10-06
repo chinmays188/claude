@@ -451,6 +451,46 @@ HISTORY:
     "Human-in-the-Loop AI" learning goal progress updated again in the
     same batch. `PolicyEngine._verify()` remains a disclosed, open gap.
 
+19. Updated in the SAME batch again while investigating "AI Memory"
+    ("lets move to ai memory where we need to move the learning
+    progress"). Two real, disclosed gaps closed: (a) `is_duplicate()`'s
+    own docstring admitted semantic duplicate detection wasn't
+    implemented -- new `is_semantic_duplicate()` (app/memory/
+    write_policy.py) does real cosine similarity over real
+    sentence-transformer embeddings, with a threshold re-measured
+    against the real model (0.8 -- a real paraphrase scored 0.857, every
+    distinct pair tried stayed under 0.3), same discipline as the
+    semantic cache's earlier threshold fix. Wired into
+    `MemoryWritePolicy` as an optional `embedding_model` param
+    (backward-compatible) and into `VoiceSession`'s default construction
+    -- using the REAL `SentenceTransformerEmbedding`, not
+    `MemoryRetriever`'s `_WordCountEmbedding` stand-in, since a
+    "semantic" check needs real semantic understanding. (b)
+    `MemoryRetriever`'s recency scoring only ever affected retrieval
+    ranking -- a memory's stored `confidence` never actually changed
+    over time, and nothing was flagged for review. New
+    `app/memory/decay.py`: real half-life confidence decay (same pattern
+    `MemoryRetriever` already uses for recency), skipping
+    `user_confirmed` memories (a human already validated them), and
+    `find_decay_candidates()`/`apply_decay()` -- never auto-deletes,
+    matching this project's human-in-the-loop principle. New
+    `PersistentMemoryStore.update_confidence()` deliberately does NOT
+    touch `updated_at` (unlike `write()`'s full upsert), so a decay
+    update doesn't reset the age clock decay is computed from.
+    A real environment crash was found and fixed while verifying this
+    live: running the full test suite now segfaults on macOS (a libomp
+    double-initialization conflict between faiss and torch loading into
+    the same process) once `SentenceTransformerEmbedding` is reachable
+    from `voice/session.py`'s default path -- fixed with a new root
+    `conftest.py` setting `KMP_DUPLICATE_LIB_OK=TRUE` before any test
+    imports either library (the standard, documented workaround for this
+    exact known conflict). New live, interactive "Live memory decay"
+    section on the Context & Memory page -- verified live: a 90-day-old
+    unconfirmed memory at a 90-day half-life correctly shows 0.500
+    confidence; toggling `user_confirmed` correctly shows no decay at
+    all (1.000, unchanged). "AI Memory" learning goal progress updated
+    in the same batch.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline

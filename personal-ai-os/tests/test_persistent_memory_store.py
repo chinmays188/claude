@@ -102,3 +102,22 @@ def test_write_with_same_memory_id_upserts():
 
     assert result.content == "updated"
     assert store.count("t1", "u1") == 1
+
+
+def test_update_confidence_persists_new_value():
+    store = _store()
+    store.write(_record("m1"))
+
+    store.update_confidence("t1", "u1", "m1", 0.42)
+
+    assert store.get("t1", "u1", "m1").confidence == 0.42
+
+
+def test_update_confidence_does_not_change_updated_at():
+    store = _store()
+    record = _record("m1")
+    store.write(record)
+
+    store.update_confidence("t1", "u1", "m1", 0.1)
+
+    assert store.get("t1", "u1", "m1").updated_at == record.updated_at

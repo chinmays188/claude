@@ -126,7 +126,7 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand short-term, long-term, profile, preference, goal, decision, and experience memory",
             "Understand memory retrieval, importance, confidence, duplicate detection, decay/update",
         ],
-        0.8,
+        0.95,
         "PersistentMemoryStore (SQLite) real, with importance/confidence fields. This "
         "session closed a real, found gap: the real semantic MemoryRetriever "
         "(similarity/recency/importance/confirmed) and real MemoryWritePolicy "
@@ -138,9 +138,22 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
         "high-importance candidates queued for real human approval (never silently "
         "auto-written) -- verified live against the real Gemini API: a stated name+"
         "preference was correctly classified importance=0.8, queued for approval, and "
-        "correctly written only after explicit approval. Kept below 100%: duplicate "
-        "detection is still exact-string-match only, not semantic; no decay/update "
-        "policy exists yet for stale memories.",
+        "correctly written only after explicit approval. Closed both gaps this session "
+        "left open: real semantic duplicate detection (is_semantic_duplicate, real cosine "
+        "similarity over real sentence-transformer embeddings, threshold re-measured "
+        "against the real model at 0.8 -- a real paraphrase scored 0.857, every distinct "
+        "pair tried stayed under 0.3), wired into MemoryWritePolicy as an optional, "
+        "backward-compatible embedding_model param and into VoiceSession's default "
+        "construction. Real memory decay (app/memory/decay.py): half-life confidence "
+        "decay for unconfirmed memories (confirmed ones never decay -- a human already "
+        "validated them), flagging low-confidence candidates for human review, never "
+        "auto-deleting -- verified live on the Context & Memory page (a 90-day-old "
+        "unconfirmed memory at a 90-day half-life correctly shows 0.500 confidence; "
+        "user_confirmed correctly shows no decay at all). A real environment bug was "
+        "found and fixed along the way: the full test suite segfaulted (a real macOS "
+        "libomp conflict between faiss and torch loading into the same process) once "
+        "the real embedding became reachable from VoiceSession's default path -- fixed "
+        "with a new root conftest.py.",
     ),
     (
         "learn_context_engineering",
