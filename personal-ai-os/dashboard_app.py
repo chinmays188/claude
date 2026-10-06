@@ -1768,7 +1768,104 @@ def render_governance(stores: dict) -> None:
         )
 
     st.divider()
-    st.subheader("2. Real, governed chat requests (pre-generated, real Gemini calls)")
+    st.subheader("2. Live human-in-the-loop approval queue")
+    st.caption(
+        "Found missing while investigating 'Human-in-the-Loop AI': every approval demonstrated "
+        "elsewhere on this page is a SCRIPTED call to `resume_after_approval()` — there was no "
+        "screen where a human could see a real pending action and actually click Approve/Reject "
+        "themselves. This section is 100% LIVE (pure Python, no LLM call, free): propose a real "
+        "ACT-classified action below, then approve or reject it yourself — the real "
+        "`PolicyEngine`, the real persistent `AuditLog` (same SQLite table the rest of this "
+        "dashboard reads), and the real sandbox all genuinely run."
+    )
+
+    from app.actions.classification import ActionClassifier
+    from app.actions.models import ActionClass
+    from app.actions.policy_engine import ApprovalPending, PolicyEngine
+    from app.safety.permissions import PermissionChecker
+    from app.tools.calculator import CalculatorTool
+
+    hitl_policy_engine = PolicyEngine(
+        ActionClassifier(overrides={"calculator": ActionClass.ACT}),
+        PermissionChecker({"compute:local"}),
+        stores["audit"],
+        {"calculator": CalculatorTool()},
+    )
+
+    propose_col1, propose_col2 = st.columns([3, 1])
+    with propose_col1:
+        expression = st.text_input("Expression for calculator (deliberately ACT-classified for this demo)", value="47 * 12")
+    with propose_col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("Propose action"):
+            try:
+                hitl_policy_engine.propose_and_execute(
+                    "calculator", {"expression": expression}, description=f"Evaluate: {expression}"
+                )
+            except ApprovalPending as exc:
+                st.success(f"Real `ApprovalPending` raised — action `{exc.action_id}` is now genuinely PENDING below.")
+
+    all_pending = stores["audit"].list_pending_approval()
+    # This demo's PolicyEngine only has calculator registered -- real
+    # pending records for other tools (e.g. seeded send_email examples
+    # from scripts/generate_governance_examples.py) share the same real
+    # AuditLog table but genuinely can't be executed by THIS instance.
+    # Shown separately rather than crashing with a real ToolError on
+    # Approve, or silently hiding real data this page didn't create.
+    actionable_pending = [r for r in all_pending if r.proposal.tool_name in {"calculator"}]
+    other_pending = [r for r in all_pending if r.proposal.tool_name not in {"calculator"}]
+
+    if not all_pending:
+        st.caption("No real pending actions right now — propose one above.")
+    if other_pending:
+        st.caption(
+            f"{len(other_pending)} other real pending action(s) in the shared audit log for "
+            f"tools this demo doesn't register ({sorted({r.proposal.tool_name for r in other_pending})}) "
+            "— shown read-only below, not actionable from this section."
+        )
+        for record in other_pending:
+            st.caption(f"⏸️ `{record.proposal.tool_name}` — {record.proposal.description} (action `{record.action_id[:8]}…`)")
+
+    if actionable_pending:
+        for record in actionable_pending:
+            with st.container(border=True):
+                st.markdown(
+                    f"**Action `{record.action_id[:8]}…`** — `{record.proposal.tool_name}` · "
+                    f"risk **{record.proposal.risk_level.value}** · {record.proposal.description}"
+                )
+                st.caption(f"Proposed at {record.proposal.proposed_at.isoformat()}")
+                approve_col, reject_col = st.columns(2)
+                if approve_col.button("✅ Approve", key=f"approve_{record.action_id}"):
+                    result = hitl_policy_engine.resume_after_approval(record.action_id, approved=True, approved_by=USER_ID)
+                    st.success(f"Real execution result: `{result}`")
+                    st.rerun()
+                if reject_col.button("❌ Reject", key=f"reject_{record.action_id}"):
+                    result = hitl_policy_engine.resume_after_approval(record.action_id, approved=False, approved_by=USER_ID)
+                    st.warning(result)
+                    st.rerun()
+
+    with st.expander("Real full audit trail (every proposal, decision, and outcome)", expanded=False):
+        all_records = stores["audit"].list_all()
+        if all_records:
+            st.dataframe(
+                [
+                    {
+                        "action_id": r.action_id[:8],
+                        "tool": r.proposal.tool_name,
+                        "status": r.approval_status.value,
+                        "approved_by": r.approved_by,
+                        "executed": r.executed,
+                        "verified": r.verified,
+                        "result": r.execution_result,
+                    }
+                    for r in all_records
+                ]
+            )
+        else:
+            st.caption("No audit records yet.")
+
+    st.divider()
+    st.subheader("3. Real, governed chat requests (pre-generated, real Gemini calls)")
     examples = _load_governance_examples()
     if examples is None:
         st.warning("No examples found — run `python scripts/generate_governance_examples.py` first.")
@@ -1797,7 +1894,7 @@ def render_governance(stores: dict) -> None:
         st.caption(f"Real enforced timeout: {timeout_example['timeout_seconds']}s.")
 
     st.divider()
-    st.subheader("3. Production ops drills — real, run against this project's real system")
+    st.subheader("4. Production ops drills — real, run against this project's real system")
     st.caption(
         "4 real, previously-unused `app/platform/` modules — disaster recovery, release "
         "versioning, eval-gated releases, and the async job queue/workflow runtime — each run "

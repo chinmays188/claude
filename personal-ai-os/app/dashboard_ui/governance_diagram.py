@@ -40,7 +40,7 @@ flowchart TB
     APPROVALGATE -->|"yes"| PENDING["ApprovalPending raised\n-- real action_id, recorded\nin AuditLog as PENDING"]
     PENDING -.->|"ToolAgent catches this --\nstops the loop, returns\nstop_reason=approval_pending\n+ pending_action_id"| AGENTRESPONSE["AgentResponse\n(real, inspectable)"]
 
-    HUMANAPPROVE["A real human calls\nPolicyEngine.resume_after_approval()\n(approved=True/False)"]
+    HUMANAPPROVE["A real human calls\nPolicyEngine.resume_after_approval()\n(approved=True/False) --\nnow a real clickable\nApprove/Reject button, see\nthe Human-in-the-Loop section below"]
     PENDING -.->|"later, out of band"| HUMANAPPROVE
     HUMANAPPROVE -->|approved| SANDBOXEXEC
     HUMANAPPROVE -->|rejected| REJECTED["Recorded REJECTED,\nnever executed"]

@@ -303,10 +303,21 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand undo/recovery, audit trails, verification",
             "Internalize: the best agentic UX is often bounded autonomy, not full autonomy",
         ],
-        0.6,
+        0.75,
         "Real propose -> approve -> execute -> verify flow via ActionProposal/"
         "ApprovalStatus/PolicyEngine/AuditRecord, exercised in tests and the seed data's "
-        "own audit-log entries (one auto-approved READ, one PENDING ACT).",
+        "own audit-log entries (one auto-approved READ, one PENDING ACT). Found and closed "
+        "a real, significant gap: every approval anywhere in this project was a SCRIPTED "
+        "call to resume_after_approval() -- no screen let a human actually see a real "
+        "pending action and click Approve/Reject. New live (no LLM call, free) approval "
+        "queue on the Governance & Sandbox page does exactly that against the real, "
+        "persistent AuditLog -- verified live end to end (propose -> genuinely PENDING -> "
+        "click Approve -> real execution). A real bug was found and fixed while verifying: "
+        "an unrelated real pending record for an unregistered tool crashed the page on "
+        "Approve; fixed to show it read-only instead. Still missing, honestly: no "
+        "undo/recovery mechanism for an already-executed action (criterion 3 names this "
+        "explicitly), and PolicyEngine._verify() is still a bare non-empty-result stub, "
+        "not a real tool-specific check.",
     ),
     (
         "learn_ai_observability",

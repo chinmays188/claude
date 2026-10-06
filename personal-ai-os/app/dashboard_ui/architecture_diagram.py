@@ -375,6 +375,33 @@ HISTORY:
     similarity-close). "AI Cost & Latency Engineering" learning goal
     progress updated again in the same batch.
 
+17. Updated in the SAME batch again while investigating "Human-in-the-Loop
+    AI" ("lets focus on human in the loop section"). A real, significant
+    gap was found: `PolicyEngine`'s propose -> approve -> execute -> verify
+    -> audit flow was real and tested, but every approval demonstrated
+    anywhere (tests, the Governance page's own pre-generated examples) was
+    a SCRIPTED call to `resume_after_approval()` -- there was never a
+    screen where a human could actually see a real pending action and
+    click Approve/Reject themselves. Fixed with a new, fully live (no LLM
+    call, free) "Live human-in-the-loop approval queue" section on the
+    Governance & Sandbox page: a real `PolicyEngine` wired to the real,
+    persistent `AuditLog` (same SQLite table the rest of the dashboard
+    reads) lets a human propose a real ACT-classified calculator action,
+    see it genuinely raise `ApprovalPending` and land in `AuditLog` as
+    PENDING, then click a real Approve/Reject button that calls the real
+    `resume_after_approval()`. A real bug was found and fixed while
+    verifying this live: the shared `AuditLog` table already had an
+    unrelated real PENDING `send_email` record (from the Governance page's
+    own earlier example generation) that this demo's `PolicyEngine`
+    doesn't have registered -- clicking Approve on it crashed with a real
+    `ToolError`. Fixed by splitting pending records into this demo's
+    actionable ones (calculator) vs. other real pending records shown
+    read-only, rather than crashing or silently hiding real data this page
+    didn't create. Two real, named gaps from this capability's success
+    criteria remain open, honestly disclosed: no undo/recovery mechanism
+    exists anywhere for an already-executed action, and `PolicyEngine._verify()`
+    is still a bare non-empty-result stub, not a tool-specific check.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
