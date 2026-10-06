@@ -338,7 +338,7 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand TTFT, streaming, retrieval latency, tool latency, parallel tool calls",
             "Be able to reason in terms of cost per successful customer workflow, not just $/million tokens",
         ],
-        0.75,
+        0.85,
         "Real per-call token usage tracking (GeminiProvider's track_usage) and real "
         "$/request cost computation (CostTracker), verified live for full trace runs "
         "(router + agent turns). Found and fixed a real bug: MultiAgentCoordinator's "
@@ -348,8 +348,16 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
         "(latency_breakdown.py, aggregating Span.duration_ms -- captured but never "
         "aggregated before) and real cost-per-successful-workflow "
         "(cost_per_success.py, joining TraceStore's status+cost), both shown on the "
-        "Traces page. Still missing, honestly: no caching layer (semantic or prompt) "
-        "at all, and no TTFT/streaming measurement anywhere.",
+        "Traces page. Found that a real semantic cache (app/caching/semantic_cache.py) "
+        "already existed since Phase 1 but was never wired into any real request path "
+        "-- wired it in (SemanticCachingProvider as an optional agent_llm wrapper) and "
+        "demonstrated it live against the real Gemini API with a genuine cache hit "
+        "(zero cost, zero tokens). Along the way found and fixed a real threshold bug: "
+        "the existing tests validated similarity against a FAKE embedding that "
+        "hand-picked a 0.98 score for a true paraphrase the REAL model scores at only "
+        "0.089 -- re-measured and fixed with a real, defensible threshold. Still "
+        "missing, honestly: the semantic cache is demonstrated, not the default live "
+        "path for every real request; no TTFT/streaming measurement anywhere.",
     ),
     (
         "learn_production_ai_engineering",

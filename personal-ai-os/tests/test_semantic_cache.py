@@ -77,3 +77,17 @@ def test_semantic_caching_provider_always_calls_llm_for_time_sensitive_queries()
     provider.generate("What is RAG today?")
 
     assert inner.calls == 2
+
+
+def test_semantic_caching_provider_tracks_real_hit_rate():
+    inner = CountingProvider()
+    cache = SemanticCache(FakeSemanticEmbedding(), similarity_threshold=0.9)
+    provider = SemanticCachingProvider(inner, cache)
+
+    provider.generate("What is RAG?")
+    provider.generate("Can you explain retrieval augmented generation?")
+    provider.generate("What's the weather like today")
+
+    assert provider.stats.calls == 3
+    assert provider.stats.cache_hits == 1
+    assert provider.stats.hit_rate == 1 / 3

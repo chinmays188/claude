@@ -1380,6 +1380,94 @@ def render_model_routing(stores: dict) -> None:
         st.json(examples["real_usage"])
 
 
+_CACHE_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "cache_examples.json"
+
+
+def _load_cache_examples() -> dict | None:
+    """Loads scripts/generate_cache_examples.py's committed, real output --
+    generated against the live Gemini API, not on this page render (this
+    dashboard's standing no-live-LLM-call rule)."""
+    if not _CACHE_EXAMPLES_PATH.exists():
+        return None
+    return json.loads(_CACHE_EXAMPLES_PATH.read_text())
+
+
+def render_caching(stores: dict) -> None:
+    st.header("Caching")
+    st.caption(
+        "Found while investigating 'AI Cost & Latency Engineering': app/caching/prompt_cache.py "
+        "and app/caching/semantic_cache.py both existed, real and tested since Phase 1, but "
+        "NEITHER was ever wired into Orchestrator or any real request path. This page closes "
+        "that gap for the semantic cache. The example calls needed real Gemini calls, so "
+        "they're pre-generated and committed, consistent with this dashboard never making live "
+        "LLM calls on page render."
+    )
+
+    from app.dashboard_ui.caching_diagram import CACHING_DIAGRAM
+
+    st.subheader("Semantic cache architecture")
+    diagram_id = "caching-mermaid-diagram"
+    st.html(
+        f"""
+        <div id="{diagram_id}" class="mermaid">{CACHING_DIAGRAM}</div>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+        <script>
+        (function poll() {{
+            if (window.mermaid) {{
+                mermaid.initialize({{ startOnLoad: false, theme: 'neutral' }});
+                mermaid.run({{ nodes: [document.getElementById('{diagram_id}')] }});
+            }} else {{
+                setTimeout(poll, 50);
+            }}
+        }})();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )
+
+    st.warning(
+        "**Real, disclosed finding from building this:** the existing unit tests "
+        "(`tests/test_semantic_cache.py`) pass a FAKE embedding "
+        "(`tests/fakes/fake_semantic_embedding.py`) that hand-picks a 0.98 cosine similarity "
+        "for `\"What is RAG?\"` vs. `\"Can you explain retrieval augmented generation?\"` — a "
+        "true lexical paraphrase. The REAL `all-MiniLM-L6-v2` model scores that exact pair at "
+        "only **0.089** — this embedding model tracks shared surface wording far more than "
+        "semantic equivalence for short questions, so a true paraphrase using different words "
+        "can score far below an unrelated question's noise floor. No single real threshold "
+        "between ~0.1 and ~0.85 reliably separates 'true paraphrase' from 'unrelated' on short "
+        "Q&A with this model. The real threshold and example questions below were re-measured "
+        "against the real model, not the fake."
+    )
+
+    st.divider()
+    st.subheader("Real, live example run (pre-generated, real Gemini calls)")
+    examples = _load_cache_examples()
+    if examples is None:
+        st.warning("No examples found — run `python scripts/generate_cache_examples.py` first.")
+        return
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Real hit rate", f"{examples['stats']['hit_rate'] * 100:.0f}%")
+    col2.metric("Real LLM calls made", examples["total_real_llm_calls"])
+    col3.metric("Real cost (this run)", f"${examples['total_cost']:.6f}")
+
+    for ex in examples["examples"]:
+        icon = "⚡" if ex["cache_hit"] else "💬"
+        label = "CACHE HIT — zero LLM call" if ex["cache_hit"] else "cache miss — real LLM call"
+        with st.expander(f"{icon} {ex['question']!r} — {label}", expanded=False):
+            st.markdown(
+                f"**Tokens:** {ex['input_tokens']} in / {ex['output_tokens']} out  ·  "
+                f"**Cost:** ${ex['cost']:.6f}"
+            )
+            st.text(ex["answer"][:500] + ("…" if len(ex["answer"]) > 500 else ""))
+
+    st.caption(
+        "The time-sensitive paraphrase ('What is RAG right now?') is real similarity-close to "
+        "the original question but correctly bypasses the cache (Section 41's freshness-marker "
+        "rule) — its answer is genuinely different/current content, not a stale cached reply."
+    )
+
+
 _EVAL_HARNESS_RUN_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "eval_harness_run.json"
 
 
@@ -2133,6 +2221,7 @@ def main() -> None:
         "Governance & Sandbox": render_governance,
         "Multimodal Input": render_multimodal,
         "Decision Framework": render_decision_framework,
+        "Caching": render_caching,
     }
     page = st.sidebar.radio("View", list(pages.keys()))
     st.sidebar.markdown("---")

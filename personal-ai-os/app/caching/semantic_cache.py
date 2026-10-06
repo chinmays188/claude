@@ -51,14 +51,32 @@ class SemanticCache:
         return len(self._entries)
 
 
+class SemanticCacheStats:
+    """Real hit/miss counters -- found missing while investigating 'AI Cost &
+    Latency Engineering': PromptCachingProvider already tracked this
+    (PromptCacheStats), SemanticCachingProvider never did, so there was no
+    way to show a real hit rate for the semantic cache anywhere."""
+
+    def __init__(self):
+        self.calls = 0
+        self.cache_hits = 0
+
+    @property
+    def hit_rate(self) -> float:
+        return self.cache_hits / self.calls if self.calls else 0.0
+
+
 class SemanticCachingProvider(LLMProvider):
     def __init__(self, llm: LLMProvider, cache: SemanticCache):
         self._llm = llm
         self._cache = cache
+        self.stats = SemanticCacheStats()
 
     def generate(self, prompt: str) -> str:
+        self.stats.calls += 1
         cached = self._cache.get(prompt)
         if cached is not None:
+            self.stats.cache_hits += 1
             return cached
 
         result = self._llm.generate(prompt)

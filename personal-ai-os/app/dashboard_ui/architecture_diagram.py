@@ -345,6 +345,36 @@ HISTORY:
     prompt) and no TTFT/streaming measurement exist yet -- confirmed
     real, disclosed, and still out of scope for this batch.
 
+16. Updated in the SAME batch again to close the caching gap item 15
+    deliberately left out ("no caching layer... exist yet" turned out to
+    be wrong on closer inspection). app/caching/prompt_cache.py and
+    app/caching/semantic_cache.py both already existed, real and tested
+    since Phase 1 (specs/caching.md) -- but NEITHER was ever wired into
+    Orchestrator or any real request path, the same "built but never
+    wired in" pattern found repeatedly this session (semantic memory
+    retrieval, PersonalContextEngine, PolicyEngine). New
+    scripts/generate_cache_examples.py wires SemanticCachingProvider into
+    a real GeminiProvider and runs 4 real, live calls. A real, significant
+    finding surfaced while building this: the existing unit tests pass a
+    FAKE embedding that hand-picks a 0.98 cosine similarity for a true
+    lexical paraphrase ("What is RAG?" vs. "Can you explain retrieval
+    augmented generation?") -- the REAL all-MiniLM-L6-v2 model scores that
+    exact pair at only 0.089 (shared-wording bias dominates real semantic
+    similarity for short questions with this model; a different-worded
+    true paraphrase can score far below an unrelated question's noise
+    floor). Fixed by re-measuring real similarity scores against the real
+    model and choosing a real, defensible threshold (0.85) and real
+    example questions that actually separate on the real model, not the
+    fake's hand-picked vectors. Also found and fixed:
+    SemanticCachingProvider (unlike PromptCachingProvider) had no
+    hit/miss stats at all -- new SemanticCacheStats closes that. New
+    dedicated "Caching" dashboard page: its own diagram, the real finding
+    disclosed directly, and the 4 real committed examples (1 genuine
+    cache hit: zero LLM call, zero tokens, zero cost; the time-sensitive
+    paraphrase correctly bypasses the cache despite being
+    similarity-close). "AI Cost & Latency Engineering" learning goal
+    progress updated again in the same batch.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
@@ -382,10 +412,13 @@ flowchart TB
     TC --> ORCH["Orchestrator\ninjects classified domain as\ncontext into the dispatched agent"]
     MODELROUTE["ModelRouter / RoutingLLMProvider\n(optional agent_llm) -- real per-request\nrouting between gemini tiers,\nsee the dedicated Model Routing page/diagram"]
     ORCH -.->|"agent_llm, when given --\nclassification above always\nstays on the cheap tier"| MODELROUTE
+    SEMCACHEREF["SemanticCachingProvider\n(optional agent_llm wrapper) -- real cosine-\nsimilarity cache over real embeddings,\nskips time-sensitive queries,\nsee the dedicated Caching page/diagram"]
+    ORCH -.->|"agent_llm, when given --\ncan wrap ModelRouter's\noutput too"| SEMCACHEREF
     ORCH -->|RESEARCH| RA["ResearchAgent (ToolAgent)"]
     ORCH -->|ANALYSIS| AA["AnalystAgent (ToolAgent)"]
     ORCH -->|PLANNING| PA["PlannerAgent (ToolAgent)"]
     MODELROUTE -.-> RA
+    SEMCACHEREF -.-> RA
 
     SEQ -.->|"same 3 agent instances,\nnot rebuilt"| RA
     PAR -.->|"same 3 agent instances,\nnot rebuilt"| RA
