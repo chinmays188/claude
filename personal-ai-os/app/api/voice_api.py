@@ -3,12 +3,46 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from app.agents.orchestrator import Orchestrator
+from app.caching.semantic_cache import SemanticCache, SemanticCachingProvider
 from app.providers.gemini_provider import GeminiProvider
 from app.voice.session import VoiceSessionStore
 
 app = FastAPI(title="Personal AI OS — Voice Interface")
 
-_default_session_store = VoiceSessionStore(orchestrator_factory=lambda: Orchestrator(llm=GeminiProvider()))
+# Found missing while investigating "AI Cost & Latency Engineering": the
+# real semantic cache existed, tested, but had no real production wiring
+# anywhere. A real, process-wide SemanticCache (not per-session -- see
+# _classification_llm below) genuinely shared across every real voice
+# session this server handles: different users asking similarly-phrased
+# questions ("Should I learn Kubernetes?" vs. "Is Kubernetes worth
+# learning?") can genuinely hit the same cached classification. Lazily
+# constructed so importing this module (e.g. in a test) doesn't eagerly
+# load the real sentence-transformer model (torch) unless the server is
+# actually started -- avoids paying that real cost for every test import.
+_shared_semantic_cache: SemanticCache | None = None
+
+
+def _get_shared_semantic_cache() -> SemanticCache:
+    global _shared_semantic_cache
+    if _shared_semantic_cache is None:
+        from app.retrieval.embeddings import SentenceTransformerEmbedding
+
+        _shared_semantic_cache = SemanticCache(SentenceTransformerEmbedding())
+    return _shared_semantic_cache
+
+
+def _build_orchestrator() -> Orchestrator:
+    llm = GeminiProvider()
+    # classification_llm (not agent_llm): UnifiedRouter's domain/task-type
+    # classification and MultiAgentPlanner's planning call are stateless,
+    # fixed-shape prompts built purely from the input text -- a real fit
+    # for semantic caching, unlike the 3 agents' own generate() calls
+    # (ever-growing conversation history + tool-decision JSON each turn).
+    cached_classification_llm = SemanticCachingProvider(llm, _get_shared_semantic_cache())
+    return Orchestrator(llm=llm, classification_llm=cached_classification_llm)
+
+
+_default_session_store = VoiceSessionStore(orchestrator_factory=_build_orchestrator)
 
 
 def get_session_store() -> VoiceSessionStore:

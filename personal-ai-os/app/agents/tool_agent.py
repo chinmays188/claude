@@ -6,6 +6,7 @@ from app.actions.policy_engine import ApprovalPending, PolicyEngine
 from app.agents.base import Agent, AgentResponse
 from app.guardrails.budgets import AgentBudget, BudgetExceededError, BudgetTracker
 from app.guardrails.stop_conditions import StopReason
+from app.platform.sandbox import SandboxedToolExecutor
 from app.providers.base import LLMProvider
 from app.structured.repair import RepairableGenerator, StructuredOutputError
 from app.tools.base import ToolError
@@ -43,22 +44,32 @@ class ToolAgent(Agent):
         on_tool_call=None,
         on_tool_error=None,
         policy_engine: PolicyEngine | None = None,
+        sandbox: SandboxedToolExecutor | None = None,
     ):
         super().__init__(llm)
         self._tools = tools
         self._budget = budget or AgentBudget()
-        # Real governance wiring (previously a genuine gap, found while
-        # building this): ToolAgent -- the actual live chat-agent path
-        # behind Orchestrator -- called tool.call() directly, completely
-        # bypassing app/actions/policy_engine.py's PolicyEngine (real risk
-        # classification, permission check, approval gate, sandboxed
-        # execution, audit log). Only separate domain-workflow code ever
-        # went through PolicyEngine. Optional and additive: when not given
-        # (every existing caller's default), ToolAgent behaves exactly as
-        # before -- calling tool.call() directly, unsandboxed, no approval
-        # gate. When given, every real tool call in this loop goes through
-        # real governance instead.
+        # Real governance wiring: when policy_engine is given, every real
+        # tool call goes through real risk classification, a real
+        # human-approval gate for WRITE/ACT tools, real sandboxed
+        # execution, and a real audit log.
         self._policy_engine = policy_engine
+        # Found missing while investigating "AI Safety & Guardrails"
+        # (disclosed gap: "policy_engine is still opt-in, not the default
+        # for every Orchestrator caller"). Making full PolicyEngine
+        # (approval gate + audit log) the default turned out too risky to
+        # do blindly -- there's no safe default for "which permissions are
+        # granted," and an in-memory default AuditLog would be silently
+        # discarded, defeating the audit trail's purpose. Scaled down to a
+        # real, smaller safety upgrade instead: when policy_engine is NOT
+        # given, every tool call now still runs through a real
+        # SandboxedToolExecutor (genuine process isolation, a real
+        # enforced timeout/memory ceiling) rather than a direct,
+        # unsandboxed tool.call() -- defaults to RiskLevel.MEDIUM's limits
+        # (execute()'s own default) since no real risk classification is
+        # available without a PolicyEngine. This is now the real default
+        # for every caller, not opt-in.
+        self._sandbox = sandbox or SandboxedToolExecutor()
         # Optional observer: called as on_tool_call(tool_name, args, result)
         # after each real tool invocation. Additive/backward-compatible --
         # existing callers passing no observer see no behavior change.
@@ -109,7 +120,7 @@ class ToolAgent(Agent):
                             description=f"Agent-requested call to '{tool.name}' during: {text}",
                         )
                     else:
-                        tool_result = tool.call(decision.args)
+                        tool_result = self._sandbox.execute(tool, decision.args)
                 except ApprovalPending as exc:
                     # A real human decision is required before this call can
                     # proceed -- stop the loop here rather than silently

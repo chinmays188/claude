@@ -101,6 +101,65 @@ def _generate_real_test_image() -> bytes:
         return Path(f.name).read_bytes()
 
 
+def _generate_real_test_screenshot() -> bytes:
+    """A real, locally-generated image shaped like an actual app
+    screenshot (a title bar, labeled UI fields, a button) -- found
+    missing while investigating 'Multimodal AI': the existing image
+    test case is a single line of text, not a distinct UI-screenshot
+    task (multiple labeled fields, spatial layout mattering for
+    interpretation)."""
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (400, 220), color="white")
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([0, 0, 400, 30], fill=(40, 40, 40))
+    draw.text((10, 8), "Settings", fill="white")
+    draw.text((20, 50), "Username:", fill="black")
+    draw.text((150, 50), "alice_pm", fill="black")
+    draw.text((20, 80), "Notifications:", fill="black")
+    draw.text((150, 80), "Disabled", fill="black")
+    draw.text((20, 110), "Theme:", fill="black")
+    draw.text((150, 110), "Dark", fill="black")
+    draw.rectangle([20, 160, 120, 190], outline="black")
+    draw.text((35, 168), "Save", fill="black")
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        img.save(f.name)
+        return Path(f.name).read_bytes()
+
+
+def _generate_real_test_table_image() -> bytes:
+    """A real, locally-generated image of a data table (rows/columns,
+    grid lines) -- a genuinely different extraction task from a single
+    text line or a form-style screenshot: the model must correctly
+    associate each value with its row/column header, not just read
+    text top-to-bottom."""
+    from PIL import Image, ImageDraw
+
+    rows = [
+        ["Quarter", "Revenue", "Growth"],
+        ["Q1", "$120k", "+5%"],
+        ["Q2", "$150k", "+25%"],
+        ["Q3", "$90k", "-40%"],
+    ]
+    col_widths = [80, 80, 80]
+    row_height = 30
+    width = sum(col_widths)
+    height = row_height * len(rows)
+
+    img = Image.new("RGB", (width, height), color="white")
+    draw = ImageDraw.Draw(img)
+    for row_idx, row in enumerate(rows):
+        x = 0
+        for col_idx, cell in enumerate(row):
+            y = row_idx * row_height
+            draw.rectangle([x, y, x + col_widths[col_idx], y + row_height], outline="black")
+            draw.text((x + 8, y + 8), cell, fill="black")
+            x += col_widths[col_idx]
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+        img.save(f.name)
+        return Path(f.name).read_bytes()
+
+
 def _generate_real_test_audio(text: str) -> bytes:
     """Real audio, synthesized locally and for free via macOS's built-in
     `say` -- genuinely real audio bytes, not a text string pretending to

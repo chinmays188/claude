@@ -423,6 +423,55 @@ def test_agent_llm_is_used_for_agent_generation_not_classification():
     assert classification_llm._responses == []
 
 
+def test_classification_llm_is_used_for_classification_not_agent_generation():
+    """Found missing while investigating 'AI Cost & Latency Engineering':
+    the real semantic cache had no production integration point.
+    classification_llm (when given) serves UnifiedRouter/MultiAgentPlanner;
+    the 3 agents' own generate() calls stay on the main llm. Mirrors
+    test_agent_llm_is_used_for_agent_generation_not_classification's
+    pattern exactly, with the roles reversed."""
+    main_llm = NamedScriptedProvider(
+        "main-model",
+        ['{"action": "final_answer", "answer": "answered by the main model"}'],
+    )
+    routed_classification_llm = NamedScriptedProvider(
+        "classification-model",
+        [
+            '{"domains": [], "confidence": 0.9}',
+            '{"task_type": "research", "confidence": 0.9}',
+        ],
+    )
+    orchestrator = Orchestrator(main_llm, classification_llm=routed_classification_llm)
+
+    result = orchestrator.handle("Explain RAG.")
+
+    assert result.output == "answered by the main model"
+    # Classification consumed exactly its 2 scripted responses from the
+    # ROUTED provider; if the agent had used it instead of main_llm, this
+    # list would be empty and the agent's own call would have raised
+    # IndexError.
+    assert routed_classification_llm._responses == []
+
+
+def test_classification_llm_defaults_to_main_llm_when_not_given():
+    """Backward-compatible: every existing caller that doesn't pass
+    classification_llm sees identical behavior to before this param
+    existed -- both classification and agent generation use the same
+    llm, exactly as every other test in this file already proves."""
+    llm = ScriptedProvider(
+        [
+            '{"domains": [], "confidence": 0.9}',
+            '{"task_type": "research", "confidence": 0.9}',
+            '{"action": "final_answer", "answer": "answered"}',
+        ]
+    )
+    orchestrator = Orchestrator(llm)
+
+    result = orchestrator.handle("Explain RAG.")
+
+    assert result.output == "answered"
+
+
 def test_policy_engine_is_forwarded_to_all_3_agents_and_gates_a_real_tool_call():
     """Real end-to-end governance wiring: a request that routes to
     ResearchAgent and calls calculator (READ-classified) runs through the

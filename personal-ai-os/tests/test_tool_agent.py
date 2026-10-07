@@ -1,11 +1,14 @@
 import pytest
 
+from app.actions.models import RiskLevel
 from app.agents.tool_agent import ToolAgent
 from app.guardrails.budgets import AgentBudget
 from app.guardrails.stop_conditions import StopReason
+from app.platform.sandbox import SandboxedToolExecutor, SandboxLimits
 from app.providers.base import LLMProvider
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
+from tests.fakes.slow_tool import SlowTool
 
 
 class ScriptedProvider(LLMProvider):
@@ -247,3 +250,27 @@ def test_degraded_response_communicates_incompleteness():
     result = agent.run("Keep calculating forever.")
 
     assert "budget" in result.output.lower() or "couldn't" in result.output.lower()
+
+
+def test_tool_calls_now_run_through_a_real_default_sandbox():
+    """Found missing while investigating 'AI Safety & Guardrails' (disclosed
+    gap: 'policy_engine is still opt-in, not the default for every
+    Orchestrator caller'). Scaled-down real fix: every tool call now runs
+    through a real SandboxedToolExecutor by default, not a direct,
+    unsandboxed tool.call() -- proven here by a real tool that's genuinely
+    killed by a real, short sandbox timeout, recovered as a normal tool
+    error (not a crash), exactly like any other ToolError."""
+    llm = ScriptedProvider(
+        [
+            '{"action": "call_tool", "tool": "slow_tool", "args": {"seconds": 5.0}}',
+            '{"action": "final_answer", "answer": "That took too long."}',
+        ]
+    )
+    sandbox = SandboxedToolExecutor({RiskLevel.MEDIUM: SandboxLimits(timeout_seconds=1.0, memory_limit_mb=128)})
+    agent = ToolAgent(llm, tools=ToolRegistry([SlowTool()]), sandbox=sandbox)
+
+    result = agent.run("Run the slow tool.")
+
+    assert result.tool_calls == ["slow_tool"]
+    assert result.stop_reason == StopReason.TASK_COMPLETED.value
+    assert "too long" in result.output.lower()

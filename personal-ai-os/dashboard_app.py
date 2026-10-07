@@ -2160,6 +2160,20 @@ def _load_multimodal_examples() -> dict | None:
     return json.loads(_MULTIMODAL_EXAMPLES_PATH.read_text())
 
 
+_MULTIMODAL_SCREENSHOT_TABLE_EXAMPLES_PATH = (
+    Path(__file__).resolve().parent / "app" / "dashboard_ui" / "multimodal_screenshot_table_examples.json"
+)
+
+
+def _load_multimodal_screenshot_table_examples() -> dict | None:
+    """Loads scripts/generate_multimodal_screenshot_table_examples.py's
+    committed, real output -- same no-live-LLM-call rule as every other
+    *_examples.json."""
+    if not _MULTIMODAL_SCREENSHOT_TABLE_EXAMPLES_PATH.exists():
+        return None
+    return json.loads(_MULTIMODAL_SCREENSHOT_TABLE_EXAMPLES_PATH.read_text())
+
+
 def render_multimodal(stores: dict) -> None:
     st.header("Multimodal Input")
     st.caption(
@@ -2266,6 +2280,31 @@ def render_multimodal(stores: dict) -> None:
                     "for clarification rather than guessing, instead of being hidden as a "
                     "failure."
                 )
+
+    st.divider()
+    st.subheader("4. Screenshot & table — distinct cases (pre-generated, real Gemini calls)")
+    st.caption(
+        "Found missing while investigating 'Multimodal AI': the existing image example above "
+        "is a single line of rendered text — not a distinct screenshot (multiple labeled UI "
+        "fields, spatial layout) or table (rows/columns, each value tied to its header) "
+        "extraction task. Both below are genuinely new, harder cases run through the same "
+        "real GeminiMultimodalProvider + MultimodalOrchestrator."
+    )
+    screenshot_table_examples = _load_multimodal_screenshot_table_examples()
+    if screenshot_table_examples is None:
+        st.warning(
+            "No examples found — run "
+            "`python scripts/generate_multimodal_screenshot_table_examples.py` first."
+        )
+    else:
+        icons2 = {"screenshot": "🖥️", "table": "📊"}
+        for kind in ("screenshot", "table"):
+            ex = screenshot_table_examples[kind]
+            with st.expander(f"{icons2[kind]} {kind.upper()}", expanded=True):
+                st.markdown(f"**Real extracted content** (`{ex['multimodal_model']}`):")
+                st.text(ex["extracted_text"][:400] + ("…" if len(ex["extracted_text"]) > 400 else ""))
+                st.markdown(f"**Real agent answer** (`{ex['result']['agent']}`):")
+                st.success(ex["result"]["output"])
 
 
 def render_decision_framework(stores: dict) -> None:
@@ -2474,6 +2513,49 @@ def render_architecture(stores: dict) -> None:
         "`naive_relevance.py` does plain keyword-overlap matching, shown per-trace "
         "as 'Memory Considered' in the Traces page."
     )
+
+    st.subheader("Multi-agent: real, live, full completion")
+    st.caption(
+        "Found while investigating 'Agents & Multi-Agent Orchestration': the real "
+        "sequential 3-agent chain (research -> analysis -> planning) had only ever been "
+        "verified to full completion via scripted tests, blocked live by a genuine, "
+        "sustained Gemini-side capacity constraint (503 UNAVAILABLE) documented in "
+        "specs/orchestration.md. Retried the exact same real request live — this time it "
+        "completed successfully end to end."
+    )
+    multi_agent_completion = _load_multi_agent_completion_example()
+    if multi_agent_completion is None:
+        st.warning(
+            "No example found — run "
+            "`python scripts/generate_multi_agent_completion_example.py` first."
+        )
+    elif multi_agent_completion["outcome"] == "completed":
+        st.success(
+            f"**Real plan:** {multi_agent_completion['plan_mode']} across "
+            f"{multi_agent_completion['plan_agents']}"
+        )
+        st.caption(multi_agent_completion["plan_reasoning"])
+        with st.expander(f"Request: {multi_agent_completion['request']}", expanded=False):
+            st.markdown(f"**Real agent label:** `{multi_agent_completion['agent']}`")
+            st.markdown(f"**Real stop reason:** `{multi_agent_completion['stop_reason']}`")
+            st.markdown("**Real final combined output:**")
+            st.text(multi_agent_completion["output"])
+    else:
+        st.info(f"Real outcome: {multi_agent_completion['message']}")
+
+
+_MULTI_AGENT_COMPLETION_EXAMPLE_PATH = (
+    Path(__file__).resolve().parent / "app" / "dashboard_ui" / "multi_agent_completion_example.json"
+)
+
+
+def _load_multi_agent_completion_example() -> dict | None:
+    """Loads scripts/generate_multi_agent_completion_example.py's
+    committed, real output -- generated against the live Gemini API, not
+    on this page render (this dashboard's standing no-live-LLM-call rule)."""
+    if not _MULTI_AGENT_COMPLETION_EXAMPLE_PATH.exists():
+        return None
+    return json.loads(_MULTI_AGENT_COMPLETION_EXAMPLE_PATH.read_text())
 
 
 def main() -> None:

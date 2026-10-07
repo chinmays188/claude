@@ -58,7 +58,7 @@ class Orchestrator:
         secure_retriever: SecureRetriever | None = None, requester_id: str | None = None,
         requester_tenant_id: str | None = None, on_multi_agent_planned=None,
         mcp_tools: list | None = None, on_tool_error=None, agent_llm: LLMProvider | None = None,
-        policy_engine=None,
+        policy_engine=None, classification_llm: LLMProvider | None = None,
     ):
         # retrieval_store/secure_retriever/requester_* are all optional and
         # additive: passing none of them (the default, matching every
@@ -100,11 +100,26 @@ class Orchestrator:
         # PolicyEngine at all before this, only separate domain-workflow
         # code did. Defaults to None (every existing caller's identical,
         # unsandboxed, ungoverned behavior) when not given.
+        # classification_llm (optional, real caching hook): when given,
+        # UnifiedRouter's domain/task-type classification AND
+        # MultiAgentPlanner's planning call use THIS provider instead of
+        # llm. Found missing while investigating "AI Cost & Latency
+        # Engineering": app/caching/semantic_cache.py's SemanticCache/
+        # SemanticCachingProvider existed, real and tested, but had no
+        # real production wiring anywhere. Classification/planning calls
+        # are a genuinely good real fit for this (stateless, fixed-shape
+        # prompts built purely from the input text -- unlike the 3
+        # agents' own generate() calls, which embed an ever-growing
+        # conversation history + tool-decision JSON each turn, making a
+        # semantic cache hit there unrealistic in practice; deliberately
+        # NOT wired into agent_llm for that real reason). Defaults to llm
+        # (identical behavior to every existing caller) when not given.
+        effective_classification_llm = classification_llm or llm
         self._llm = llm  # exposed via the llm property below -- e.g. VoiceSession
         # needs the same real LLMProvider for its own memory-related calls
         # without reaching into a private attribute.
-        self._router = UnifiedRouter(llm)
-        self._multi_agent_planner = MultiAgentPlanner(llm)
+        self._router = UnifiedRouter(effective_classification_llm)
+        self._multi_agent_planner = MultiAgentPlanner(effective_classification_llm)
         self._on_classified = on_classified
         self._on_multi_agent_planned = on_multi_agent_planned
         effective_agent_llm = agent_llm or llm
