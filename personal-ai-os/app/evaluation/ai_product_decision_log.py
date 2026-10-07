@@ -224,6 +224,101 @@ DECISION_LOG: list[LoggedDecision] = [
                         "completely unaffected.",
         source="d022635",
     ),
+    LoggedDecision(
+        decision_id="fix_fake_parallel_not_rebuild_coordinator",
+        title="Fix MultiAgentCoordinator's real concurrency bug in place, don't redesign it",
+        tier=DecisionTier.MULTI_AGENT,
+        what_was_chosen="ThreadPoolExecutor.map() inside the existing _run_parallel() method, "
+                         "same plan.agents ordering preserved.",
+        what_was_rejected="A broader redesign of multi-agent coordination (e.g. async/await "
+                           "throughout, a new orchestration layer).",
+        real_rationale="Found while investigating 'AI Cost & Latency Engineering': "
+                        "_run_parallel() was a plain sequential list comprehension despite its "
+                        "name -- a real, narrow bug, not a design flaw. The minimal real fix "
+                        "(swap the comprehension for ThreadPoolExecutor.map()) closes it "
+                        "without touching the already-tested planning/synthesis logic around it.",
+        source="1aa5502",
+    ),
+    LoggedDecision(
+        decision_id="semantic_cache_real_threshold_not_fake_threshold",
+        title="Re-measure the semantic cache's similarity threshold against the real model",
+        tier=DecisionTier.RAG,
+        what_was_chosen="A real, re-measured threshold (0.85) and real example questions, "
+                         "chosen because their real cosine-similarity scores against the "
+                         "actual all-MiniLM-L6-v2 model clearly separate paraphrase from "
+                         "unrelated.",
+        what_was_rejected="Trusting the existing unit tests' threshold (0.9-0.92), which only "
+                           "passed because of a FAKE embedding that hand-picked a 0.98 score "
+                           "for one specific pair.",
+        real_rationale="Running the real cache live surfaced a real, measured gap: the real "
+                        "model scored that exact pair at only 0.089. Shipping the fake's "
+                        "threshold would have shipped a semantic cache that almost never hits "
+                        "in practice -- caught by actually running it against the real model "
+                        "before committing, not by trusting the test suite's green checkmark.",
+        source="1268aa4",
+    ),
+    LoggedDecision(
+        decision_id="hitl_approval_queue_reuses_real_audit_log",
+        title="A live approval queue reads/writes the SAME real AuditLog, not a separate demo store",
+        tier=DecisionTier.HUMAN_APPROVAL_REQUIRED,
+        what_was_chosen="The Governance page's new interactive section calls the real "
+                         "PolicyEngine against stores['audit'] -- the identical persistent "
+                         "AuditLog the rest of the dashboard already reads.",
+        what_was_rejected="A separate, isolated in-memory PolicyEngine/AuditLog just for the "
+                           "demo, disconnected from the real data every other page shows.",
+        real_rationale="A demo approval queue over fake data would not actually demonstrate "
+                        "bounded autonomy -- it would just be a UI mockup. Using the real "
+                        "store means a real pending action a human approves here is the exact "
+                        "same real record every other page's audit trail shows.",
+        source="87e9aa0",
+    ),
+    LoggedDecision(
+        decision_id="reverse_read_only_scope_for_real_undo",
+        title="Explicitly reverse the calendar/email/GitHub read-only scope decisions",
+        tier=DecisionTier.HUMAN_APPROVAL_REQUIRED,
+        what_was_chosen="6 new real, undoable writing tools, reversing Sections 24/25's "
+                         "earlier 'read-only first' decisions for CalendarClient/EmailClient.",
+        what_was_rejected="Leaving every tool read-only and declaring undo/recovery "
+                           "structurally out of scope for this project.",
+        real_rationale="Scoping undo honestly surfaced a deeper real gap: there was no "
+                        "writing action anywhere to attach undo to. The user explicitly chose "
+                        "to reverse scope rather than leave the capability's named success "
+                        "criterion (undo/recovery) permanently unmet -- a real product "
+                        "tradeoff made in the open, not silently.",
+        source="78e75dd",
+    ),
+    LoggedDecision(
+        decision_id="github_write_via_ssh_not_rest",
+        title="modify_github writes via real git-over-SSH, not the GitHub REST API",
+        tier=DecisionTier.TOOL_CALLING,
+        what_was_chosen="A new GitHubGitWriteClient pushing a real branch+commit over SSH, "
+                         "then deleting it for undo.",
+        what_was_rejected="GitHubClient's existing REST-API pattern (Bearer token + "
+                           "httpx), which every other GitHub read in this project uses.",
+        real_rationale="A real, discovered constraint, not a preference: no GITHUB_TOKEN/"
+                        "GH_TOKEN is configured in this environment, so REST-based writes "
+                        "(e.g. creating an issue) were not actually possible. SSH push access "
+                        "to the real scratch repo WAS confirmed live (git ls-remote "
+                        "succeeded) -- the real available credential shaped the real "
+                        "implementation choice.",
+        source="78e75dd",
+    ),
+    LoggedDecision(
+        decision_id="memory_decay_never_auto_deletes",
+        title="Memory decay flags for human review -- it never deletes anything itself",
+        tier=DecisionTier.HUMAN_APPROVAL_REQUIRED,
+        what_was_chosen="apply_decay()/find_decay_candidates() lower confidence and surface "
+                         "low-confidence memories for review; no function anywhere deletes a "
+                         "memory for being stale.",
+        what_was_rejected="Auto-archiving or auto-deleting memories once their decayed "
+                           "confidence drops below a threshold.",
+        real_rationale="Matches this project's own standing human-in-the-loop principle "
+                        "(the same reason MemoryWritePolicy queues high-importance writes for "
+                        "approval instead of auto-writing them) -- a memory being old is a "
+                        "signal worth surfacing to a human, not grounds for the system to "
+                        "silently decide it's wrong and remove it.",
+        source="dfeb467",
+    ),
 ]
 
 

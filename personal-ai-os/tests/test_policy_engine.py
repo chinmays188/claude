@@ -37,6 +37,14 @@ class FakeUndoableSendEmailTool(FakeSendEmailTool):
         return f"Recalled: {result}"
 
 
+class FakeToolWithCustomVerify(FakeSendEmailTool):
+    def __init__(self, verify_result: tuple[bool, str]):
+        self._verify_result = verify_result
+
+    def verify(self, args: SendArgs, result: str) -> tuple[bool, str]:
+        return self._verify_result
+
+
 def _engine(granted_permissions: set[str], overrides=None) -> PolicyEngine:
     classifier = ActionClassifier(overrides=overrides)
     permission_checker = PermissionChecker(granted_permissions)
@@ -225,3 +233,38 @@ def test_undo_action_raises_for_unknown_action_id():
 
     with pytest.raises(ValueError):
         engine.undo_action("does-not-exist", undone_by="alice")
+
+
+def test_verify_falls_back_to_generic_check_when_tool_has_none():
+    classifier = ActionClassifier()
+    permission_checker = PermissionChecker({"write:email"})
+    audit_log = AuditLog(get_connection(":memory:"))
+    engine = PolicyEngine(classifier, permission_checker, audit_log, {"send_email": FakeSendEmailTool()})
+
+    try:
+        engine.propose_and_execute("send_email", {"to": "a@b.com", "message": "hi"}, "notify")
+    except ApprovalPending as e:
+        action_id = e.action_id
+    engine.resume_after_approval(action_id, approved=True, approved_by="alice")
+
+    record = audit_log.get(action_id)
+    assert record.verified is True  # generic non-empty-result check, FakeSendEmailTool has no verify()
+    assert "non-empty result" in record.verification_note
+
+
+def test_verify_uses_tool_specific_check_when_present():
+    classifier = ActionClassifier()
+    permission_checker = PermissionChecker({"write:email"})
+    audit_log = AuditLog(get_connection(":memory:"))
+    tool = FakeToolWithCustomVerify(verify_result=(False, "custom check failed"))
+    engine = PolicyEngine(classifier, permission_checker, audit_log, {"send_email": tool})
+
+    try:
+        engine.propose_and_execute("send_email", {"to": "a@b.com", "message": "hi"}, "notify")
+    except ApprovalPending as e:
+        action_id = e.action_id
+    engine.resume_after_approval(action_id, approved=True, approved_by="alice")
+
+    record = audit_log.get(action_id)
+    assert record.verified is False  # tool-specific check wins even though the result was non-empty
+    assert record.verification_note == "custom check failed"

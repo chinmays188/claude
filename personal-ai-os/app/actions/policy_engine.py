@@ -103,7 +103,7 @@ class PolicyEngine:
         # misbehaving call could actually cost -- not a direct, unsandboxed
         # tool.call() anymore.
         result = self._sandbox.execute(tool, proposal.args, risk_level=proposal.risk_level)
-        verified, verification_note = self._verify(proposal, result)
+        verified, verification_note = self._verify(tool, proposal, result)
 
         self._audit.record(
             AuditRecord(
@@ -143,11 +143,20 @@ class PolicyEngine:
         self._audit.record(record)
         return undo_result
 
-    def _verify(self, proposal: ActionProposal, result: str) -> tuple[bool, str]:
-        """Minimal post-execution verification: the tool returned something
-        non-empty. Real verification (e.g. 'did the email actually send') would
-        be tool-specific; this is the structural hook for it (Section 28's
-        'Verification' step exists as a real gate, not skipped)."""
+    def _verify(self, tool: Tool, proposal: ActionProposal, result: str) -> tuple[bool, str]:
+        """Real, tool-specific verification when a tool provides one
+        (Tool.verify()) -- found missing while investigating
+        'Human-in-the-Loop AI': this used to be a bare non-empty-result
+        check for every tool, with no way for a tool to check its OWN
+        real effect (e.g. 'did the goal actually get written'). Falls
+        back to the original generic check when a tool's verify()
+        returns None (no tool-specific check to add), so every pre-
+        existing tool keeps behaving exactly as before."""
+        args = tool.validate_args(proposal.args)
+        tool_specific = tool.verify(args, result)
+        if tool_specific is not None:
+            return tool_specific
+
         if result and result.strip():
             return True, "Execution produced a non-empty result."
         return False, "Execution produced an empty result — could not verify success."

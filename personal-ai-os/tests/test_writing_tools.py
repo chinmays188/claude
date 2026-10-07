@@ -34,10 +34,26 @@ def test_create_goal_tool_creates_and_undoes(tmp_path):
     store = GoalStore(get_connection(db_path))
     assert store.get(goal_id).title == "Learn Kubernetes"
 
+    verified, note = tool.verify(args, goal_id)
+    assert verified is True
+
     tool.undo(args, goal_id)
 
     with pytest.raises(GoalNotFoundError):
         store.get(goal_id)
+
+
+def test_create_goal_tool_verify_fails_after_undo(tmp_path):
+    db_path = _tmp_db_path(tmp_path)
+    tool = CreateGoalTool(db_path)
+    args = tool.validate_args({"owner_id": "alice", "title": "Learn Kubernetes", "domain": Domain.LEARNING.value})
+    goal_id = tool.run(args)
+    tool.undo(args, goal_id)
+
+    verified, note = tool.verify(args, goal_id)
+
+    assert verified is False
+    assert "not found" in note.lower()
 
 
 def test_create_commitment_tool_creates_and_undoes(tmp_path):
@@ -49,6 +65,9 @@ def test_create_commitment_tool_creates_and_undoes(tmp_path):
 
     store = CommitmentStore(get_connection(db_path))
     assert store.get(commitment_id).description == "Send report"
+
+    verified, note = tool.verify(args, commitment_id)
+    assert verified is True
 
     tool.undo(args, commitment_id)
 
@@ -66,6 +85,9 @@ def test_write_memory_tool_writes_and_undoes(tmp_path):
     store = PersistentMemoryStore(get_connection(db_path))
     assert store.get("t1", "u1", memory_id) is not None
 
+    verified, note = tool.verify(args, memory_id)
+    assert verified is True
+
     tool.undo(args, memory_id)
 
     assert store.get("t1", "u1", memory_id) is None
@@ -82,6 +104,9 @@ def test_create_calendar_event_tool_creates_and_undoes():
 
     assert len(client.get_events(start)) == 1
 
+    verified, note = tool.verify(args, event_id)
+    assert verified is True
+
     tool.undo(args, event_id)
 
     assert len(client.get_events(start)) == 0
@@ -97,6 +122,9 @@ def test_send_email_tool_sends_and_undoes():
     now = datetime.now(timezone.utc)
     assert any(e.email_id == email_id for e in client.get_emails(now.replace(hour=0), now.replace(hour=23)))
 
+    verified, note = tool.verify(args, email_id)
+    assert verified is True
+
     tool.undo(args, email_id)
 
     assert not any(e.email_id == email_id for e in client.get_emails(now.replace(hour=0), now.replace(hour=23)))
@@ -106,13 +134,19 @@ class _FakeGitHubGitWriteClient:
     def __init__(self):
         self.pushed = None
         self.deleted = None
+        self._branches = set()
 
     def push_branch_with_commit(self, branch_name, commit_message, file_content):
         self.pushed = (branch_name, commit_message, file_content)
+        self._branches.add(branch_name)
         return "fake-sha"
 
     def delete_branch(self, branch_name):
         self.deleted = branch_name
+        self._branches.discard(branch_name)
+
+    def branch_exists(self, branch_name):
+        return branch_name in self._branches
 
 
 def test_modify_github_tool_pushes_and_undoes():
@@ -125,9 +159,15 @@ def test_modify_github_tool_pushes_and_undoes():
     assert result == "demo-branch@fake-sha"
     assert client.pushed[0] == "demo-branch"
 
+    verified, note = tool.verify(args, result)
+    assert verified is True
+
     tool.undo(args, result)
 
     assert client.deleted == "demo-branch"
+
+    verified, note = tool.verify(args, result)
+    assert verified is False
 
 
 def test_all_writing_tools_declare_undoable():

@@ -16,10 +16,13 @@ credential model (SSH key, not a Bearer token) are both genuinely
 different, not just an implementation detail of the same client.
 """
 
+import re
 import subprocess
 import tempfile
 import uuid
 from pathlib import Path
+
+import httpx
 
 
 class GitHubGitWriteError(Exception):
@@ -55,6 +58,24 @@ class GitHubGitWriteClient:
         there's no cloned working directory with that remote configured
         at this point -- this call doesn't need one."""
         self._run(["git", "push", self._ssh_remote, "--delete", branch_name])
+
+    def branch_exists(self, branch_name: str) -> bool:
+        """Real, live check via GitHub's public REST API (no token needed
+        for a public repo's branch listing) -- found missing while
+        investigating 'Human-in-the-Loop AI': PolicyEngine._verify() had
+        no tool-specific check for this tool at all. Used by
+        ModifyGithubTool.verify() to confirm a push genuinely landed,
+        not just that the git command exited 0."""
+        owner_repo = self._parse_owner_repo(self._ssh_remote)
+        response = httpx.get(f"https://api.github.com/repos/{owner_repo}/branches/{branch_name}", timeout=10)
+        return response.status_code == 200
+
+    @staticmethod
+    def _parse_owner_repo(ssh_remote: str) -> str:
+        match = re.match(r"git@github\.com:(.+?)(?:\.git)?$", ssh_remote)
+        if not match:
+            raise GitHubGitWriteError(f"Could not parse owner/repo from SSH remote '{ssh_remote}'.")
+        return match.group(1)
 
     def _run(self, args: list[str], cwd: Path | None = None) -> str:
         result = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=30)

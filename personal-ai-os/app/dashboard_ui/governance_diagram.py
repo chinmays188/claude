@@ -60,8 +60,11 @@ flowchart TB
     TOOLRESULT["Real tool result OR a real\nSandboxViolation (timeout/\ncrash) OR a real ToolError"]
     SPAWN --> TOOLRESULT
 
+    VERIFY["PolicyEngine._verify() --\ntool.verify(args, result) if the\ntool has one (e.g. modify_github's\nreal live api.github.com check),\nelse the generic non-empty-result\nfallback -- real fix, not simulated"]
+    TOOLRESULT --> VERIFY
+
     AUDIT["AuditLog -- every proposal,\napproval decision, execution\nresult, and verification\nrecorded, READ included"]
-    TOOLRESULT --> AUDIT
+    VERIFY --> AUDIT
     PENDING --> AUDIT
     REJECTED --> AUDIT
 

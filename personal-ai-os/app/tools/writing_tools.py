@@ -23,7 +23,7 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 from app.db.connection import get_connection
-from app.domains.cross_domain.goal_store import GoalStore
+from app.domains.cross_domain.goal_store import GoalNotFoundError, GoalStore
 from app.domains.cross_domain.models import Goal, GoalStatus
 from app.domains.router import Domain
 from app.integrations.calendar_client import CalendarClient, CalendarEvent
@@ -31,7 +31,7 @@ from app.integrations.email_client import Email, EmailClient
 from app.integrations.github_git_write_client import GitHubGitWriteClient
 from app.memory.models import MemoryRecord, MemoryType
 from app.memory.persistent_store import PersistentMemoryStore
-from app.proactive.commitments import Commitment, CommitmentOwner, CommitmentStore
+from app.proactive.commitments import Commitment, CommitmentNotFoundError, CommitmentOwner, CommitmentStore
 from app.tools.base import Tool
 
 
@@ -77,6 +77,18 @@ class CreateGoalTool(_DbBackedTool):
         GoalStore(self._connection()).delete(goal_id)
         return f"Deleted goal '{goal_id}'."
 
+    def verify(self, args: CreateGoalArgs, result: str) -> tuple[bool, str]:
+        """Real check: re-reads the actual goal back from the real store,
+        not just trusting that run() didn't raise."""
+        goal_id = result
+        try:
+            goal = GoalStore(self._connection()).get(goal_id)
+        except GoalNotFoundError:
+            return False, f"Goal '{goal_id}' was not found in GoalStore after creation."
+        if goal.title != args.title:
+            return False, f"Goal '{goal_id}' exists but title does not match what was proposed."
+        return True, f"Goal '{goal_id}' verified present in GoalStore with the proposed title."
+
 
 class CreateCommitmentArgs(BaseModel):
     owner_id: str
@@ -103,6 +115,16 @@ class CreateCommitmentTool(_DbBackedTool):
         commitment_id = result
         CommitmentStore(self._connection()).delete(commitment_id)
         return f"Deleted commitment '{commitment_id}'."
+
+    def verify(self, args: CreateCommitmentArgs, result: str) -> tuple[bool, str]:
+        commitment_id = result
+        try:
+            commitment = CommitmentStore(self._connection()).get(commitment_id)
+        except CommitmentNotFoundError:
+            return False, f"Commitment '{commitment_id}' was not found in CommitmentStore after creation."
+        if commitment.description != args.description:
+            return False, f"Commitment '{commitment_id}' exists but description does not match what was proposed."
+        return True, f"Commitment '{commitment_id}' verified present in CommitmentStore with the proposed description."
 
 
 class WriteMemoryArgs(BaseModel):
@@ -135,6 +157,15 @@ class WriteMemoryTool(_DbBackedTool):
         PersistentMemoryStore(self._connection()).delete(args.tenant_id, args.user_id, memory_id)
         return f"Deleted memory '{memory_id}'."
 
+    def verify(self, args: WriteMemoryArgs, result: str) -> tuple[bool, str]:
+        memory_id = result
+        memory = PersistentMemoryStore(self._connection()).get(args.tenant_id, args.user_id, memory_id)
+        if memory is None:
+            return False, f"Memory '{memory_id}' was not found in PersistentMemoryStore after creation."
+        if memory.content != args.content:
+            return False, f"Memory '{memory_id}' exists but content does not match what was proposed."
+        return True, f"Memory '{memory_id}' verified present in PersistentMemoryStore with the proposed content."
+
 
 class CreateCalendarEventArgs(BaseModel):
     title: str
@@ -164,6 +195,13 @@ class CreateCalendarEventTool(Tool):
         event_id = result
         self._client.delete_event(event_id)
         return f"Deleted calendar event '{event_id}'."
+
+    def verify(self, args: CreateCalendarEventArgs, result: str) -> tuple[bool, str]:
+        event_id = result
+        events = self._client.get_events(args.start)
+        if not any(e.event_id == event_id for e in events):
+            return False, f"Calendar event '{event_id}' was not found on {args.start.date()} after creation."
+        return True, f"Calendar event '{event_id}' verified present on {args.start.date()}."
 
 
 class SendEmailArgs(BaseModel):
@@ -195,6 +233,16 @@ class SendEmailTool(Tool):
         self._client.recall_email(email_id)
         return f"Recalled email '{email_id}'."
 
+    def verify(self, args: SendEmailArgs, result: str) -> tuple[bool, str]:
+        email_id = result
+        now = datetime.now(timezone.utc)
+        window_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        window_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        emails = self._client.get_emails(window_start, window_end)
+        if not any(e.email_id == email_id for e in emails):
+            return False, f"Email '{email_id}' was not found in EmailClient after sending."
+        return True, f"Email '{email_id}' verified present in EmailClient."
+
 
 class ModifyGithubArgs(BaseModel):
     branch_name: str
@@ -225,3 +273,13 @@ class ModifyGithubTool(Tool):
     def undo(self, args: ModifyGithubArgs, result: str) -> str:
         self._client.delete_branch(args.branch_name)
         return f"Deleted real remote branch '{args.branch_name}'."
+
+    def verify(self, args: ModifyGithubArgs, result: str) -> tuple[bool, str]:
+        """Real, live check via GitHub's REST API -- confirms the branch
+        genuinely exists remotely, not just that the git push command
+        exited 0. The one tool-specific verify() in this batch that makes
+        a real network call, consistent with this tool already being the
+        one NOT simulated."""
+        if self._client.branch_exists(args.branch_name):
+            return True, f"Branch '{args.branch_name}' verified live on GitHub."
+        return False, f"Branch '{args.branch_name}' was not found on GitHub after push."

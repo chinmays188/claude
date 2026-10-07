@@ -26,3 +26,9 @@ def test_undo_raises_by_default():
 
     with pytest.raises(UndoNotSupportedError):
         tool.undo(_Args(x=1), "1")
+
+
+def test_verify_returns_none_by_default():
+    tool = _PlainTool()
+
+    assert tool.verify(_Args(x=1), "1") is None

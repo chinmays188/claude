@@ -51,3 +51,14 @@ class Tool(ABC):
         always raises, so a tool that doesn't override this can never be
         undone by mistake."""
         raise UndoNotSupportedError(f"Tool '{self.name}' does not support undo.")
+
+    def verify(self, args: BaseModel, result: str) -> tuple[bool, str] | None:
+        """Real, tool-specific post-execution check -- found missing while
+        investigating 'Human-in-the-Loop AI': PolicyEngine._verify() was a
+        bare non-empty-result stub for every tool, with no way for a tool
+        to check its OWN real effect (e.g. "did the goal actually get
+        written"). Returns None when a tool has no specific check to add
+        -- PolicyEngine falls back to its own generic non-empty check in
+        that case, so every existing tool keeps working unchanged. Returns
+        (verified, note) when a tool DOES have a real check."""
+        return None
