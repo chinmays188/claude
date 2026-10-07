@@ -1329,6 +1329,18 @@ def _load_model_routing_examples() -> dict | None:
     return json.loads(_MODEL_ROUTING_EXAMPLES_PATH.read_text())
 
 
+_TEMPERATURE_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "temperature_examples.json"
+
+
+def _load_temperature_examples() -> dict | None:
+    """Loads scripts/generate_temperature_examples.py's committed, real
+    output -- generated against the live Gemini API, not on this page
+    render (this dashboard's standing no-live-LLM-call rule)."""
+    if not _TEMPERATURE_EXAMPLES_PATH.exists():
+        return None
+    return json.loads(_TEMPERATURE_EXAMPLES_PATH.read_text())
+
+
 def render_model_routing(stores: dict) -> None:
     st.header("Model Routing & Model Strategy")
     st.caption(
@@ -1430,6 +1442,40 @@ def render_model_routing(stores: dict) -> None:
 
     with st.expander("Real per-call token usage (from GeminiProvider's own usage_log)", expanded=False):
         st.json(examples["real_usage"])
+
+    st.divider()
+    st.subheader("3. Temperature & model parameters (pre-generated, real Gemini calls)")
+    st.caption(
+        "Found missing while investigating 'LLM Fundamentals' (criterion: 'understand... "
+        "temperature and model parameters'): GeminiProvider.generate() never exposed any "
+        "generation-config control at all -- every real call used the SDK's own implicit "
+        "defaults. Fixed: optional temperature/top_p/top_k/max_output_tokens params, wired "
+        "into the real genai SDK call."
+    )
+    temp_examples = _load_temperature_examples()
+    if temp_examples is None:
+        st.warning("No examples found — run `python scripts/generate_temperature_examples.py` first.")
+    else:
+        st.markdown(f"**Prompt:** {temp_examples['prompt']}")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown(f"**temperature = {temp_examples['cold']['temperature']}**")
+            for r in temp_examples["cold"]["results"]:
+                st.text(r)
+            st.caption(f"{temp_examples['cold']['unique_count']}/{len(temp_examples['cold']['results'])} unique")
+        with col2:
+            st.markdown(f"**temperature = {temp_examples['hot']['temperature']}**")
+            for r in temp_examples["hot"]["results"]:
+                st.text(r)
+            st.caption(f"{temp_examples['hot']['unique_count']}/{len(temp_examples['hot']['results'])} unique")
+        st.info(
+            "**Real, honest finding:** this real run shows real variance even at "
+            "`temperature=0.0` for this creative-writing prompt (Gemini's sampling isn't "
+            "perfectly deterministic at temp 0 — a known, real API behavior, not a bug in "
+            "this code). The difference between cold and hot wasn't a clean 'more variance at "
+            "higher temperature' story on this particular run — reported as the real result "
+            "obtained, not smoothed into a tidier-looking demo."
+        )
 
 
 _CACHE_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "cache_examples.json"

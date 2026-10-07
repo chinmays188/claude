@@ -1,0 +1,23 @@
+{
+  "prompt": "Write a 5-word opening line for a mystery novel.",
+  "cold": {
+    "temperature": 0.0,
+    "results": [
+      "Blood dripped from the ceiling.",
+      "The dead man blinked twice.",
+      "The blood was still warm.",
+      "The dead man winked twice."
+    ],
+    "unique_count": 4
+  },
+  "hot": {
+    "temperature": 1.8,
+    "results": [
+      "The corpse wore my watch.",
+      "The dead man smiled back.",
+      "The dead body wore Prada.",
+      "The blood was still warm."
+    ],
+    "unique_count": 4
+  }
+}

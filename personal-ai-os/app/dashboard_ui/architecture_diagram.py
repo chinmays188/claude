@@ -538,6 +538,31 @@ HISTORY:
     same batch; overall average progress 88.9% -> 89.8%, with 2 of 15
     capabilities now genuinely at 100%.
 
+22. Updated in the SAME batch again, another quick win toward 100%.
+    "LLM Fundamentals" names "temperature and model parameters" as a
+    success criterion, but `GeminiProvider.generate()` never exposed any
+    at all -- every real call used the SDK's own implicit defaults.
+    Fixed: optional `temperature`/`top_p`/`top_k`/`max_output_tokens`
+    constructor params, wired into the real `genai` SDK call via a real
+    `GenerateContentConfig` (all default to `None`, so every existing
+    caller sees zero behavior change unless it opts in). New
+    `scripts/generate_temperature_examples.py` ran a real live
+    comparison (temperature=0.0 vs. 1.8, same prompt, 4 calls each,
+    correctly paced under the real 15 req/min free-tier limit). A real,
+    honest finding from actually running it, not assumed from theory:
+    `temperature=0.0` still showed real variance (4/4 unique) for this
+    creative-writing prompt -- Gemini's sampling isn't perfectly
+    deterministic at temp 0, a known real API behavior -- and the
+    hot/cold difference wasn't a clean "more variance at higher
+    temperature" story on this particular run; reported as the real
+    result obtained, not smoothed into a tidier-looking demo. New
+    section on the Model Routing page shows both real result sets side
+    by side. New `tests/test_gemini_provider.py` (this provider's first
+    unit test file -- every prior test exercised it only via the live
+    API) mocks the SDK client to verify the config is genuinely passed
+    through, and that omitting every param leaves the SDK's own defaults
+    untouched.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline

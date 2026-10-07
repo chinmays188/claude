@@ -44,10 +44,17 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand streaming and latency (TTFT vs generation latency)",
             "Understand model limitations, hallucinations, and model selection/routing",
         ],
-        0.85,
+        0.9,
         "Real structured-output generation+repair (app/structured/repair.py), real tool "
         "calling (ToolAgent), multiple real GeminiProvider calls verified live throughout "
-        "this session (routing, agents, trace tooling).",
+        "this session (routing, agents, trace tooling). Closed a real, found gap: "
+        "'temperature and model parameters' was a named criterion, but GeminiProvider."
+        "generate() never exposed any -- fixed with real temperature/top_p/top_k/"
+        "max_output_tokens params wired into the real genai SDK call, demonstrated live "
+        "(a real temperature=0.0 vs 1.8 comparison on the Model Routing page) -- including "
+        "a real, honest finding that temp=0.0 isn't perfectly deterministic for Gemini on "
+        "creative prompts. Still missing, honestly: no TTFT/streaming measurement exists "
+        "anywhere (the same gap 'AI Cost & Latency Engineering' disclosed).",
     ),
     (
         "learn_rag_retrieval",

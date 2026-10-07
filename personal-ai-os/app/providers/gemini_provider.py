@@ -34,12 +34,24 @@ class GeminiProvider(LLMProvider):
     def __init__(
         self, model: str | None = None, track_usage: bool = False,
         request_timeout_ms: int = DEFAULT_REQUEST_TIMEOUT_MS,
+        temperature: float | None = None, top_p: float | None = None,
+        top_k: int | None = None, max_output_tokens: int | None = None,
     ):
         require_gemini_key()
         self._model = model or Config.GEMINI_MODEL
         self._client = genai.Client(
             api_key=Config.GEMINI_API_KEY,
             http_options=genai_types.HttpOptions(timeout=request_timeout_ms),
+        )
+        # Found missing while investigating "LLM Fundamentals" (criterion:
+        # "understand... temperature and model parameters"): generate()
+        # never exposed any real generation-config control at all --
+        # every call used the SDK's own implicit defaults, with no way for
+        # a caller to ask for more/less randomness. All default to None
+        # (the SDK's own defaults), so every existing caller sees zero
+        # behavior change unless it opts in.
+        self._generation_config = genai_types.GenerateContentConfig(
+            temperature=temperature, top_p=top_p, top_k=top_k, max_output_tokens=max_output_tokens,
         )
         # When enabled, every real generate() call made through this
         # instance appends its actual usage here -- no extra/duplicate LLM
@@ -55,6 +67,7 @@ class GeminiProvider(LLMProvider):
         response = self._client.models.generate_content(
             model=self._model,
             contents=prompt,
+            config=self._generation_config,
         )
         if self._track_usage:
             self.usage_log.append(
