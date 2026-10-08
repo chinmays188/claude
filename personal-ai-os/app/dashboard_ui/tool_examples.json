@@ -5,6 +5,7 @@
     "permissions": [
       "compute:local"
     ],
+    "retry_safe": true,
     "args_schema": {
       "properties": {
         "expression": {
@@ -30,6 +31,7 @@
     "permissions": [
       "read:retrieval"
     ],
+    "retry_safe": true,
     "args_schema": {
       "properties": {
         "query": {
@@ -61,6 +63,7 @@
     "permissions": [
       "read:calendar"
     ],
+    "retry_safe": true,
     "args_schema": {
       "properties": {
         "day": {
@@ -87,6 +90,7 @@
     "permissions": [
       "read:github"
     ],
+    "retry_safe": true,
     "args_schema": {
       "properties": {
         "repo": {
@@ -126,6 +130,7 @@
     "permissions": [
       "read:email"
     ],
+    "retry_safe": true,
     "args_schema": {
       "properties": {
         "since": {
@@ -159,6 +164,7 @@
     "permissions": [
       "read:pm_workflows"
     ],
+    "retry_safe": true,
     "args_schema": {
       "properties": {
         "feedback_items": {
@@ -182,7 +188,7 @@
         "Support never responds."
       ]
     },
-    "example_response": "{\"top_themes\":[{\"theme\":\"Slow Refunds\",\"frequency\":1,\"severity\":0.9,\"customer_impact\":\"Customers experience prolonged wait times to receive their money back.\",\"trend\":\"stable\"},{\"theme\":\"Unresponsive Support\",\"frequency\":1,\"severity\":1.0,\"customer_impact\":\"Customers are left without assistance as support fails to respond.\",\"trend\":\"stable\"}],\"emerging_themes\":[],\"declining_themes\":[],\"critical_issues\":[\"Complete lack of response from customer support\",\"Excessive delays in processing refunds\"],\"recommended_actions\":[\"Investigate and resolve the bottleneck in refund processing times\",\"Audit customer support queue management to address unresponded tickets\"]}"
+    "example_response": "{\"top_themes\":[{\"theme\":\"Billing and Finance\",\"frequency\":1,\"severity\":0.8,\"customer_impact\":\"Customers experience frustration due to prolonged delays in receiving refunds.\",\"trend\":\"stable\"},{\"theme\":\"Customer Support\",\"frequency\":1,\"severity\":0.9,\"customer_impact\":\"Customers are left unassisted and ignored when trying to reach support.\",\"trend\":\"stable\"}],\"emerging_themes\":[],\"declining_themes\":[],\"critical_issues\":[\"Support never responds\",\"Refunds take too long\"],\"recommended_actions\":[\"Investigate and optimize the refund processing workflow to reduce turnaround time.\",\"Audit customer support response times and implement an urgent ticketing triage system.\"]}"
   },
   {
     "name": "analyze_jd",
@@ -191,6 +197,7 @@
       "read:career_workflows",
       "read:retrieval"
     ],
+    "retry_safe": true,
     "args_schema": {
       "properties": {
         "jd_text": {
@@ -208,7 +215,7 @@
     "example_request": {
       "jd_text": "Senior Product Manager, requires 3+ years PM experience and cross-functional leadership."
     },
-    "example_response": "{\"overall_fit\":0.5,\"technical_fit\":0.0,\"ai_fit\":0.0,\"pm_fit\":0.7,\"domain_fit\":0.0,\"leadership_fit\":0.8,\"major_gaps\":[\"No explicit mention of general product management methodology or years of experience meeting the senior seniority signal.\"],\"recommended_resume_changes\":[\"Explicitly highlight the title or role of 'Product Manager' in the resume excerpt to directly match the required skill of product management.\"],\"interview_risks\":[\"The candidate's experience is limited to a single project leading a small team of 6, which may raise questions about meeting the full scope of a 'Senior Product Manager' role.\"]}"
+    "example_response": "{\"overall_fit\":0.8,\"technical_fit\":0.5,\"ai_fit\":0.0,\"pm_fit\":1.0,\"domain_fit\":0.5,\"leadership_fit\":1.0,\"major_gaps\":[],\"recommended_resume_changes\":[\"Explicitly mention 'Product management' in the resume excerpt to directly align with the required skill.\"],\"interview_risks\":[\"Ensure the candidate can speak to broader product management strategy beyond the specific self-serve refund flow launched with the team of 6.\"]}"
   },
   {
     "name": "draft_prd",
@@ -217,6 +224,7 @@
       "read:pm_workflows",
       "read:retrieval"
     ],
+    "retry_safe": true,
     "args_schema": {
       "properties": {
         "idea": {
@@ -234,6 +242,6 @@
     "example_request": {
       "idea": "Automate refund status notifications for customers."
     },
-    "example_response": "{\"problem_statement\":\"Customers lack automated visibility into the status of their refunds, leading to uncertainty and potential support inquiries following the self-serve refund flow.\",\"customer_context\":\"Customers who utilize the self-serve refund flow (which reduced average refund resolution time from 5 days to 8 hours).\",\"hypothesis\":\"If we automate refund status notifications for customers, then customer anxiety and support overhead will decrease because they will have real-time visibility into their refund progress.\",\"solution\":\"Automated notification system that sends status updates to customers throughout the refund lifecycle.\",\"metrics\":[\"Reduction in refund-related support tickets\",\"Customer satisfaction (CSAT) score for the refund experience\"],\"experiment\":\"Send manual status update emails for a cohort of refund requests and measure the impact on support ticket volume compared to a control group before building full automation.\"}"
+    "example_response": "{\"problem_statement\":\"Customers lack automated status notifications regarding the progress of their refunds, leaving them uncertain about resolution timelines.\",\"customer_context\":\"Customers going through the refund resolution process.\",\"hypothesis\":\"If we automate refund status notifications for customers, then customer uncertainty and support inquiries regarding refund progress will decrease.\",\"solution\":\"Automate refund status notifications to keep customers informed throughout the refund resolution process.\",\"metrics\":[\"Average refund resolution time\",\"Customer support ticket volume regarding refund status\"],\"experiment\":\"Send manual or semi-automated status updates to a cohort of customers undergoing the self-serve refund flow and measure the impact on support inquiries before building fully automated notifications.\"}"
   }
 ]

@@ -738,6 +738,10 @@ def render_tools(stores: dict) -> None:
             st.markdown(f"**Description:** {example['description']}")
             st.markdown(f"**When to call it:** {example['when_to_call']}")
             st.markdown(f"**Permissions:** `{example['permissions']}`")
+            retry_safe = example.get("retry_safe", False)
+            st.markdown(
+                f"**Retry-safe (idempotent):** {'✅ yes — a real transient sandbox failure is genuinely retried' if retry_safe else '❌ no — never retried, even on a transient failure'}"
+            )
 
             st.markdown("**Arguments schema (real, from the tool's own Pydantic model):**")
             st.json(example["args_schema"], expanded=False)

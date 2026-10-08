@@ -75,6 +75,10 @@ def _example(tool: Tool, request_args: dict, response: str, when_to_call: str) -
         "name": tool.name,
         "description": tool.description,
         "permissions": tool.permissions,
+        # Found missing while investigating "Tool Calling & MCP":
+        # retry_safe was declared on every tool but never surfaced
+        # anywhere a human could see it -- now shown on the Tools page.
+        "retry_safe": tool.retry_safe,
         "args_schema": tool.args_schema.model_json_schema(),
         "when_to_call": when_to_call,
         "example_request": request_args,

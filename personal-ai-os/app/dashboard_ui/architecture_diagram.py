@@ -650,6 +650,27 @@ HISTORY:
     matching note) were updated to reflect the real fix, not left
     contradicting the code.
 
+26. Updated in the SAME batch again, continuing toward 95% overall.
+    "Tool Calling & MCP" names "tool retries, idempotency" as a success
+    criterion -- `Tool.retry_safe` was declared on every tool (`True` for
+    all 8 built-in read-only tools, confirmed by actually checking each
+    one) but nothing anywhere ever read it. New
+    `ToolAgent._execute_with_retry()`: when a tool declares itself
+    `retry_safe`, a real `SandboxViolation` (the sandbox's own timeout/
+    crash signal -- genuinely transient-looking) gets a real retry with
+    exponential backoff (same formula as the existing, previously-unused
+    `app/platform/reliability.py`'s `retry_with_backoff`, not reused
+    directly since its own generic `except Exception` would also retry a
+    deterministic `ToolError`, wasting real time on a call guaranteed to
+    fail identically again). A deterministic `ToolError` is NEVER
+    retried, and a non-`retry_safe` tool never retries regardless of
+    failure kind -- proven by 4 new real tests, including the critical
+    negative case (a non-idempotent tool with a genuinely recoverable
+    transient failure is still never retried, since retrying a real
+    side-effecting call like `send_email` could cause a real duplicate
+    action). `retry_safe` is now also surfaced on the Tools dashboard
+    page per tool (previously invisible anywhere a human could see it).
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline

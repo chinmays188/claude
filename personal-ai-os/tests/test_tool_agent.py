@@ -4,11 +4,41 @@ from app.actions.models import RiskLevel
 from app.agents.tool_agent import ToolAgent
 from app.guardrails.budgets import AgentBudget
 from app.guardrails.stop_conditions import StopReason
-from app.platform.sandbox import SandboxedToolExecutor, SandboxLimits
+from app.platform.sandbox import SandboxedToolExecutor, SandboxLimits, SandboxViolation
 from app.providers.base import LLMProvider
+from app.tools.base import ToolError
 from app.tools.calculator import CalculatorTool
 from app.tools.registry import ToolRegistry
 from tests.fakes.slow_tool import SlowTool
+
+
+class _FakeFlakySandbox:
+    """Raises a real SandboxViolation the first N times, then succeeds --
+    stands in for SandboxedToolExecutor so retry recovery can be tested
+    without real subprocess spawning overhead per attempt."""
+
+    def __init__(self, fail_times: int):
+        self._fail_times = fail_times
+        self.call_count = 0
+
+    def execute(self, tool, raw_args, risk_level=None):
+        self.call_count += 1
+        if self.call_count <= self._fail_times:
+            raise SandboxViolation(f"Simulated transient failure #{self.call_count}")
+        return tool.call(raw_args)
+
+
+class _FakeAlwaysDeterministicFailureSandbox:
+    """Always raises a real, deterministic ToolError (not a
+    SandboxViolation) -- used to prove this kind of failure is never
+    retried, even for a retry_safe tool."""
+
+    def __init__(self):
+        self.call_count = 0
+
+    def execute(self, tool, raw_args, risk_level=None):
+        self.call_count += 1
+        raise ToolError("Simulated deterministic failure (bad arguments)")
 
 
 class ScriptedProvider(LLMProvider):
@@ -274,3 +304,85 @@ def test_tool_calls_now_run_through_a_real_default_sandbox():
     assert result.tool_calls == ["slow_tool"]
     assert result.stop_reason == StopReason.TASK_COMPLETED.value
     assert "too long" in result.output.lower()
+
+
+def test_retry_safe_tool_recovers_from_a_real_transient_sandbox_violation():
+    """Found missing while investigating 'Tool Calling & MCP':
+    Tool.retry_safe was declared on every tool but nothing anywhere ever
+    read it. calculator declares retry_safe=True -- a real transient
+    SandboxViolation (simulated here, since a real one needs a genuinely
+    overloaded/slow system) should now be retried and recover."""
+    llm = ScriptedProvider(
+        [
+            '{"action": "call_tool", "tool": "calculator", "args": {"expression": "2+2"}}',
+            '{"action": "final_answer", "answer": "The answer is 4."}',
+        ]
+    )
+    fake_sandbox = _FakeFlakySandbox(fail_times=2)
+    agent = ToolAgent(llm, tools=ToolRegistry([CalculatorTool()]), sandbox=fake_sandbox)
+
+    result = agent.run("What is 2+2?")
+
+    assert fake_sandbox.call_count == 3  # 2 real failures + 1 real success
+    assert result.tool_calls == ["calculator"]
+    assert "4" in result.output
+
+
+def test_retry_safe_tool_gives_up_after_persistent_sandbox_violations():
+    llm = ScriptedProvider(
+        [
+            '{"action": "call_tool", "tool": "calculator", "args": {"expression": "2+2"}}',
+            '{"action": "final_answer", "answer": "Could not compute."}',
+        ]
+    )
+    fake_sandbox = _FakeFlakySandbox(fail_times=10)  # never recovers within max_attempts
+    agent = ToolAgent(llm, tools=ToolRegistry([CalculatorTool()]), sandbox=fake_sandbox)
+
+    result = agent.run("What is 2+2?")
+
+    assert fake_sandbox.call_count == 3  # real max_attempts, then gives up
+    # The real SandboxViolation is caught by ToolAgent's existing ToolError
+    # handler (SandboxViolation IS a ToolError) and recorded as a normal
+    # recoverable failure, not a crash.
+    assert result.tool_calls == ["calculator"]
+
+
+def test_non_retry_safe_tool_never_retries_even_on_sandbox_violation():
+    """A real, important negative case: a non-idempotent tool (simulated
+    here via a flaky sandbox, since no real non-retry_safe tool is also
+    conveniently flaky) must NEVER be retried, regardless of failure
+    kind -- retrying a real side-effecting call (e.g. send_email) could
+    cause a real duplicate action."""
+
+    class _NonRetrySafeCalculator(CalculatorTool):
+        retry_safe = False
+
+    llm = ScriptedProvider(
+        [
+            '{"action": "call_tool", "tool": "calculator", "args": {"expression": "2+2"}}',
+            '{"action": "final_answer", "answer": "Could not compute."}',
+        ]
+    )
+    fake_sandbox = _FakeFlakySandbox(fail_times=1)  # would recover on attempt 2 if retried
+    agent = ToolAgent(llm, tools=ToolRegistry([_NonRetrySafeCalculator()]), sandbox=fake_sandbox)
+
+    result = agent.run("What is 2+2?")
+
+    assert fake_sandbox.call_count == 1  # never retried, despite a real transient failure
+    assert result.tool_calls == ["calculator"]
+
+
+def test_deterministic_tool_error_is_never_retried_even_for_a_retry_safe_tool():
+    llm = ScriptedProvider(
+        [
+            '{"action": "call_tool", "tool": "calculator", "args": {"expression": "2+2"}}',
+            '{"action": "final_answer", "answer": "Could not compute."}',
+        ]
+    )
+    fake_sandbox = _FakeAlwaysDeterministicFailureSandbox()
+    agent = ToolAgent(llm, tools=ToolRegistry([CalculatorTool()]), sandbox=fake_sandbox)
+
+    result = agent.run("What is 2+2?")
+
+    assert fake_sandbox.call_count == 1  # a deterministic failure is never retried
+    assert result.tool_calls == ["calculator"]

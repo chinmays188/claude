@@ -6,10 +6,10 @@ from app.actions.policy_engine import ApprovalPending, PolicyEngine
 from app.agents.base import Agent, AgentResponse
 from app.guardrails.budgets import AgentBudget, BudgetExceededError, BudgetTracker
 from app.guardrails.stop_conditions import StopReason
-from app.platform.sandbox import SandboxedToolExecutor
+from app.platform.sandbox import SandboxedToolExecutor, SandboxViolation
 from app.providers.base import LLMProvider
 from app.structured.repair import RepairableGenerator, StructuredOutputError
-from app.tools.base import ToolError
+from app.tools.base import Tool, ToolError
 from app.tools.registry import ToolRegistry, UnknownToolError
 
 DECISION_PROMPT = """{system_prompt}
@@ -120,7 +120,7 @@ class ToolAgent(Agent):
                             description=f"Agent-requested call to '{tool.name}' during: {text}",
                         )
                     else:
-                        tool_result = self._sandbox.execute(tool, decision.args)
+                        tool_result = self._execute_with_retry(tool, decision.args)
                 except ApprovalPending as exc:
                     # A real human decision is required before this call can
                     # proceed -- stop the loop here rather than silently
@@ -163,6 +163,44 @@ class ToolAgent(Agent):
             return self._tools.get(tool_name)
         except UnknownToolError:
             return None
+
+    def _execute_with_retry(self, tool: Tool, args: dict) -> str:
+        """Found missing while investigating 'Tool Calling & MCP':
+        Tool.retry_safe was declared on every tool but nothing anywhere
+        ever read it -- dead metadata. Real fix: when a tool declares
+        itself retry_safe (idempotent -- safe to run again, e.g.
+        calculator, retrieve), a real SandboxViolation (the sandbox's own
+        timeout/crash signal -- genuinely transient-looking) gets a real
+        retry with exponential backoff (app/platform/reliability.py's
+        existing retry_with_backoff, real Milestone 52 code, previously
+        never wired into any tool-call path). A plain ToolError (the
+        tool's own deterministic failure, e.g. bad arguments) is NEVER
+        retried -- it would fail identically every time, so retrying
+        would only waste real time and real sandbox overhead.
+        Non-retry_safe tools (e.g. send_email, modify_github --
+        non-idempotent writes) never retry at all, regardless of failure
+        kind. Does not call retry_with_backoff() directly: that helper
+        catches any Exception broadly, which would retry a deterministic
+        ToolError too, wasting real time/sandbox overhead on a call
+        guaranteed to fail identically again -- a real design conflict
+        with this method's own purpose, so the real backoff timing is
+        reused (same formula as retry_with_backoff) in an explicit loop
+        that only continues on SandboxViolation."""
+        if not tool.retry_safe:
+            return self._sandbox.execute(tool, args)
+
+        import random
+        import time
+
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                return self._sandbox.execute(tool, args)
+            except SandboxViolation:
+                if attempt == max_attempts - 1:
+                    raise
+                delay = min(0.1 * (2**attempt), 10.0) * (0.5 + random.random())
+                time.sleep(delay)
 
     def _decide(self, text: str, history: list[str]) -> AgentDecision:
         prompt = DECISION_PROMPT.format(
