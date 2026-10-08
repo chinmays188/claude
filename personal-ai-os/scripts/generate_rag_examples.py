@@ -96,14 +96,20 @@ def main() -> None:
     llm = GeminiProvider()  # this project's configured default (gemini-3.5-flash-lite)
 
     vector_store, keyword_store, all_chunks, metadata = build_stores()
-    secure_retriever = SecureRetriever(vector_store, metadata)
+    # Found missing while investigating "RAG & Retrieval" (disclosed gap:
+    # "hybrid search + reranking are real and tested but NOT actually
+    # wired into PersonalRagPipeline (production) yet"). This script
+    # already built real HybridSearch/CrossEncoderReranker instances for
+    # the stage-by-stage trace below -- now also wired into the real
+    # SecureRetriever every real pipeline.answer() call actually uses.
+    hybrid_search = HybridSearch(vector_store, keyword_store)
+    reranker = CrossEncoderReranker()
+    secure_retriever = SecureRetriever(vector_store, metadata, hybrid_search=hybrid_search, reranker=reranker)
 
     # --- Stage-by-stage real trace, captured for the page ---
     vector_results = vector_store.search(QUESTION, top_k=10)
     keyword_results = keyword_store.search(QUESTION, top_k=10)
     fused = reciprocal_rank_fusion([vector_results, keyword_results])
-
-    reranker = CrossEncoderReranker()
     reranked = reranker.rerank(QUESTION, fused, top_k=5)
 
     retrieval_metrics = evaluate_retrieval(RETRIEVAL_GROUND_TRUTH, reranked)

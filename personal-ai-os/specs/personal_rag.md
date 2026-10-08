@@ -65,12 +65,31 @@ Expected:
   semantically-relevant-but-wrong-era content gets retrieved (e.g. an old
   version of a decision that was later reversed)
 
+## Example 7 — Hybrid search + reranking wired into production (SecureRetriever)
+
+Input:
+Found while investigating "RAG & Retrieval" ("what do we need to do to make
+it 100%") -- `HybridSearch`/`CrossEncoderReranker` were real and tested since
+Phase 1, but `SecureRetriever` (and therefore `PersonalRagPipeline`) still
+only ever called plain `VectorStore.search()`.
+
+Expected / what was built:
+- `SecureRetriever` gains optional `hybrid_search`/`reranker` params
+  (backward-compatible -- every existing caller that passes neither keeps
+  the original plain-vector-search behavior unchanged).
+- Real ordering, verified by a real test: candidates come from
+  `hybrid_search` (vector+BM25 fusion) FIRST, are permission-filtered
+  SECOND, and reranked LAST -- a new test
+  (`test_reranker_only_ever_sees_already_permitted_chunks`) proves a denied
+  chunk never reaches the reranker at all, even when it would have scored
+  highly.
+- `scripts/generate_rag_examples.py` wires both real instances into its
+  `SecureRetriever` -- re-run live, same real metrics as before the fix
+  (recall 1.00, precision 0.75, groundedness 1.00, citation quality 1.00),
+  confirming no quality regression from the real wiring change.
+
 ## Non-goals for this milestone
 
 - Query understanding (Section 14's first pipeline stage) is not a separate
   component here — the question is passed through as-is to both retrievers.
   A dedicated query-rewriting/expansion step is future work.
-- Hybrid search + reranking (`HybridSearch`, `CrossEncoderReranker` from
-  Phase 1 Milestone 9) are not wired into this pipeline yet — `SecureRetriever`
-  currently wraps plain vector search only; combining it with hybrid retrieval
-  is straightforward follow-up work, not done in this pass.

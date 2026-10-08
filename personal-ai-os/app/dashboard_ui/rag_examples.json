@@ -148,7 +148,7 @@
       "achv4::chunk0"
     ]
   },
-  "final_answer": "- **Customer Support Improvements:**\n  - Designed and shipped an AI-assisted email triage system that reduced first-response time for post-sales tickets by 40% [achv3::chunk0].\n  - Led a cross-functional team of 6 to launch a self-serve refund flow, reducing average refund resolution time from 5 days to 8 hours [achv1::chunk0].\n\n- **Kubernetes Experience:**\n  - Yes, you have experience with Kubernetes, which is defined as a container orchestration platform that automates deployment, scaling, and operations of application containers across clusters of hosts [achv4::chunk0].",
+  "final_answer": "* **Customer Support Improvements:**\n  * Designed and shipped an AI-assisted email triage system that reduced first-response time for post-sales tickets by 40% [achv3::chunk0].\n  * Led a team of 6 to launch a self-serve refund flow, reducing average refund resolution time from 5 days to 8 hours [achv1::chunk0].\n  * Resolved an incident ownership conflict between engineering and support by proposing a shared on-call rotation adopted within a month [achv2::chunk0].\n\n* **Kubernetes Experience:**\n  * Yes. Kubernetes experience includes working with the container orchestration platform used to automate the deployment, scaling, and operations of application containers across host clusters [achv4::chunk0].",
   "citations": [
     {
       "chunk_id": "achv4::chunk0",
@@ -171,7 +171,7 @@
     "mem1"
   ],
   "grounding": {
-    "grounded_claim_count": 3,
+    "grounded_claim_count": 4,
     "unsupported_claim_count": 0,
     "groundedness_score": 1.0,
     "citations": [
@@ -180,8 +180,12 @@
         "chunk_id": "achv3::chunk0"
       },
       {
-        "claim": "Led a cross-functional team of 6 to launch a self-serve refund flow, reducing average refund resolution time from 5 days to 8 hours",
+        "claim": "Led a team of 6 to launch a self-serve refund flow, reducing average refund resolution time from 5 days to 8 hours",
         "chunk_id": "achv1::chunk0"
+      },
+      {
+        "claim": "Resolved an incident ownership conflict between engineering and support by proposing a shared on-call rotation adopted within a month",
+        "chunk_id": "achv2::chunk0"
       },
       {
         "claim": "Kubernetes is a container orchestration platform that automates deployment, scaling, and operations of application containers across clusters of hosts",

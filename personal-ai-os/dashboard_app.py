@@ -959,14 +959,14 @@ def render_rag(stores: dict) -> None:
         st.markdown("**Real reranked results (cross-encoder, top candidates after hybrid fusion):**")
         for r in example["reranked_results"]:
             st.text(f"[{r['score']:.3f}] {r['chunk_id']}: {r['text'][:100]}")
-        st.warning(
-            "**Honest gap, checked directly in specs/personal_rag.md**: hybrid search + "
-            "reranking (shown above) are NOT actually wired into `PersonalRagPipeline` "
-            "yet — `SecureRetriever` currently wraps plain vector search only. The "
-            "generation in the next tab used plain vector retrieval, not these reranked "
-            "results. This tab demonstrates hybrid+rerank as real, independently-tested "
-            "components (both genuinely run here), not as what production generation "
-            "actually uses today."
+        st.success(
+            "**Real fix, closing a previously-disclosed gap**: hybrid search + reranking "
+            "(shown above) are now actually wired into `PersonalRagPipeline`'s production "
+            "path — `SecureRetriever` accepts optional `hybrid_search`/`reranker` params "
+            "(this script passes both), and permission filtering always happens BEFORE "
+            "reranking, so a reranker never sees a chunk the requester can't access. The "
+            "generation in the next tab used these real reranked results, not plain "
+            "vector-only retrieval."
         )
         st.caption(
             f"Retrieval eval against a human-labeled ground truth "

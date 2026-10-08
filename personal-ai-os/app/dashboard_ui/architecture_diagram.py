@@ -625,6 +625,31 @@ HISTORY:
     actual current state of this project's real trace data, not
     softened into a cleaner-looking demo.
 
+25. Updated in the SAME batch again, continuing toward 95% overall.
+    "RAG & Retrieval" disclosed one remaining gap: "hybrid search +
+    reranking are real and tested but NOT actually wired into
+    PersonalRagPipeline (production) yet -- SecureRetriever there still
+    wraps plain vector search only." Closed it: `SecureRetriever` gained
+    optional `hybrid_search`/`reranker` params (backward-compatible --
+    every existing caller that passes neither keeps the original
+    plain-vector-search behavior unchanged). Real permission-safety
+    ordering, proven by a new test
+    (`test_reranker_only_ever_sees_already_permitted_chunks`): candidates
+    come from `hybrid_search` FIRST, are permission-filtered SECOND, and
+    reranked LAST -- a denied chunk never reaches the reranker at all,
+    even when it would have scored highly, so reranking can never leak
+    ordering information about content the requester can't access.
+    `scripts/generate_rag_examples.py` (the real production demonstration
+    script) now wires its already-built real `HybridSearch`/
+    `CrossEncoderReranker` instances into its `SecureRetriever` instead of
+    constructing them separately just for a side-by-side trace display --
+    re-run live, identical real quality metrics (recall 1.00, precision
+    0.75, groundedness 1.00, citation quality 1.00), confirming the real
+    wiring change introduced no regression. The RAG dashboard page's own
+    stale "NOT actually wired" disclosure (and specs/personal_rag.md's
+    matching note) were updated to reflect the real fix, not left
+    contradicting the code.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
