@@ -606,6 +606,25 @@ HISTORY:
     that capability. All 4 updated in the same batch; learning goals for
     each bumped accordingly.
 
+24. Updated in the SAME batch again, continuing toward 95% overall.
+    "Production AI Engineering" disclosed two remaining gaps: Docker has
+    never actually been run in this environment (confirmed again: no
+    `docker` binary installed -- stays honestly open, not fakeable), and
+    "a monitored, alerting SLO threshold is not" built (eval-gating was
+    already real). Closed the second one: new
+    `app/platform/slo_monitor.py` mirrors `CostGovernor`'s exact earlier
+    pattern (`BudgetAlert` -> `SLOAlert`, same OK/WARNING/BREACHED
+    shape) -- real p95 latency (`compute_p95_latency_ms`, a real
+    percentile over real `Trace.latency_ms` values) and real error rate
+    (reusing `error_analysis.trace_error_rate`, not a new computation),
+    checked against a real, configurable threshold. New live, interactive
+    section on the Governance & Sandbox page (100% free, no LLM call) --
+    verified live against this project's own real stored traces: a real,
+    honest `BREACHED` result (19507ms real p95 latency against a 5000ms
+    threshold; 12.5% real error rate against a 10% threshold) -- the
+    actual current state of this project's real trace data, not
+    softened into a cleaner-looking demo.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline

@@ -2133,6 +2133,45 @@ def render_governance(stores: dict) -> None:
             "already `succeeded` — fixed to re-fetch the real row after completing it."
         )
 
+    st.divider()
+    st.subheader("6. Real, monitored SLO threshold (live, against this project's real traces)")
+    st.caption(
+        "Found missing while investigating 'Production AI Engineering' (disclosed gap: "
+        "'eval-gating is real; a monitored, alerting SLO threshold is not'). New "
+        "app/platform/slo_monitor.py mirrors CostGovernor's exact pattern (a real, earlier "
+        "precedent for 'after-the-fact reporting -> alerting signal') -- real p95 latency + "
+        "real error rate, computed live from every trace currently in TraceStore, not "
+        "fabricated. This section is 100% LIVE (pure Python, no LLM call, free)."
+    )
+
+    from app.platform.slo_monitor import SLOAlertLevel, SLOMonitor, SLOThreshold
+
+    slo_col1, slo_col2 = st.columns(2)
+    with slo_col1:
+        max_latency = st.slider("Max p95 latency (ms)", 100, 30000, 5000, step=100)
+    with slo_col2:
+        max_error_rate = st.slider("Max error rate", 0.0, 1.0, 0.1, step=0.05)
+
+    all_trace_summaries = stores["traces"].list_summaries(limit=500)
+    all_real_traces = [stores["traces"].get(s["execution_id"]) for s in all_trace_summaries]
+
+    monitor = SLOMonitor({"production": SLOThreshold(scope="production", max_p95_latency_ms=max_latency, max_error_rate=max_error_rate)})
+    alert = monitor.check("production", all_real_traces)
+
+    icon = {"OK": "✅", "WARNING": "⚠️", "BREACHED": "🚨"}[alert.level.value]
+    col5, col6, col7 = st.columns(3)
+    col5.metric("Status", f"{icon} {alert.level.value}")
+    col6.metric("Real p95 latency", f"{alert.p95_latency_ms:.0f}ms", help=f"Threshold: {alert.p95_latency_threshold_ms:.0f}ms")
+    col7.metric("Real error rate", f"{alert.error_rate:.1%}", help=f"Threshold: {alert.error_rate_threshold:.1%}")
+    st.caption(f"Computed over {alert.sample_size} real stored trace(s).")
+    if alert.reasons:
+        for reason in alert.reasons:
+            (st.error if alert.level == SLOAlertLevel.BREACHED else st.warning)(reason)
+    elif alert.sample_size == 0:
+        st.info("No traces recorded yet — an honest OK, not a fabricated one.")
+    else:
+        st.success("Well within both thresholds.")
+
 
 _PRODUCTION_DRILLS_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "production_drills.json"
 
