@@ -75,11 +75,8 @@ FILLER_CHUNKS = [
 ]
 
 
-def run_position(position: str) -> dict:
-    require_gemini_key()
-    llm = GeminiProvider()
-
-    context = build_positioned_context(FILLER_CHUNKS, CRITICAL_FACT, position)
+def run_position(position: str, filler_chunks: list[str], llm: GeminiProvider) -> dict:
+    context = build_positioned_context(filler_chunks, CRITICAL_FACT, position)
     prompt = f"{context}\n\n{QUESTION}"
     answer = llm.generate(prompt)
 
@@ -93,7 +90,10 @@ def run_position(position: str) -> dict:
 
 
 def main() -> None:
-    results = [run_position(p) for p in ("start", "middle", "end")]
+    require_gemini_key()
+    llm = GeminiProvider()
+
+    results = [run_position(p, FILLER_CHUNKS, llm) for p in ("start", "middle", "end")]
 
     for r in results:
         status = "CORRECT" if r["correct"] else "WRONG/MISSED"

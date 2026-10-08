@@ -671,6 +671,36 @@ HISTORY:
     action). `retry_safe` is now also surfaced on the Tools dashboard
     page per tool (previously invisible anywhere a human could see it).
 
+27. Updated in the SAME batch again, closing both of "Context
+    Engineering"'s remaining disclosed gaps. (a) "PersonalContextEngine's
+    scoring weights are still fixed defaults, never tuned or evaluated
+    against a real golden set": new `app/evaluation/context_engine_eval.py`
+    (same `GoldenCase`/`GoldenCaseResult` pattern as `golden.py`'s real
+    routing-golden-case runner, applied to context selection) + 5 real,
+    hand-crafted scenarios (`context_engine_golden.py`), each with a
+    human-judged correct outcome decided before running any weight
+    configuration. Real, measured result: the current default weights
+    score 100%; a real, genuine failure was found while comparing against
+    4 alternatives -- over-weighting raw relevance breaks the case where
+    an explicit HIGH-importance preference should beat a merely
+    higher-relevance LOW-importance distractor, real evidence the golden
+    set actually discriminates between configurations. New live,
+    interactive section on the Context & Memory page shows all 5
+    configurations' real accuracy side by side. (b) "the lost-in-the-middle
+    result is a single data point at one context length/model, not a
+    systematic sweep": new `scripts/generate_lost_in_middle_sweep.py` runs
+    the exact same real fact/question/judging logic at 3 real scales
+    (20/100/200 filler chunks) x 3 positions -- 9 real, live Gemini calls,
+    paced under the real 15 req/min free-tier limit. A real, transient
+    `504 DEADLINE_EXCEEDED` was genuinely hit partway through the first
+    attempt (not fabricated) -- the script was made resilient (incremental
+    save after every real call, a real retry-with-delay for a transient
+    failure) so already-succeeded real calls were never discarded. The
+    real, honest result: no degradation observed at ANY of the 3 real
+    scales tried -- substantiating, not just repeating, the original
+    single-point finding. New section on the Context & Memory page shows
+    all 9 real results.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline

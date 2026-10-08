@@ -1,0 +1,72 @@
+{
+  "sweep_results": [
+    {
+      "position": "start",
+      "context_char_length": 1875,
+      "answer": "The internal codename for the Q3 launch is **'Project Marigold-7'**.",
+      "correct": true,
+      "filler_chunk_count": 20
+    },
+    {
+      "position": "middle",
+      "context_char_length": 1875,
+      "answer": "The internal codename for the Q3 launch is **'Project Marigold-7'**.",
+      "correct": true,
+      "filler_chunk_count": 20
+    },
+    {
+      "position": "end",
+      "context_char_length": 1875,
+      "answer": "The internal codename for the Q3 launch is 'Project Marigold-7'.",
+      "correct": true,
+      "filler_chunk_count": 20
+    },
+    {
+      "position": "start",
+      "context_char_length": 8948,
+      "answer": "The internal codename for the Q3 launch is **'Project Marigold-7'**.",
+      "correct": true,
+      "filler_chunk_count": 100
+    },
+    {
+      "position": "middle",
+      "context_char_length": 8948,
+      "answer": "The internal codename for the Q3 launch mentioned in the document is **'Project Marigold-7'**.",
+      "correct": true,
+      "filler_chunk_count": 100
+    },
+    {
+      "position": "end",
+      "context_char_length": 8948,
+      "answer": "The internal codename for the Q3 launch is 'Project Marigold-7'.",
+      "correct": true,
+      "filler_chunk_count": 100
+    },
+    {
+      "position": "start",
+      "context_char_length": 17817,
+      "answer": "The internal codename for the Q3 launch is **'Project Marigold-7'**.",
+      "correct": true,
+      "filler_chunk_count": 200
+    },
+    {
+      "position": "middle",
+      "context_char_length": 17817,
+      "answer": "The internal codename for the Q3 launch is **'Project Marigold-7'**.",
+      "correct": true,
+      "filler_chunk_count": 200
+    },
+    {
+      "position": "end",
+      "context_char_length": 17817,
+      "answer": "The internal codename for the Q3 launch is **'Project Marigold-7'**.",
+      "correct": true,
+      "filler_chunk_count": 200
+    }
+  ],
+  "scales": [
+    20,
+    100,
+    200
+  ]
+}
