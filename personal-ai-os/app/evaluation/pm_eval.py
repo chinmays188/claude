@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from app.domains.pm.models import FeedbackIntelligenceResult, PrdCriticFeedback
+from app.domains.pm.models import FeedbackIntelligenceResult, PrdCriticFeedback, StakeholderRequestAnalysis
 
 
 class PmCheckResult(BaseModel):
@@ -47,3 +47,22 @@ def check_critic_challenged_the_prd(critique: PrdCriticFeedback) -> PmCheckResul
             reason=f"{len(trivial)} critic field(s) look non-committal/too short to be a real challenge.",
         )
     return PmCheckResult(name="critic_challenged_the_prd", passed=True, reason="Critic gave substantive answers to all questions.")
+
+
+def check_stakeholder_recommendation_reasoned(analysis: StakeholderRequestAnalysis) -> PmCheckResult:
+    """Found missing while investigating 'AI Evaluation' (building the PM
+    domain's live grading harness): no real check existed for
+    analyze_stakeholder_request's output. recommendation is already a
+    validated enum (Pydantic rejects anything else at construction), so
+    the real, checkable gap is Section 16's own requirement -- 'the
+    system should explain why' -- a trivially short reasoning isn't a
+    real explanation."""
+    if len(analysis.reasoning.strip()) < 15:
+        return PmCheckResult(
+            name="stakeholder_recommendation_reasoned", passed=False,
+            reason=f"Reasoning looks too short to be a real explanation: {analysis.reasoning!r}",
+        )
+    return PmCheckResult(
+        name="stakeholder_recommendation_reasoned", passed=True,
+        reason=f"Recommendation '{analysis.recommendation.value}' has substantive reasoning.",
+    )

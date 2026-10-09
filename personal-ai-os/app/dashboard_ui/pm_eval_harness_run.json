@@ -1,0 +1,24 @@
+{
+  "domain": "pm",
+  "results": [
+    {
+      "case_id": "pm_001",
+      "category": "feedback_intelligence",
+      "passed": true,
+      "reason": "Themes trace back to raw feedback."
+    },
+    {
+      "case_id": "pm_002",
+      "category": "stakeholder_request",
+      "passed": true,
+      "reason": "Recommendation 'BUILD' has substantive reasoning."
+    },
+    {
+      "case_id": "pm_003",
+      "category": "prd_generation",
+      "passed": true,
+      "reason": "Critic gave substantive answers to all questions."
+    }
+  ],
+  "pass_rate": 1.0
+}

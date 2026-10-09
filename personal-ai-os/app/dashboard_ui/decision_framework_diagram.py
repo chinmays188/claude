@@ -47,7 +47,7 @@ flowchart TB
     Q9 -->|yes| T9["AUTONOMOUS EXECUTION\n(low-risk/reversible,\ngenuinely no human needed)"]
     Q9 -->|no| T5["AGENT / TOOL CALLING\n(a real decision loop with\nreal tool access)"]
 
-    REALLOG["app/evaluation/ai_product_decision_log.py --\n18 REAL decisions this project actually made,\neach citing its real commit/spec source"]
+    REALLOG["app/evaluation/ai_product_decision_log.py --\n24 REAL decisions this project actually made,\neach citing its real commit/spec source"]
     T1 -.-> REALLOG
     T2 -.-> REALLOG
     T3 -.-> REALLOG

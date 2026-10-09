@@ -1,0 +1,18 @@
+{
+  "domain": "finance",
+  "results": [
+    {
+      "case_id": "finance_001",
+      "category": "portfolio_analysis",
+      "passed": true,
+      "reason": "All claims tagged."
+    },
+    {
+      "case_id": "finance_002",
+      "category": "scenario_analysis",
+      "passed": true,
+      "reason": "All calculations match deterministic values."
+    }
+  ],
+  "pass_rate": 1.0
+}

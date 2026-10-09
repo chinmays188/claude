@@ -1,0 +1,24 @@
+{
+  "domain": "career",
+  "results": [
+    {
+      "case_id": "career_001",
+      "category": "jd_analysis",
+      "passed": true,
+      "reason": "All scores in range."
+    },
+    {
+      "case_id": "career_002",
+      "category": "interview_prep",
+      "passed": true,
+      "reason": "All STAR fields present."
+    },
+    {
+      "case_id": "career_003",
+      "category": "resume_optimization",
+      "passed": true,
+      "reason": "All suggestions grounded in real retrieved excerpts."
+    }
+  ],
+  "pass_rate": 1.0
+}

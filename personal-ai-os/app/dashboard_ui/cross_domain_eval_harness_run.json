@@ -1,0 +1,16 @@
+{
+  "domain": "cross_domain",
+  "results": [
+    {
+      "case_id": "cross_001",
+      "passed": true,
+      "reason": "Domains match expected set."
+    },
+    {
+      "case_id": "cross_002",
+      "passed": true,
+      "reason": "Domains match expected set."
+    }
+  ],
+  "pass_rate": 1.0
+}

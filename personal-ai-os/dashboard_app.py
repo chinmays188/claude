@@ -1863,6 +1863,150 @@ def render_evals(stores: dict) -> None:
         "proposal in this project)."
     )
 
+    st.divider()
+    st.subheader("7. Domain golden-set harness: Career (pre-generated, real Gemini calls)")
+    st.caption(
+        "Found missing while investigating 'AI Evaluation' (disclosed gap: 'the "
+        "domain-specific synthetic sets (career/pm/finance/learning/cross_domain) still "
+        "have no live grading harness'). Career is the representative first domain closed: "
+        "each real case dispatches to the real workflow function its category names "
+        "(jd_analysis/interview_prep/resume_optimization), run against real synthetic "
+        "achievement fixtures, graded by this project's own real career_eval.py checks "
+        "plus the real grounding checks each workflow already enforces."
+    )
+    career_run = _load_career_eval_harness_run()
+    if career_run is None:
+        st.warning("No run found — run `python scripts/generate_career_eval_harness_run.py` first.")
+    else:
+        st.metric("Real pass rate", f"{career_run['pass_rate']:.0%}", help=f"{sum(1 for r in career_run['results'] if r['passed'])}/{len(career_run['results'])} real cases")
+        for r in career_run["results"]:
+            icon = "✅" if r["passed"] else "❌"
+            st.markdown(f"{icon} **{r['case_id']}** ({r['category']}) — {r['reason']}")
+        st.caption("Closed in the same batch as PM/finance/learning/cross_domain below — see sections 8-11.")
+
+    st.divider()
+    st.subheader("8. Domain golden-set harness: PM (pre-generated, real Gemini calls)")
+    st.caption(
+        "Second domain closed: each real case dispatches to the real workflow function "
+        "its category names (feedback_intelligence/stakeholder_request/prd_generation), "
+        "run against a real synthetic roadmap/decision fixture, graded by this project's "
+        "own real pm_eval.py checks — including a new check "
+        "(check_stakeholder_recommendation_reasoned) found missing while building this: "
+        "no real check existed for analyze_stakeholder_request's output at all."
+    )
+    pm_run = _load_pm_eval_harness_run()
+    if pm_run is None:
+        st.warning("No run found — run `python scripts/generate_pm_eval_harness_run.py` first.")
+    else:
+        st.metric("Real pass rate", f"{pm_run['pass_rate']:.0%}", help=f"{sum(1 for r in pm_run['results'] if r['passed'])}/{len(pm_run['results'])} real cases")
+        for r in pm_run["results"]:
+            icon = "✅" if r["passed"] else "❌"
+            st.markdown(f"{icon} **{r['case_id']}** ({r['category']}) — {r['reason']}")
+
+    st.divider()
+    st.subheader("9. Domain golden-set harness: Finance (pre-generated)")
+    st.caption(
+        "Third domain closed. A real, honest finding specific to this domain: "
+        "scenario_analysis's analyze_scenario() takes NO llm parameter at all (Section "
+        "24's absolute rule — an LLM must never compute or restate a scenario shock's "
+        "numbers). So finance_002's grading needs no live Gemini call at all — only "
+        "finance_001 (portfolio_analysis) does."
+    )
+    finance_run = _load_finance_eval_harness_run()
+    if finance_run is None:
+        st.warning("No run found — run `python scripts/generate_finance_eval_harness_run.py` first.")
+    else:
+        st.metric("Real pass rate", f"{finance_run['pass_rate']:.0%}", help=f"{sum(1 for r in finance_run['results'] if r['passed'])}/{len(finance_run['results'])} real cases")
+        for r in finance_run["results"]:
+            icon = "✅" if r["passed"] else "❌"
+            st.markdown(f"{icon} **{r['case_id']}** ({r['category']}) — {r['reason']}")
+
+    st.divider()
+    st.subheader("10. Domain golden-set harness: Learning (pre-generated, real Gemini calls)")
+    st.caption(
+        "Fourth domain closed: explain_concept (real content-kind tagging check) and "
+        "adaptive_evaluation (real 5-dimension score-range check, graded against a real, "
+        "deliberately generic/weak synthetic learner answer — the point is proving "
+        "evaluate_answer() runs end to end, not judging one specific learner)."
+    )
+    learning_run = _load_learning_eval_harness_run()
+    if learning_run is None:
+        st.warning("No run found — run `python scripts/generate_learning_eval_harness_run.py` first.")
+    else:
+        st.metric("Real pass rate", f"{learning_run['pass_rate']:.0%}", help=f"{sum(1 for r in learning_run['results'] if r['passed'])}/{len(learning_run['results'])} real cases")
+        for r in learning_run["results"]:
+            icon = "✅" if r["passed"] else "❌"
+            st.markdown(f"{icon} **{r['case_id']}** ({r['category']}) — {r['reason']}")
+
+    st.divider()
+    st.subheader("11. Domain golden-set harness: Cross-Domain (pre-generated, real Gemini calls)")
+    st.caption(
+        "Fifth and last domain closed. These cases test DomainRouter's real multi-label "
+        "classification directly (e.g. 'Should I learn Kubernetes for my career?' must "
+        "correctly route to BOTH CAREER and LEARNING) — no category dispatch needed, "
+        "unlike the other 4 domains."
+    )
+    cross_domain_run = _load_cross_domain_eval_harness_run()
+    if cross_domain_run is None:
+        st.warning("No run found — run `python scripts/generate_cross_domain_eval_harness_run.py` first.")
+    else:
+        st.metric("Real pass rate", f"{cross_domain_run['pass_rate']:.0%}", help=f"{sum(1 for r in cross_domain_run['results'] if r['passed'])}/{len(cross_domain_run['results'])} real cases")
+        for r in cross_domain_run["results"]:
+            icon = "✅" if r["passed"] else "❌"
+            st.markdown(f"{icon} **{r['case_id']}** — {r['reason']}")
+        st.success("All 5 domains (career/pm/finance/learning/cross_domain) now have a real, live grading harness.")
+
+
+_CAREER_EVAL_HARNESS_RUN_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "career_eval_harness_run.json"
+
+
+def _load_career_eval_harness_run() -> dict | None:
+    """Loads scripts/generate_career_eval_harness_run.py's committed, real
+    output -- generated against the live Gemini API, not on this page
+    render (this dashboard's standing no-live-LLM-call rule)."""
+    if not _CAREER_EVAL_HARNESS_RUN_PATH.exists():
+        return None
+    return json.loads(_CAREER_EVAL_HARNESS_RUN_PATH.read_text())
+
+
+_PM_EVAL_HARNESS_RUN_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "pm_eval_harness_run.json"
+
+
+def _load_pm_eval_harness_run() -> dict | None:
+    """Loads scripts/generate_pm_eval_harness_run.py's committed, real
+    output -- generated against the live Gemini API, not on this page
+    render (this dashboard's standing no-live-LLM-call rule)."""
+    if not _PM_EVAL_HARNESS_RUN_PATH.exists():
+        return None
+    return json.loads(_PM_EVAL_HARNESS_RUN_PATH.read_text())
+
+
+_FINANCE_EVAL_HARNESS_RUN_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "finance_eval_harness_run.json"
+
+
+def _load_finance_eval_harness_run() -> dict | None:
+    if not _FINANCE_EVAL_HARNESS_RUN_PATH.exists():
+        return None
+    return json.loads(_FINANCE_EVAL_HARNESS_RUN_PATH.read_text())
+
+
+_LEARNING_EVAL_HARNESS_RUN_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "learning_eval_harness_run.json"
+
+
+def _load_learning_eval_harness_run() -> dict | None:
+    if not _LEARNING_EVAL_HARNESS_RUN_PATH.exists():
+        return None
+    return json.loads(_LEARNING_EVAL_HARNESS_RUN_PATH.read_text())
+
+
+_CROSS_DOMAIN_EVAL_HARNESS_RUN_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "cross_domain_eval_harness_run.json"
+
+
+def _load_cross_domain_eval_harness_run() -> dict | None:
+    if not _CROSS_DOMAIN_EVAL_HARNESS_RUN_PATH.exists():
+        return None
+    return json.loads(_CROSS_DOMAIN_EVAL_HARNESS_RUN_PATH.read_text())
+
 
 _GOVERNANCE_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "governance_examples.json"
 

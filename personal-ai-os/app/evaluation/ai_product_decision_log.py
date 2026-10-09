@@ -319,6 +319,92 @@ DECISION_LOG: list[LoggedDecision] = [
                         "silently decide it's wrong and remove it.",
         source="dfeb467",
     ),
+    LoggedDecision(
+        decision_id="scale_down_default_governance_not_full_policy_engine",
+        title="Scale a 'make it the real default' ask down to a smaller, safer real upgrade",
+        tier=DecisionTier.HUMAN_APPROVAL_REQUIRED,
+        what_was_chosen="ToolAgent runs every tool call through a real SandboxedToolExecutor "
+                         "by default (process isolation, real timeout/memory ceiling).",
+        what_was_rejected="Making full PolicyEngine (risk classification + approval gate + "
+                           "audit log) the real default for every Orchestrator/ToolAgent caller.",
+        real_rationale="Investigating the ask surfaced real blockers: no safe default exists "
+                        "for 'which permissions are granted,' and an in-memory default "
+                        "AuditLog would be silently discarded, defeating the audit trail's "
+                        "purpose. Rather than force a risky change through, scoped down to "
+                        "the real, smaller safety upgrade that was actually safe to default.",
+        source="c094ca2",
+    ),
+    LoggedDecision(
+        decision_id="cache_wired_into_classification_not_agent_generation",
+        title="Wire the real semantic cache into classification calls, not agent generation",
+        tier=DecisionTier.RAG,
+        what_was_chosen="A new Orchestrator classification_llm param lets UnifiedRouter/"
+                         "MultiAgentPlanner's calls use a cache-wrapped provider.",
+        what_was_rejected="Wiring the cache into agent_llm (the 3 agents' own generation "
+                           "calls), the more obvious integration point.",
+        real_rationale="ToolAgent's own generate() embeds an ever-growing conversation "
+                        "history + tool-decision JSON each turn -- a real, measured fact that "
+                        "makes a cache hit there unrealistic in practice. Classification calls "
+                        "are stateless and fixed-shape, a genuinely good fit instead.",
+        source="c094ca2",
+    ),
+    LoggedDecision(
+        decision_id="slo_monitor_mirrors_cost_governor_never_blocks",
+        title="A real SLO monitor that only signals, never blocks a request itself",
+        tier=DecisionTier.HUMAN_APPROVAL_REQUIRED,
+        what_was_chosen="SLOMonitor.check() returns a real OK/WARNING/BREACHED alert; no "
+                         "caller path is forced to refuse a request based on it.",
+        what_was_rejected="Having the monitor itself gate or refuse requests once a "
+                           "threshold is breached.",
+        real_rationale="Mirrors CostGovernor's own earlier, already-adopted design exactly -- "
+                        "a real precedent in this project for 'after-the-fact reporting -> "
+                        "alerting signal,' not an automatic enforcement action a human hasn't "
+                        "reviewed.",
+        source="4d30b50",
+    ),
+    LoggedDecision(
+        decision_id="reranking_after_permission_filter_not_before",
+        title="Rerank only already-permission-filtered chunks, never before filtering",
+        tier=DecisionTier.RAG,
+        what_was_chosen="SecureRetriever's real order: hybrid search -> permission filter -> "
+                         "rerank -> top_k.",
+        what_was_rejected="Reranking the full candidate set before permission filtering (then "
+                           "filtering the reranked results).",
+        real_rationale="A denied chunk must never reach the reranker at all -- reranking "
+                        "candidates the requester can't see would leak ordering information "
+                        "about content outside their access, a real security property, not "
+                        "just a performance detail. Proven by a dedicated test.",
+        source="2d3821a",
+    ),
+    LoggedDecision(
+        decision_id="tool_retry_only_on_sandbox_violation",
+        title="Retry a real transient sandbox failure, never a deterministic tool error",
+        tier=DecisionTier.TOOL_CALLING,
+        what_was_chosen="ToolAgent retries only SandboxViolation (timeout/crash) for "
+                         "retry_safe tools, with real exponential backoff.",
+        what_was_rejected="Reusing retry_with_backoff()'s own generic except Exception "
+                           "directly, which would also retry a deterministic ToolError.",
+        real_rationale="A deterministic failure (e.g. bad arguments) will fail identically "
+                        "again -- retrying it only wastes real time and real sandbox "
+                        "overhead. Only a genuinely transient signal deserves a real retry.",
+        source="dc5f472",
+    ),
+    LoggedDecision(
+        decision_id="finance_scenario_case_needs_zero_llm_calls",
+        title="Let a golden case's grading honestly need zero LLM calls when the real code does",
+        tier=DecisionTier.DETERMINISTIC_LOGIC,
+        what_was_chosen="finance_golden_runner.py's scenario_analysis case calls the real "
+                         "analyze_scenario() (no llm parameter at all) and grades the "
+                         "deterministic result -- no Gemini call for that case.",
+        what_was_rejected="Forcing every domain golden case through a live LLM call for "
+                           "uniformity, even when the real workflow being tested doesn't use one.",
+        real_rationale="Section 24's own absolute rule for this workflow is that an LLM must "
+                        "never compute or restate a scenario shock's numbers. A harness that "
+                        "pretended otherwise, or added an unnecessary LLM call just to make "
+                        "every case look the same, would misrepresent what the real code "
+                        "actually does.",
+        source="c7ecf16",
+    ),
 ]
 
 

@@ -4,6 +4,7 @@ import pytest
 
 from app.domains.pm.models import StakeholderRecommendation
 from app.domains.pm.stakeholder_request import analyze_stakeholder_request
+from app.evaluation.pm_eval import check_stakeholder_recommendation_reasoned
 from app.knowledge.document import PersonalDocumentMetadata, Sensitivity
 from app.knowledge.secure_retrieval import SecureRetriever
 from app.providers.base import LLMProvider
@@ -65,3 +66,28 @@ def test_analyze_handles_no_evidence_found():
     result = analyze_stakeholder_request(llm, "Add feature X", empty_retriever, requester_id="alice", requester_tenant_id="t1")
 
     assert result.recommendation == StakeholderRecommendation.NEED_MORE_EVIDENCE
+
+
+def test_check_stakeholder_recommendation_reasoned_passes_for_substantive_reasoning():
+    llm = ScriptedProvider(
+        ['{"request": "Can we add automated refunds?", "problem_extracted": "Manual refunds are slow", '
+         '"user_impact": "All customers requesting refunds", "recommendation": "BUILD", '
+         '"reasoning": "Already planned in the Q3 roadmap, confirming demand."}']
+    )
+    result = analyze_stakeholder_request(llm, "Can we add automated refunds?", _retriever_with_roadmap(), requester_id="alice", requester_tenant_id="t1")
+
+    check = check_stakeholder_recommendation_reasoned(result)
+
+    assert check.passed is True
+
+
+def test_check_stakeholder_recommendation_reasoned_fails_for_trivial_reasoning():
+    llm = ScriptedProvider(
+        ['{"request": "Can we add automated refunds?", "problem_extracted": "Manual refunds are slow", '
+         '"user_impact": "All customers", "recommendation": "BUILD", "reasoning": "ok"}']
+    )
+    result = analyze_stakeholder_request(llm, "Can we add automated refunds?", _retriever_with_roadmap(), requester_id="alice", requester_tenant_id="t1")
+
+    check = check_stakeholder_recommendation_reasoned(result)
+
+    assert check.passed is False

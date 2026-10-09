@@ -1,0 +1,18 @@
+{
+  "domain": "learning",
+  "results": [
+    {
+      "case_id": "learning_001",
+      "category": "explain_concept",
+      "passed": true,
+      "reason": "Content correctly labeled as 'factual'."
+    },
+    {
+      "case_id": "learning_002",
+      "category": "adaptive_evaluation",
+      "passed": true,
+      "reason": "All scores in range."
+    }
+  ],
+  "pass_rate": 1.0
+}
