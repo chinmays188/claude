@@ -1370,8 +1370,6 @@ def render_context_memory(stores: dict) -> None:
         "call, free)."
     )
 
-    from datetime import datetime, timedelta, timezone
-
     from app.memory.retrieval import MemoryRetriever, RankedMemory
 
     retrieve_query = st.text_input(
