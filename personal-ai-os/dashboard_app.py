@@ -2634,9 +2634,44 @@ def render_multimodal(stores: dict) -> None:
                 local_audio_path = f.name
 
     if local_audio_path is not None:
+        import time as _time
+
+        trace: list[tuple[str, str, float]] = []  # (step, detail, seconds_taken)
+
+        t0 = _time.monotonic()
+        from app.voice_local.audio_io import load_wav_as_float_array
+
+        raw_audio = load_wav_as_float_array(local_audio_path)
+        trace.append((
+            "1. Load raw audio",
+            f"Read WAV via stdlib `wave`, decoded to a {raw_audio.dtype} numpy array "
+            f"({len(raw_audio):,} samples at 16kHz ≈ {len(raw_audio) / 16_000:.2f}s), "
+            "resampling/downmixing to mono 16kHz if the source differed.",
+            _time.monotonic() - t0,
+        ))
+
+        t1 = _time.monotonic()
         with st.spinner("Loading Silero VAD and detecting real speech segments..."):
             vad = _get_local_vad()
+            vad_load_elapsed = _time.monotonic() - t1
+            t2 = _time.monotonic()
             segments = vad.detect_speech(local_audio_path)
+            vad_run_elapsed = _time.monotonic() - t2
+
+        trace.append((
+            "2. Load Silero VAD model",
+            "`torch.jit.load` of Silero's ~2MB model (cached after first run; this call "
+            "re-runs `load_silero_vad()` each page interaction — cheap at this size, but "
+            "not re-downloaded).",
+            vad_load_elapsed,
+        ))
+        trace.append((
+            "3. Run VAD over the audio",
+            f"`get_speech_timestamps()` scored the audio in chunks and returned "
+            f"{len(segments)} real speech segment(s) — silence/non-speech is excluded "
+            "before the costlier transcription step runs.",
+            vad_run_elapsed,
+        ))
 
         if not segments:
             st.info("No speech detected in this audio — a real, honest result, not an error.")
@@ -2645,15 +2680,49 @@ def render_multimodal(stores: dict) -> None:
             for seg in segments:
                 st.caption(f"  {seg.start_seconds:.2f}s → {seg.end_seconds:.2f}s")
 
+            t3 = _time.monotonic()
             with st.spinner("Loading faster-whisper (base model, ~145MB on first run) and transcribing locally..."):
                 transcriber = _get_local_transcriber()
+                transcriber_load_elapsed = _time.monotonic() - t3
+                t4 = _time.monotonic()
                 result = transcriber.transcribe(local_audio_path)
+                transcribe_elapsed = _time.monotonic() - t4
+
+            trace.append((
+                "4. Load faster-whisper model",
+                "`WhisperModel('base', device='cpu', compute_type='int8')` — reads the "
+                "~145MB model into memory (downloaded once from Hugging Face on first "
+                "use, cached in `~/.cache/huggingface` after that; `int8` quantization "
+                "chosen for faster CPU inference on this Mac, which has no CUDA GPU).",
+                transcriber_load_elapsed,
+            ))
+            trace.append((
+                "5. Run Whisper transcription",
+                f"`model.transcribe(audio_array)` on the full {raw_audio.size / 16_000:.2f}s "
+                f"clip (passed as a raw numpy array, not a file path — bypasses a real "
+                f"`av`/faster-whisper version incompatibility found while building this) "
+                f"→ detected language `{result.language}` (confidence {result.language_probability:.2f}).",
+                transcribe_elapsed,
+            ))
 
             st.markdown("**Real local transcription:**")
             st.success(result.text or "(empty transcription)")
             st.caption(
                 f"Detected language: {result.language} (confidence {result.language_probability:.2f}) — "
                 f"audio duration: {result.duration_seconds:.2f}s"
+            )
+
+        with st.expander("🔍 Pipeline trace — real steps, in order, with real timings"):
+            total_elapsed = sum(step[2] for step in trace)
+            for step_name, detail, elapsed in trace:
+                st.markdown(f"**{step_name}** — {elapsed:.3f}s")
+                st.caption(detail)
+            st.markdown(f"**Total pipeline time: {total_elapsed:.3f}s**")
+            st.caption(
+                "Timings are real wall-clock measurements from this run (`time.monotonic()` "
+                "around each step), not estimates — they'll vary with audio length, whether "
+                "the models were already cached in memory from a prior rerun on this page, "
+                "and this machine's CPU load."
             )
 
 
