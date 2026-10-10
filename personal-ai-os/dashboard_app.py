@@ -1071,12 +1071,17 @@ def _load_lost_in_middle_sweep_results() -> dict | None:
 def render_context_memory(stores: dict) -> None:
     st.header("Context Engineering & Memory")
     st.caption(
-        "A full breakdown of this project's session/user/long-term memory, context "
-        "ordering, compression, and turn-summarization -- with the real gaps found and "
-        "fixed, and 3 experiments you can run live below. Selection and compression are "
-        "100% LIVE and interactive (pure Python, no LLM call, free). The lost-in-the-middle "
-        "experiment needs a real Gemini call, so it's pre-generated and committed, "
-        "consistent with this dashboard never making live LLM calls on page render."
+        "Three real, distinct decisions this project actually makes every turn, kept "
+        "deliberately separate below rather than blurred together: **RETRIEVE** (pull a "
+        "small candidate set out of a much larger pool, by relevance to THIS query) → "
+        "**KEEP** (of those candidates, fit as many as possible into a real token budget) "
+        "→ **FORGET** (stop trusting an old memory over time unless a human confirmed it). "
+        "A 4th section (lost-in-the-middle) is a separate concept — context ORDER, not "
+        "retrieve/keep/forget — kept clearly apart so it isn't mistaken for a 4th stage of "
+        "the same pipeline. RETRIEVE and KEEP are both 100% LIVE and interactive (pure "
+        "Python, no LLM call, free); the lost-in-the-middle experiment needs a real Gemini "
+        "call, so it's pre-generated and committed, consistent with this dashboard never "
+        "making live LLM calls on page render."
     )
 
     from app.dashboard_ui.context_memory_diagram import CONTEXT_MEMORY_DIAGRAM
@@ -1113,22 +1118,80 @@ def render_context_memory(stores: dict) -> None:
     )
 
     st.divider()
-    st.subheader("1. Live context selection (PersonalContextEngine)")
+    st.subheader("1. RETRIEVE — pull a small candidate set out of a much larger pool")
+    st.caption(
+        "Found missing while clarifying the retrieve/keep/forget split: this project's real "
+        "`MemoryRetriever.rank()` (semantic similarity + recency + importance + "
+        "user_confirmed, Section 13) existed and was tested, but was never actually "
+        "DEMONSTRATED against a real pool larger than the handful of items the KEEP demo "
+        "below already assumes are relevant. This section shows the step that comes "
+        "BEFORE that one: given a real query and this project's own full real seeded "
+        "memory pool, which few memories does semantic ranking actually pull out, and "
+        "which get left behind? 100% LIVE (real sentence-transformer embeddings, no LLM "
+        "call, free)."
+    )
+
+    from datetime import datetime, timedelta, timezone
+
+    from app.memory.retrieval import MemoryRetriever, RankedMemory
+
+    retrieve_query = st.text_input(
+        "Query (what the current turn is actually about)",
+        value="How should I explain RAG to a non-technical stakeholder?",
+        key="context_memory_retrieve_query",
+    )
+    retrieve_top_k = st.slider("top_k (how many to actually retrieve)", 1, 10, 3, key="context_memory_retrieve_top_k")
+
+    all_memories = stores["memory"].list_all(TENANT_ID, USER_ID)
+    if not all_memories:
+        st.caption("No real memories seeded yet — nothing to retrieve from.")
+    else:
+        retriever = _get_memory_retriever()
+        ranked = retriever.rank(retrieve_query, all_memories, top_k=retrieve_top_k)
+        retrieved_ids = {r.memory.memory_id for r in ranked}
+        left_behind = [m for m in all_memories if m.memory_id not in retrieved_ids]
+
+        st.caption(
+            f"Real pool size: {len(all_memories)} memories. Retrieved: {len(ranked)}. "
+            f"Left behind: {len(left_behind)}."
+        )
+        rcol1, rcol2 = st.columns(2)
+        with rcol1:
+            st.markdown(f"**✅ Retrieved (top {len(ranked)}, real semantic scores)**")
+            for r in ranked:
+                st.success(f"score={r.score:.3f}\n\n{r.memory.content[:150]}")
+        with rcol2:
+            st.markdown(f"**Left in the pool, not retrieved ({len(left_behind)})**")
+            for m in left_behind[:5]:
+                st.caption(f"{m.content[:150]}")
+            if len(left_behind) > 5:
+                st.caption(f"…and {len(left_behind) - 5} more.")
+
+        st.caption(
+            "**Note this is a different decision from KEEP below:** retrieval asks 'which of "
+            "ALL stored memories are even relevant to this query' — a search problem over a "
+            "large pool. KEEP (next) asks 'of the items I already decided were relevant, "
+            "which fit in my token budget' — a packing problem over a small, already-"
+            "narrowed set. The `ranked` list produced here is exactly the kind of input "
+            "KEEP's `RankedMemory` items below are built from."
+        )
+
+    st.divider()
+    st.subheader("2a. KEEP (item-level) — PersonalContextEngine")
     st.caption(
         "Real ContextItems (a running summary, recent turns, ranked memories) compete for a "
         "real token budget by real relevance/importance/freshness/confidence score "
         "(`PersonalContextEngine.score()`). Tighten the budget below and watch real items "
         "get genuinely EXCLUDED — this is what makes 'the question is the minimum useful "
-        "context, not the maximum' a real, demonstrable behavior, not just a principle."
+        "context, not the maximum' a real, demonstrable behavior, not just a principle. "
+        "This operates on individual ITEMS (one memory, one turn) already assumed relevant "
+        "— i.e. it picks up after RETRIEVE above has already narrowed the field."
     )
-
-    from datetime import datetime, timedelta, timezone
 
     from app.context.personal_context_engine import ImportanceLevel, PersonalContextEngine
     from app.conversation.context_selection import build_context_items
     from app.conversation.session import ConversationTurn
     from app.memory.models import MemoryRecord, MemoryType
-    from app.memory.retrieval import RankedMemory
 
     now = datetime.now(timezone.utc)
     demo_summary = "User is exploring AI-agent product management and prefers concise, bullet-point answers."
@@ -1193,7 +1256,7 @@ def render_context_memory(stores: dict) -> None:
     )
 
     st.divider()
-    st.subheader("2. Real golden-set evaluation of the scoring weights")
+    st.subheader("2a-eval. Real golden-set evaluation of the KEEP scoring weights")
     st.caption(
         "Found missing while investigating 'Context Engineering' (disclosed gap: "
         "'PersonalContextEngine's scoring weights are still fixed defaults, never tuned "
@@ -1235,13 +1298,16 @@ def render_context_memory(stores: dict) -> None:
             st.markdown(f"**{case.id}**: {case.description}")
 
     st.divider()
-    st.subheader("3. Live context compression (ContextBuilder)")
+    st.subheader("2b. KEEP (section-level) — ContextBuilder")
     st.caption(
-        "Real `ContextBuilder`: sections rendered in a fixed order (system → memory → "
-        "retrieved_context → tool_results → history → user), compressed by dropping the "
-        "LOWEST-priority WHOLE section first when over `max_tokens`. This compression path "
-        "was previously dead code in production (its only real call site always used "
-        "`max_tokens=None`) — demonstrated live here for the first time."
+        "The SAME decision as 2a above (what to keep within a token budget), at a "
+        "DIFFERENT granularity: ContextBuilder operates on whole, already-assembled "
+        "SECTIONS (system/memory/retrieved_context/history/user), dropping the "
+        "LOWEST-priority WHOLE section first when over `max_tokens` — a coarser, cheaper "
+        "mechanism than 2a's per-item scoring, used at a different point in the real "
+        "pipeline (final prompt assembly, after item-level selection has already run). "
+        "This compression path was previously dead code in production (its only real call "
+        "site always used `max_tokens=None`) — demonstrated live here for the first time."
     )
 
     from app.context.builder import ContextBuilder, ContextSection, estimate_tokens
@@ -1284,7 +1350,13 @@ def render_context_memory(stores: dict) -> None:
         st.code(compressed or "(everything dropped)", language=None)
 
     st.divider()
-    st.subheader("4. Lost-in-the-middle experiment (pre-generated, real)")
+    st.subheader("3. ORDER (a separate concept from retrieve/keep/forget) — lost-in-the-middle")
+    st.caption(
+        "Deliberately NOT a 4th retrieve/keep/forget stage: this tests whether WHERE a fact "
+        "sits inside an already-decided context (start vs. middle vs. end) affects whether "
+        "the model actually uses it — a real, separate concern from which items get "
+        "retrieved, kept, or forgotten."
+    )
     lim = _load_lost_in_middle_results()
     if lim is None:
         st.warning("No results found — run `python scripts/generate_lost_in_middle_experiment.py` first.")
@@ -1323,7 +1395,7 @@ def render_context_memory(stores: dict) -> None:
         )
 
     st.divider()
-    st.subheader("4b. Systematic sweep across context scales (pre-generated, real)")
+    st.subheader("3b. Systematic sweep across context scales (pre-generated, real)")
     st.caption(
         "Found missing while investigating 'Context Engineering' (disclosed gap: 'the "
         "lost-in-the-middle result is a single data point at one context length/model, not "
@@ -1357,7 +1429,7 @@ def render_context_memory(stores: dict) -> None:
             )
 
     st.divider()
-    st.subheader("5. Live memory decay (found missing while investigating 'AI Memory')")
+    st.subheader("4. FORGET — memory decay (found missing while investigating 'AI Memory')")
     st.caption(
         "MemoryRetriever's recency scoring only ever affected retrieval RANKING — an old "
         "memory scored lower but its stored confidence/importance never actually changed, "
@@ -1407,6 +1479,14 @@ def render_context_memory(stores: dict) -> None:
                 f"None of this project's {len(real_memories)} real seeded memories have decayed "
                 "below the review threshold yet (all are either recent or user_confirmed)."
             )
+
+
+@st.cache_resource
+def _get_memory_retriever():
+    from app.memory.retrieval import MemoryRetriever
+    from app.retrieval.embeddings import SentenceTransformerEmbedding
+
+    return MemoryRetriever(SentenceTransformerEmbedding())
 
 
 _MODEL_ROUTING_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "model_routing_examples.json"

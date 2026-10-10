@@ -856,6 +856,37 @@ HISTORY:
     this capability named now has real, verified evidence) updated in
     the same batch. 5 new tests (1044 total, was 1039).
 
+34. Updated after the user asked to "simplify context engineering &
+    memory into 3 parts -- what to keep, what to retrieve, what to
+    forget," then correctly flagged that the Context & Memory
+    dashboard page's "PersonalContextEngine" and "ContextBuilder"
+    sections looked indistinguishable, and that nothing demonstrated
+    "what to retrieve" at all. Checked and confirmed: both WERE the
+    same decision (what to KEEP within a token budget) at two
+    different granularities (per-item score vs. per-section drop),
+    never two separate stages -- a real, found conceptual-clarity gap
+    in how the page presented already-correct code, not a code gap.
+    `MemoryRetriever.rank()` (real semantic similarity + recency +
+    importance + user_confirmed, Section 13) existed and was tested
+    but had never been demonstrated on this page against a pool larger
+    than the few items the KEEP demo already assumed were relevant --
+    the real RETRIEVE step that logically comes BEFORE KEEP. Page
+    restructured into explicit RETRIEVE -> KEEP (2a item-level /2b
+    section-level, explicitly labeled as the same decision) -> ORDER
+    (lost-in-the-middle, explicitly called out as a separate, 4th
+    concept -- context position, not retrieve/keep/forget) -> FORGET
+    (memory decay). New live RETRIEVE section runs MemoryRetriever.
+    rank() against this project's own real seeded memory pool for a
+    real query, verified live: a RAG-related query correctly ranks the
+    real RAG-related memory highest, with left-behind candidates shown
+    alongside. Context/memory diagram relabeled to match (RETRIEVER,
+    SELECT, CBUILDER, DECAY boxes now explicitly named by which of the
+    3 parts they are). "AI Memory" (95%->100%, retrieval specifically
+    now has a live demo) and "Context Engineering" (unchanged at 100%,
+    conceptual clarification not new coverage) learning goals updated.
+    No new tests needed -- pure dashboard restructuring/demo code over
+    already-tested MemoryRetriever; 1044 tests still passing.
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline

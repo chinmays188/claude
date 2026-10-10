@@ -147,7 +147,7 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand short-term, long-term, profile, preference, goal, decision, and experience memory",
             "Understand memory retrieval, importance, confidence, duplicate detection, decay/update",
         ],
-        0.95,
+        1.0,
         "PersistentMemoryStore (SQLite) real, with importance/confidence fields. This "
         "session closed a real, found gap: the real semantic MemoryRetriever "
         "(similarity/recency/importance/confirmed) and real MemoryWritePolicy "
@@ -174,7 +174,20 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
         "found and fixed along the way: the full test suite segfaulted (a real macOS "
         "libomp conflict between faiss and torch loading into the same process) once "
         "the real embedding became reachable from VoiceSession's default path -- fixed "
-        "with a new root conftest.py.",
+        "with a new root conftest.py. Closed the last gap this session, found while "
+        "breaking down 'what to keep, what to retrieve, what to forget' at the user's "
+        "request: 'memory retrieval' was a named success criterion, but MemoryRetriever."
+        "rank() -- real, tested code since early in this project -- had never actually "
+        "been DEMONSTRATED on the Context & Memory dashboard page against a pool larger "
+        "than the handful of items the KEEP demo already assumed were relevant; the page "
+        "only ever showed what to keep (twice, at two granularities) and what to forget, "
+        "with retrieval entirely undemoed despite being real. New live section shows "
+        "MemoryRetriever.rank() running against this project's own real seeded memory "
+        "pool for a real query, verified live: a RAG-related query correctly ranks the "
+        "real RAG-related memory highest by genuine semantic similarity, with the "
+        "left-behind candidates shown alongside so the retrieve-vs-keep distinction is "
+        "concrete, not just asserted. Every success criterion for this capability now "
+        "has real, verified evidence, including retrieval specifically.",
     ),
     (
         "learn_context_engineering",
@@ -213,7 +226,19 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
         "real live Gemini calls, surviving a genuine transient 504 mid-run) -- no "
         "degradation observed at any scale tried, substantiating rather than just "
         "repeating the original single-point finding. Every success criterion for this "
-        "capability now has real, verified evidence.",
+        "capability now has real, verified evidence. Conceptual clarification this session "
+        "(coverage unchanged, still 100% -- this closed a confusion, not a gap): the "
+        "dashboard page previously presented PersonalContextEngine and ContextBuilder as "
+        "two separate numbered experiments with no explicit relationship, which the user "
+        "correctly flagged as indistinguishable -- both are actually the SAME decision "
+        "(what to KEEP within a token budget) at two different granularities (per-item "
+        "score vs. per-section drop), and neither demonstrated the separate, prior "
+        "decision of what to RETRIEVE in the first place (MemoryRetriever.rank() pulling a "
+        "few relevant memories out of the full stored pool -- real code, previously "
+        "undemoed). Page restructured into explicit RETRIEVE -> KEEP (2 granularities) -> "
+        "ORDER (lost-in-the-middle, deliberately kept separate, not a 3rd retrieve/keep/"
+        "forget stage) -- see also 'AI Memory' below for the FORGET piece of the same "
+        "3-part split.",
     ),
     (
         "learn_model_routing_strategy",

@@ -21,6 +21,20 @@ gaps and this page's 3 follow-up pieces closed them:
      middle/end) with ~200 real filler chunks, committed as a real,
      honest result (no degradation observed at this scale/model -- a real
      finding, not manufactured to look more dramatic).
+
+Relabeled after the user pointed out the dashboard page conflated two
+different decisions under "what to keep" with no demo of "what to
+retrieve" at all: RETRIEVER (MemoryRetriever.rank()) is the real
+RETRIEVE step -- pulling a few relevant memories out of a much larger
+pool by query similarity -- and was always drawn here as feeding INTO
+SELECT, but the dashboard page itself never demonstrated RETRIEVER
+running against a pool larger than the few items SELECT's demo already
+assumed were relevant. SELECT (PersonalContextEngine) and CBUILDER
+(ContextBuilder) are both the KEEP decision, at two different
+granularities (item-level scoring vs. whole-section dropping) -- never
+two different stages. DECAY is FORGET. LIM (lost-in-the-middle) is a
+4th, separate concept (context ORDER), deliberately not folded into
+retrieve/keep/forget.
 """
 
 CONTEXT_MEMORY_DIAGRAM = r"""
@@ -37,15 +51,15 @@ flowchart TB
     end
     USERINPUT --> SESSION
 
-    subgraph MEMORY["Memory read/write -- real semantic scoring + real write gate"]
+    subgraph MEMORY["RETRIEVE -- pull a few relevant memories out of ALL stored memories"]
         direction TB
-        MEMSTORE2["PersistentMemoryStore\n(SQLite)"]
-        RETRIEVER["MemoryRetriever\nreal 4-factor score:\nsimilarity/recency/importance/confirmed"]
+        MEMSTORE2["PersistentMemoryStore\n(SQLite) -- the full real pool"]
+        RETRIEVER["MemoryRetriever.rank(query, candidates, top_k)\nreal 4-factor score:\nsimilarity/recency/importance/confirmed"]
         MEMSTORE2 --> RETRIEVER
     end
     SESSION --> RETRIEVER
 
-    subgraph SELECT["PersonalContextEngine -- real selection, not just concatenation"]
+    subgraph SELECT["KEEP (item-level) -- PersonalContextEngine, real selection not just concatenation"]
         direction TB
         ITEMS["Real ContextItems built from:\nrunning summary, recent turns,\nranked memories"]
         SCORE["score() = w_relevance*relevance +\nw_importance*importance +\nw_freshness*freshness + w_confidence*confidence"]
@@ -75,7 +89,7 @@ flowchart TB
     LOWIMP --> MEMSTORE2
     HIGHIMP -->|"approved"| MEMSTORE2
 
-    subgraph DECAY["Memory decay -- found missing, closed while investigating 'AI Memory'"]
+    subgraph DECAY["FORGET -- memory decay, found missing, closed while investigating 'AI Memory'"]
         direction TB
         DECAYCHECK{"user_confirmed?"}
         DECAYCHECK -->|"yes -- human\nalready validated it"| NODECAY["confidence unchanged"]
@@ -85,7 +99,7 @@ flowchart TB
     end
     MEMSTORE2 -.->|"apply_decay() --\nupdate_confidence() only,\nnever touches updated_at"| DECAY
 
-    subgraph CBUILDER["ContextBuilder -- real compression, demonstrated live on this page"]
+    subgraph CBUILDER["KEEP (section-level) -- ContextBuilder, same decision as SELECT above, coarser granularity"]
         direction TB
         SECTIONS["Named sections, fixed order:\nsystem/memory/retrieved_context/\ntool_results/history/user"]
         OVERBUDGET{"Over max_tokens?"}
