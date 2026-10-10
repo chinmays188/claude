@@ -83,6 +83,32 @@ def test_complex_request_degrades_to_cheap_tier_on_real_strong_tier_failure():
     assert "quota" in provider.last_decision.reason.lower() or "degraded" in provider.last_decision.reason.lower()
 
 
+def test_simple_request_routes_to_local_tier_when_provided():
+    provider = RoutingLLMProvider(_router(), local_provider=NamedProvider("ollama/llama3.2:1b"))
+
+    result = provider.generate("What is 2 + 2?")
+
+    assert result == "response from ollama/llama3.2:1b"
+    assert provider.last_decision.complexity == TaskComplexity.SIMPLE
+    assert provider.last_decision.degraded is False
+    assert "local" in provider.last_decision.reason.lower()
+
+
+def test_simple_request_degrades_to_cheap_tier_when_local_tier_fails():
+    """A real scenario this project will hit whenever Ollama isn't running
+    locally -- the request must still succeed, served by the existing
+    cheap Gemini tier, not fail outright."""
+    provider = RoutingLLMProvider(
+        _router(), local_provider=NamedProvider("ollama/llama3.2:1b", raises=True)
+    )
+
+    result = provider.generate("What is 2 + 2?")
+
+    assert result == "response from gemini-3.5-flash-lite"
+    assert provider.last_decision.complexity == TaskComplexity.SIMPLE
+    assert provider.last_decision.degraded is True
+
+
 def test_raises_when_every_provider_fails():
     router = ModelRouter(
         {

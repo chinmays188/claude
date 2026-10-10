@@ -790,6 +790,38 @@ HISTORY:
     use one. Decision Framework diagram's count updated to match (18 ->
     24).
 
+32. Updated after a scope pivot mid-session: the user asked to "double
+    click on Voice AI system... build a local-first voice AI project,"
+    then followed up with "lets install ollama and get into model
+    routing." Two genuinely new real local-model architectures landed in
+    this batch, both deliberately separate from this project's existing
+    cloud-Gemini paths. (a) app/voice_local/ (Silero VAD for real speech-
+    activity detection + faster-whisper for real local STT, no API key,
+    no network call after a one-time model download) -- wired into the
+    Multimodal Input dashboard page with a live, collapsible 5-step
+    pipeline trace (audio load / VAD model load / VAD run / Whisper model
+    load / transcription), each step timed with real time.monotonic().
+    Two real version-specific compatibility bugs were found and fixed
+    along the way: silero_vad.read_audio() needing torchaudio/torchcodec
+    (neither installed) -- fixed with a dependency-free WAV loader; and
+    faster-whisper's av-based file-decode path breaking against the only
+    av version with real Python 3.14 wheels -- fixed by passing a raw
+    numpy array directly to transcribe() instead. (b) Real Ollama
+    installed locally (brew services, v0.40.2) and a real local model
+    pulled (llama3.2:1b, 1.3GB) closed Model Routing's one remaining
+    disclosed gap (both tiers were previously Gemini, same vendor) -- new
+    app/providers/ollama_provider.py wraps Ollama's local HTTP API as a
+    genuine LLMProvider, wired into RoutingLLMProvider as an optional
+    local_provider: SIMPLE requests now try this real local, free, zero-
+    quota tier FIRST, degrading to the existing cheap Gemini tier if
+    Ollama isn't running -- proven live both ways. Shown live on the
+    Model Routing page (a real local call on page render, not pre-
+    generated/committed like the cloud examples -- a local call costs
+    nothing and hits no quota, the same exception already used for Local
+    Voice AI). "Model Routing & Model Strategy" (85%->100%) and
+    "Multimodal AI" (90%->92%) learning goals updated in the same batch.
+    1039 tests passing (was 1035).
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
@@ -825,7 +857,7 @@ flowchart TB
     end
 
     TC --> ORCH["Orchestrator\ninjects classified domain as\ncontext into the dispatched agent"]
-    MODELROUTE["ModelRouter / RoutingLLMProvider\n(optional agent_llm) -- real per-request\nrouting between gemini tiers,\nsee the dedicated Model Routing page/diagram"]
+    MODELROUTE["ModelRouter / RoutingLLMProvider\n(optional agent_llm) -- real per-request\nrouting between a free local Ollama tier\nand gemini tiers, see the dedicated\nModel Routing page/diagram"]
     ORCH -.->|"agent_llm, when given --\nclassification above always\nstays on the cheap tier"| MODELROUTE
     SEMCACHEREF["SemanticCachingProvider\n(optional agent_llm wrapper) -- real cosine-\nsimilarity cache over real embeddings,\nskips time-sensitive queries,\nsee the dedicated Caching page/diagram"]
     ORCH -.->|"agent_llm, when given --\ncan wrap ModelRouter's\noutput too"| SEMCACHEREF

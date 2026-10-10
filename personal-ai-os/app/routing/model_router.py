@@ -94,13 +94,25 @@ class RoutingLLMProvider(LLMProvider):
     strong tier's real daily quota exhausting mid-session degrades
     gracefully instead of failing the whole request. Implements
     LLMProvider directly so it drops into any existing call site expecting
-    one -- e.g. Orchestrator's agent_llm -- with zero other code changes."""
+    one -- e.g. Orchestrator's agent_llm -- with zero other code changes.
 
-    def __init__(self, router: ModelRouter):
+    `local_provider` (optional, e.g. OllamaProvider) is a real, free, local
+    tier tried FIRST for SIMPLE requests via FallbackProvider(local, cheap)
+    -- a local model with Ollama not running (or crashing) silently
+    degrades to the existing cheap Gemini tier rather than failing the
+    request, exactly mirroring the existing strong->cheap degradation
+    pattern below. Omitting it keeps the original SIMPLE->cheap-only
+    behavior unchanged, so every existing caller/test sees no behavior
+    change unless it opts in."""
+
+    def __init__(self, router: ModelRouter, local_provider: LLMProvider | None = None):
         self._router = router
         cheap = router.route(TaskComplexity.SIMPLE)
         strong = router.route(TaskComplexity.COMPLEX)
         self._cheap = cheap
+        self._simple_with_fallback = (
+            FallbackProvider([local_provider, cheap]) if local_provider else None
+        )
         self._strong_with_fallback = FallbackProvider([strong, cheap])
         self.last_decision: RoutingDecision | None = None
 
@@ -108,10 +120,26 @@ class RoutingLLMProvider(LLMProvider):
         complexity = classify_task_complexity(prompt)
 
         if complexity == TaskComplexity.SIMPLE:
-            result = self._cheap.generate(prompt)
+            if self._simple_with_fallback is None:
+                result = self._cheap.generate(prompt)
+                self.last_decision = RoutingDecision(
+                    complexity=TaskComplexity.SIMPLE, model_name=self._cheap.model_name,
+                    degraded=False, reason="Request did not match any complexity signal.",
+                )
+                return result
+
+            result = self._simple_with_fallback.generate(prompt)
+            degraded = self._simple_with_fallback.fallback_occurred
+            served_by = self._simple_with_fallback.last_used_provider
             self.last_decision = RoutingDecision(
-                complexity=TaskComplexity.SIMPLE, model_name=self._cheap.model_name,
-                degraded=False, reason="Request did not match any complexity signal.",
+                complexity=TaskComplexity.SIMPLE,
+                model_name=served_by.model_name if served_by else "unresolved",
+                degraded=degraded,
+                reason=(
+                    "Request did not match any complexity signal; "
+                    + ("local Ollama tier failed, degraded to the cheap Gemini tier."
+                       if degraded else "served by the free local Ollama tier.")
+                ),
             )
             return result
 

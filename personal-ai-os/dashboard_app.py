@@ -1501,6 +1501,50 @@ def render_model_routing(stores: dict) -> None:
         st.caption(f"Word count: {len(sample_request.split())} (≥30 alone is enough to trigger COMPLEX).")
 
     st.divider()
+    st.subheader("1b. Real local tier — Ollama (free, no API key, live on this page)")
+    st.caption(
+        "A genuinely new real tier added to `RoutingLLMProvider`: SIMPLE requests now try a "
+        "local Ollama model FIRST (zero cost, zero quota, nothing leaves this machine) via "
+        "`FallbackProvider(ollama, cheap_gemini)` — if Ollama isn't running, it silently "
+        "degrades to the existing cheap Gemini tier rather than failing. Unlike the cloud "
+        "examples below, this call is genuinely live on page render — a local model costs "
+        "nothing and hits no quota, so it doesn't violate this dashboard's no-live-cloud-call "
+        "rule (the same exception already used for the Local Voice AI section)."
+    )
+
+    try:
+        import httpx as _httpx
+
+        _httpx.get("http://localhost:11434/api/version", timeout=1.0)
+        _ollama_up = True
+    except Exception:
+        _ollama_up = False
+
+    if not _ollama_up:
+        st.warning(
+            "Ollama isn't reachable at `localhost:11434` right now — start it with "
+            "`brew services start ollama` to see a real local generation here. The routing "
+            "code itself handles this exact case: it would silently degrade to the cheap "
+            "Gemini tier instead of failing."
+        )
+    elif sample_request.strip() and classify_task_complexity(sample_request).value == "simple":
+        import time as _time
+
+        from app.providers.ollama_provider import OllamaProvider
+
+        with st.spinner("Running this SIMPLE request through the real local Ollama model..."):
+            t0 = _time.monotonic()
+            try:
+                local_result = OllamaProvider().generate(sample_request)
+                elapsed = _time.monotonic() - t0
+                st.success(f"🟢 Served locally by `ollama/llama3.2:1b` in {elapsed:.2f}s — $0 cost, no quota used.")
+                st.text(local_result[:500] + ("…" if len(local_result) > 500 else ""))
+            except Exception as exc:
+                st.error(f"Real local call failed ({exc}) — `RoutingLLMProvider` would degrade to the cheap Gemini tier here.")
+    else:
+        st.caption("Enter a SIMPLE request above (short, no comparison/analysis language) to see it served by the real local tier.")
+
+    st.divider()
     st.subheader("2. Real routing examples (pre-generated, real Gemini calls)")
     examples = _load_model_routing_examples()
     if examples is None:
