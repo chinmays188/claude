@@ -13,3 +13,5 @@ pypdf
 python-docx
 streamlit
 mcp
+faster-whisper
+silero-vad

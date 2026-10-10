@@ -2581,6 +2581,95 @@ def render_multimodal(stores: dict) -> None:
                 st.markdown(f"**Real agent answer** (`{ex['result']['agent']}`):")
                 st.success(ex["result"]["output"])
 
+    st.divider()
+    st.subheader("5. Local Voice AI — faster-whisper + Silero VAD (fully offline, no API key)")
+    st.caption(
+        "A genuinely different real architecture from the voice pipeline above: no network "
+        "call, no API key, nothing leaves this machine. Record from your microphone or "
+        "upload an audio file; Silero VAD detects which parts actually contain speech "
+        "first, then faster-whisper (OpenAI's Whisper model, running locally via "
+        "CTranslate2) transcribes the audio to text. Both real model loads happen lazily, "
+        "live, on this page — the 'base' Whisper model (~145MB) and Silero VAD's model "
+        "(~2MB) are each downloaded once and cached locally; every call after that is "
+        "fully offline."
+    )
+    st.warning(
+        "**Real, disclosed limitation found while building this:** Silero VAD's model "
+        "loads via `torch.jit.load`, which PyTorch itself warns is not officially "
+        "supported on Python 3.14+ (this project's own Python version) and may break in a "
+        "future torch release — it works correctly today, verified live, but isn't a "
+        "guaranteed-stable path going forward."
+    )
+
+    try:
+        import faster_whisper  # noqa: F401
+        import silero_vad  # noqa: F401
+    except ImportError:
+        st.error(
+            "`faster-whisper`/`silero-vad` aren't installed in this environment — real, "
+            "deliberate choice: they're in `requirements.txt` (local dev) but NOT "
+            "`requirements-dashboard.txt` (the public Streamlit Cloud deploy), since this "
+            "feature's whole point is running locally on YOUR machine, not a public "
+            "server, and adding a real ~150MB model download to a public free-tier deploy "
+            "isn't worth it. Run this dashboard locally "
+            "(`pip install -r requirements.txt && streamlit run dashboard_app.py`) to use it."
+        )
+        return
+
+    import tempfile as _tempfile
+
+    voice_input_mode = st.radio("Input source", ["Microphone", "Upload a file"], horizontal=True, key="voice_local_input_mode")
+    local_audio_path = None
+    if voice_input_mode == "Microphone":
+        mic_audio = st.audio_input("Record from your microphone")
+        if mic_audio is not None:
+            with _tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                f.write(mic_audio.getvalue())
+                local_audio_path = f.name
+    else:
+        uploaded_audio = st.file_uploader("Upload a WAV file (16-bit PCM)", type=["wav"])
+        if uploaded_audio is not None:
+            with _tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+                f.write(uploaded_audio.getvalue())
+                local_audio_path = f.name
+
+    if local_audio_path is not None:
+        with st.spinner("Loading Silero VAD and detecting real speech segments..."):
+            vad = _get_local_vad()
+            segments = vad.detect_speech(local_audio_path)
+
+        if not segments:
+            st.info("No speech detected in this audio — a real, honest result, not an error.")
+        else:
+            st.markdown(f"**Real speech segments detected ({len(segments)}):**")
+            for seg in segments:
+                st.caption(f"  {seg.start_seconds:.2f}s → {seg.end_seconds:.2f}s")
+
+            with st.spinner("Loading faster-whisper (base model, ~145MB on first run) and transcribing locally..."):
+                transcriber = _get_local_transcriber()
+                result = transcriber.transcribe(local_audio_path)
+
+            st.markdown("**Real local transcription:**")
+            st.success(result.text or "(empty transcription)")
+            st.caption(
+                f"Detected language: {result.language} (confidence {result.language_probability:.2f}) — "
+                f"audio duration: {result.duration_seconds:.2f}s"
+            )
+
+
+@st.cache_resource
+def _get_local_vad():
+    from app.voice_local.vad import LocalVAD
+
+    return LocalVAD()
+
+
+@st.cache_resource
+def _get_local_transcriber():
+    from app.voice_local.transcriber import LocalTranscriber
+
+    return LocalTranscriber()
+
 
 def render_decision_framework(stores: dict) -> None:
     st.header("AI Product Strategy: Decision Framework")
