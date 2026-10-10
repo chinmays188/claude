@@ -1068,6 +1068,30 @@ def _load_lost_in_middle_sweep_results() -> dict | None:
     return json.loads(_LOST_IN_MIDDLE_SWEEP_PATH.read_text())
 
 
+_MEMORY_EXTRACTION_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "memory_extraction_examples.json"
+
+
+def _load_memory_extraction_examples() -> list | None:
+    """Loads scripts/generate_memory_extraction_examples.py's committed,
+    real output -- classify_for_memory() is a real LLM call, so these
+    examples are pre-generated, not run on page render."""
+    if not _MEMORY_EXTRACTION_EXAMPLES_PATH.exists():
+        return None
+    return json.loads(_MEMORY_EXTRACTION_EXAMPLES_PATH.read_text())
+
+
+_MEMORY_CONFLICT_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "memory_conflict_examples.json"
+
+
+def _load_memory_conflict_examples() -> list | None:
+    """Loads scripts/generate_memory_conflict_examples.py's committed,
+    real output -- ConflictResolver.resolve() is a real LLM call, so
+    these examples are pre-generated, not run on page render."""
+    if not _MEMORY_CONFLICT_EXAMPLES_PATH.exists():
+        return None
+    return json.loads(_MEMORY_CONFLICT_EXAMPLES_PATH.read_text())
+
+
 def render_context_memory(stores: dict) -> None:
     st.header("Context Engineering & Memory")
     st.caption(
@@ -1116,6 +1140,221 @@ def render_context_memory(stores: dict) -> None:
         "`app/conversation/context_selection.py` — see the Learning page's "
         "'Context Engineering' and 'AI Memory' entries for the full evidence trail."
     )
+
+    st.divider()
+    st.subheader("0a. Anatomy of a memory — content vs. metadata")
+    st.caption(
+        "Found missing while breaking memory down further, per the user's ask: every "
+        "`MemoryRecord` already has both pieces, but the dashboard never called out the "
+        "distinction explicitly. **Content** is the actual fact/rule text an LLM would "
+        "read. **Metadata** is everything the SYSTEM uses to decide whether to retrieve, "
+        "keep, or forget that content — it's never shown to the LLM directly."
+    )
+
+    from app.memory.models import MemoryRecord, MemoryStatus, MemoryType
+
+    now = datetime.now(timezone.utc)
+    anatomy_memory = MemoryRecord(
+        memory_id="demo_anatomy", tenant_id=TENANT_ID, user_id=USER_ID, type=MemoryType.PREFERENCE,
+        content="Prefers concise, bullet-point answers over long paragraphs.",
+        source="conversation", confidence=0.9, importance=0.8, user_confirmed=True,
+        created_at=now - timedelta(days=5), updated_at=now - timedelta(days=5),
+    )
+    anatomy_col1, anatomy_col2 = st.columns(2)
+    with anatomy_col1:
+        st.markdown("**Content** (what an LLM would actually read)")
+        st.success(anatomy_memory.content)
+    with anatomy_col2:
+        st.markdown("**Metadata** (what the system uses to decide retrieve/keep/forget)")
+        st.json({
+            "type": anatomy_memory.type.value,
+            "confidence": anatomy_memory.confidence,
+            "importance": anatomy_memory.importance,
+            "user_confirmed": anatomy_memory.user_confirmed,
+            "status": anatomy_memory.status.value,
+            "created_at": str(anatomy_memory.created_at.date()),
+            "source": anatomy_memory.source,
+        })
+
+    st.divider()
+    st.subheader("0b. Declarative vs. procedural memory")
+    st.caption(
+        "Found missing: every one of this project's memory types was DECLARATIVE (a fact "
+        "ABOUT the user — 'knowing what'). There was no PROCEDURAL type at all (a behavior "
+        "rule the system should APPLY — 'knowing how'). Closed: new `MemoryType.PROCEDURE` "
+        "— reuses the exact same store/retrieval/decay pipeline, since the only real "
+        "difference is what the content MEANS, not how it's stored."
+    )
+
+    declarative_example = MemoryRecord(
+        memory_id="demo_decl", tenant_id=TENANT_ID, user_id=USER_ID, type=MemoryType.PROFILE,
+        content="Works as a Product Manager at an online travel agency, post-sales domain.",
+        source="conversation", created_at=now, updated_at=now,
+    )
+    procedural_example = MemoryRecord(
+        memory_id="demo_proc", tenant_id=TENANT_ID, user_id=USER_ID, type=MemoryType.PROCEDURE,
+        content="When asked a technical question, explain in bullet points with the 'why' stated first.",
+        source="conversation", created_at=now, updated_at=now,
+    )
+    decl_col, proc_col = st.columns(2)
+    with decl_col:
+        st.markdown("**📘 DECLARATIVE — \"knowing what\"**")
+        st.info(declarative_example.content)
+        st.caption("A fact to recall. Read, not executed.")
+    with proc_col:
+        st.markdown("**⚙️ PROCEDURAL — \"knowing how\"**")
+        st.warning(procedural_example.content)
+        st.caption("A behavior rule to apply. Shapes HOW future answers are given, not WHAT they're about.")
+
+    st.divider()
+    st.subheader("0c. Extraction — turning raw conversation into a memory candidate")
+    st.caption(
+        "Real `classify_for_memory()`: one real LLM call decides whether a piece of "
+        "conversation is memory-worthy at all, and if so, extracts type/importance/summary "
+        "in the SAME call — extraction and classification aren't separate steps in this "
+        "project's real pipeline. Needs a real LLM call, so this is pre-generated rather "
+        "than live on page render."
+    )
+    extraction_examples = _load_memory_extraction_examples()
+    if extraction_examples is None:
+        st.warning("No examples found — run `python scripts/generate_memory_extraction_examples.py` first.")
+    else:
+        for ex in extraction_examples:
+            with st.expander(f"\"{ex['conversation_text'][:70]}…\"", expanded=False):
+                st.markdown(f"**Raw conversation text:** {ex['conversation_text']}")
+                if ex["candidate"]["should_remember"]:
+                    st.success(
+                        f"**Extracted as memory** — type=`{ex['candidate']['type']}`, "
+                        f"importance={ex['candidate']['importance']:.2f}\n\n"
+                        f"Summary: {ex['candidate']['summary']}"
+                    )
+                else:
+                    st.info("**Correctly NOT extracted** — classifier judged this not memory-worthy.")
+
+    st.divider()
+    st.subheader("0d. Storage architectures — relational, vector, graph, hybrid")
+    st.caption(
+        "This project's real storage is relational (SQLite, `PersistentMemoryStore`) as "
+        "the system of record, with vector similarity computed ON RETRIEVAL (not a "
+        "persisted vector index) via `MemoryRetriever`. Found missing: a real `GraphStore` "
+        "(nodes/edges) existed for decisions/goals but was never connected to personal "
+        "memories — there was no real HYBRID capability. Closed: `MemoryGraphBridge` links "
+        "memories into the same graph, enabling a genuinely different query vector search "
+        "can't answer: 'what is THIS memory connected to', regardless of content "
+        "similarity. 100% LIVE, no LLM call."
+    )
+
+    from app.db.connection import get_connection
+    from app.graph.store import GraphStore
+    from app.memory.graph_bridge import MemoryGraphBridge
+
+    hybrid_decision = MemoryRecord(
+        memory_id="hybrid_demo_decision", tenant_id="demo_hybrid", user_id="demo_hybrid_user",
+        type=MemoryType.DECISION, content="Chose RAG over fine-tuning for the personal AI OS project.",
+        source="demo", created_at=now, updated_at=now,
+    )
+    hybrid_goal = MemoryRecord(
+        memory_id="hybrid_demo_goal", tenant_id="demo_hybrid", user_id="demo_hybrid_user",
+        type=MemoryType.GOAL, content="Wants to ship a working AI PM learning project by year end.",
+        source="demo", created_at=now, updated_at=now,
+    )
+    hybrid_conn = get_connection(":memory:")
+    hybrid_memory_store = PersistentMemoryStore(hybrid_conn)
+    hybrid_memory_store.write(hybrid_decision)
+    hybrid_memory_store.write(hybrid_goal)
+    hybrid_bridge = MemoryGraphBridge(GraphStore(hybrid_conn), hybrid_memory_store)
+    decision_node = hybrid_bridge.link_memory(hybrid_decision)
+    goal_node = hybrid_bridge.link_memory(hybrid_goal)
+    hybrid_bridge.relate(decision_node, goal_node, relationship="supports")
+
+    hcol1, hcol2 = st.columns(2)
+    with hcol1:
+        st.markdown("**Vector search alone** (query: \"budget planning\")")
+        st.caption(
+            "Low word/semantic overlap with either memory above — plain similarity search "
+            "would likely miss or rank both low, since neither memory is actually ABOUT "
+            "budget planning."
+        )
+    with hcol2:
+        st.markdown(f"**Graph traversal** (from the real DECISION node)")
+        related = hybrid_bridge.related_memories("demo_hybrid", "demo_hybrid_user", decision_node.node_id)
+        for r in related:
+            st.success(f"[{r.type.value}, relationship=supports] {r.content}")
+        st.caption(
+            "Found via an EXPLICIT real graph edge, not content similarity — exactly the "
+            "query vector search alone cannot answer."
+        )
+
+    st.divider()
+    st.subheader("0e. Conflict resolution during consolidation")
+    st.caption(
+        "Found missing: `is_semantic_duplicate()` only ever SILENTLY DROPPED new "
+        "information if similar enough to something existing — correct for a "
+        "restatement, wrong for a genuine contradiction (the old, stale fact would stay "
+        "and the new, correct one would be discarded). Closed: `ConflictResolver` uses a "
+        "real LLM judgment to tell a contradiction apart from a mere restatement, then "
+        "marks the OLD memory SUPERSEDED (never deleted) rather than silently dropping "
+        "the new one. High-importance conflicts route through the same human-approval "
+        "gate `MemoryWritePolicy` already uses for important writes. Needs a real LLM "
+        "call, so this is pre-generated rather than live on page render."
+    )
+    conflict_examples = _load_memory_conflict_examples()
+    if conflict_examples is None:
+        st.warning("No examples found — run `python scripts/generate_memory_conflict_examples.py` first.")
+    else:
+        for ex in conflict_examples:
+            icon = "⚠️ SUPERSEDED" if ex["superseded"] else "✅ kept both (not a real conflict)"
+            with st.expander(f"{icon} — {ex['existing_content'][:50]} / {ex['new_content'][:50]}", expanded=False):
+                st.markdown(f"**Existing memory:** {ex['existing_content']}")
+                st.markdown(f"**New information:** {ex['new_content']}")
+                st.markdown(f"**Real LLM verdict:** `{ex['verdict']}` — {ex['reasoning']}")
+                if ex["superseded"]:
+                    st.warning(
+                        f"Old memory marked SUPERSEDED (kept, not deleted). "
+                        f"Requires human approval: {ex['requires_approval']}."
+                    )
+                else:
+                    st.info("Not a genuine conflict — both memories remain active.")
+
+    st.divider()
+    st.subheader("0f. Eval system for memory management")
+    st.caption(
+        "Found missing: this project has real RAG document-retrieval eval and a real "
+        "context-SELECTION golden set, but nothing specifically evaluated the memory "
+        "pipeline's own decisions. New golden-case suites for all 3: did RETRIEVE pull "
+        "the right memories, did FORGET decay the right ones below threshold, does "
+        "conflict resolution's structural logic (superseded/requires_approval) behave "
+        "correctly. 100% LIVE, no LLM call (the LLM judgment calls themselves — "
+        "extraction, conflict verdicts — are evaluated via the pre-generated examples "
+        "above; what's evaluated live here is the deterministic logic around them)."
+    )
+
+    from app.evaluation.memory_management_eval import accuracy, run_conflict_case, run_decay_case, run_retrieval_case
+    from app.evaluation.memory_management_golden import (
+        CONFLICT_GOLDEN_CASES,
+        DECAY_GOLDEN_CASES,
+        RETRIEVAL_GOLDEN_CASES,
+    )
+
+    eval_retriever = _get_memory_retriever()
+    retrieval_eval_results = [run_retrieval_case(eval_retriever, c) for c in RETRIEVAL_GOLDEN_CASES]
+    decay_eval_results = [run_decay_case(c) for c in DECAY_GOLDEN_CASES]
+    conflict_eval_results = [run_conflict_case(c) for c in CONFLICT_GOLDEN_CASES]
+
+    eval_col1, eval_col2, eval_col3 = st.columns(3)
+    with eval_col1:
+        st.metric("RETRIEVE accuracy", f"{accuracy(retrieval_eval_results):.0%}", help=f"{len(RETRIEVAL_GOLDEN_CASES)} golden cases")
+    with eval_col2:
+        st.metric("FORGET accuracy", f"{accuracy(decay_eval_results):.0%}", help=f"{len(DECAY_GOLDEN_CASES)} golden cases")
+    with eval_col3:
+        st.metric("Conflict-resolution accuracy", f"{accuracy(conflict_eval_results):.0%}", help=f"{len(CONFLICT_GOLDEN_CASES)} golden cases")
+
+    with st.expander("Per-case results"):
+        for label, results in (("RETRIEVE", retrieval_eval_results), ("FORGET", decay_eval_results), ("Conflict resolution", conflict_eval_results)):
+            st.markdown(f"**{label}**")
+            for r in results:
+                icon = "✅" if r.passed else "❌"
+                st.caption(f"{icon} `{r.case_id}` — {r.reason}")
 
     st.divider()
     st.subheader("1. RETRIEVE — pull a small candidate set out of a much larger pool")

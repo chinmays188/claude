@@ -1,0 +1,47 @@
+[
+  {
+    "conversation_text": "I work as a Product Manager at an online travel agency, focused on post-sales customer experience.",
+    "candidate": {
+      "should_remember": true,
+      "type": "profile",
+      "importance": 0.8,
+      "summary": "Works as a Product Manager at an online travel agency, focusing on post-sales customer experience."
+    }
+  },
+  {
+    "conversation_text": "I'd prefer if you kept answers short and used bullet points instead of long paragraphs.",
+    "candidate": {
+      "should_remember": true,
+      "type": "preference",
+      "importance": 0.8,
+      "summary": "Prefers short answers formatted with bullet points instead of long paragraphs."
+    }
+  },
+  {
+    "conversation_text": "lol ok thanks",
+    "candidate": {
+      "should_remember": false,
+      "type": null,
+      "importance": 0.0,
+      "summary": null
+    }
+  },
+  {
+    "conversation_text": "I've decided to go with RAG instead of fine-tuning for this project, since fine-tuning would need way more data than I have.",
+    "candidate": {
+      "should_remember": true,
+      "type": "decision",
+      "importance": 0.7,
+      "summary": "Decided to use RAG instead of fine-tuning for the current project due to insufficient data for fine-tuning."
+    }
+  },
+  {
+    "conversation_text": "What's the weather like today?",
+    "candidate": {
+      "should_remember": false,
+      "type": null,
+      "importance": 0.0,
+      "summary": null
+    }
+  }
+]

@@ -1,7 +1,7 @@
 import sqlite3
 from datetime import datetime
 
-from app.memory.models import MemoryRecord, MemoryType
+from app.memory.models import MemoryRecord, MemoryStatus, MemoryType
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS memories (
@@ -31,19 +31,47 @@ class PersistentMemoryStore:
         self._conn = connection
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
+        self._migrate_conflict_columns()
+
+    def _migrate_conflict_columns(self) -> None:
+        # Same real migration pattern as AuditLog._migrate_undo_columns():
+        # a real, already-existing data/personal_ai.db predates the
+        # status/superseded_by columns added for real conflict handling,
+        # so CREATE TABLE IF NOT EXISTS alone would silently skip them.
+        existing_columns = {row["name"] for row in self._conn.execute("PRAGMA table_info(memories)")}
+        for column, ddl_type in (
+            ("status", f"TEXT NOT NULL DEFAULT '{MemoryStatus.ACTIVE.value}'"),
+            ("superseded_by", "TEXT"),
+        ):
+            if column not in existing_columns:
+                self._conn.execute(f"ALTER TABLE memories ADD COLUMN {column} {ddl_type}")
+        self._conn.commit()
 
     def write(self, record: MemoryRecord) -> None:
         self._conn.execute(
             """INSERT OR REPLACE INTO memories
                (memory_id, tenant_id, user_id, type, content, source, confidence,
-                created_at, updated_at, importance, user_confirmed)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                created_at, updated_at, importance, user_confirmed, status, superseded_by)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 record.memory_id, record.tenant_id, record.user_id, record.type.value,
                 record.content, record.source, record.confidence,
                 record.created_at.isoformat(), record.updated_at.isoformat(),
                 record.importance, int(record.user_confirmed),
+                record.status.value, record.superseded_by,
             ),
+        )
+        self._conn.commit()
+
+    def mark_superseded(self, tenant_id: str, user_id: str, memory_id: str, superseded_by: str) -> None:
+        """Real conflict-resolution primitive: marks an old memory SUPERSEDED
+        by a new, contradicting one -- never deletes it, so history is
+        preserved (same never-destroy-on-write discipline as memory decay's
+        flag-for-review-not-delete behavior)."""
+        self._conn.execute(
+            "UPDATE memories SET status = ?, superseded_by = ? "
+            "WHERE tenant_id = ? AND user_id = ? AND memory_id = ?",
+            (MemoryStatus.SUPERSEDED.value, superseded_by, tenant_id, user_id, memory_id),
         )
         self._conn.commit()
 
@@ -113,4 +141,6 @@ def _row_to_record(row: sqlite3.Row) -> MemoryRecord:
         updated_at=datetime.fromisoformat(row["updated_at"]),
         importance=row["importance"],
         user_confirmed=bool(row["user_confirmed"]),
+        status=MemoryStatus(row["status"]) if row["status"] is not None else MemoryStatus.ACTIVE,
+        superseded_by=row["superseded_by"],
     )

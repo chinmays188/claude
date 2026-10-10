@@ -1,0 +1,26 @@
+[
+  {
+    "existing_content": "Prefers dark mode for all interfaces.",
+    "new_content": "Actually, prefers light mode now.",
+    "verdict": "CONTRADICTS",
+    "reasoning": "The user's preference has completely flipped from dark mode to light mode.",
+    "superseded": true,
+    "requires_approval": false
+  },
+  {
+    "existing_content": "Wants to become an engineering manager within 2 years.",
+    "new_content": "No longer wants to become an engineering manager -- decided to stay as an IC.",
+    "verdict": "CONTRADICTS",
+    "reasoning": "The user's goal completely flipped from wanting to become a manager to wanting to remain an individual contributor (IC).",
+    "superseded": true,
+    "requires_approval": true
+  },
+  {
+    "existing_content": "Prefers concise, bullet-point explanations.",
+    "new_content": "Likes when answers are kept short and use bullet points.",
+    "verdict": "SAME",
+    "reasoning": "The new information simply rephrases the existing preference for short answers and bullet points without any conflict.",
+    "superseded": false,
+    "requires_approval": false
+  }
+]

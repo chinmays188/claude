@@ -14,6 +14,13 @@ class NodeType(str, Enum):
     ACHIEVEMENT = "achievement"
     DOCUMENT = "document"
     TASK = "task"
+    # Found missing while building real hybrid (vector + graph) memory
+    # storage: GraphStore existed, real and tested, but was wired only to
+    # the decision/goal graph -- never to personal MemoryRecords. MEMORY
+    # lets a MemoryRecord get a real graph node, so memories can be
+    # connected to each other and traversed, which pure vector similarity
+    # search alone can't do.
+    MEMORY = "memory"
 
 
 class GraphNode(BaseModel):

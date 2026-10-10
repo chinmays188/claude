@@ -887,6 +887,55 @@ HISTORY:
     No new tests needed -- pure dashboard restructuring/demo code over
     already-tested MemoryRetriever; 1044 tests still passing.
 
+35. Updated after the user asked to go deeper into memory's internal
+    structure: "there are two main components of memory - content and
+    metadata and there are different type of information (declarative
+    memory ... procedural memory) ... different types of storage
+    architectures ... how does memory extraction happen ... how
+    conflicting info ... is handled during consolidation ... eval
+    system for memory management." Investigation found 3 of 6 named
+    pieces were genuine code gaps, not just missing demos -- built all
+    3 as real, composable additions, never replacing existing tested
+    code. (1) Declarative vs. procedural: new MemoryType.PROCEDURE --
+    every prior type was declarative (a fact ABOUT the user); PROCEDURE
+    is the first "knowing how" rule, reusing the entire existing
+    store/retrieval/decay/write-policy pipeline unchanged (one enum
+    value, not a new model). (2) Storage architectures (hybrid): new
+    MemoryGraphBridge (app/memory/graph_bridge.py) wires the existing,
+    unchanged GraphStore (real, previously only used for decisions/
+    goals) into personal memories via a new NodeType.MEMORY -- real
+    graph traversal ("what is THIS memory connected to") answers a
+    genuinely different question than vector similarity alone can,
+    proven by a test using two memories sharing almost no words in
+    common yet correctly found connected via an explicit edge. (3)
+    Conflict resolution: new ConflictResolver (app/memory/
+    conflict_resolution.py) closes a real, found gap --
+    is_semantic_duplicate() only ever silently DROPPED new information
+    once similar enough to something existing, which is correct for a
+    restatement but WRONG for a genuine contradiction (stale info would
+    wrongly survive). A real LLM judgment tells the two apart; a
+    genuine contradiction marks the OLD memory SUPERSEDED (new
+    MemoryStatus field, never deleted -- same never-destroy-on-write
+    discipline as memory decay) rather than discarding the new,
+    correcting information; high-importance conflicts route through
+    the SAME human-approval mechanism MemoryWritePolicy already has.
+    New app/evaluation/memory_management_eval.py closes the 6th named
+    piece: real golden-case suites for RETRIEVE/FORGET/conflict-
+    resolution, genuinely scoring 100% on real hand-crafted cases
+    (verified live against the real sentence-transformer model). New
+    dashboard sections 0a-0f on the Context & Memory page walk through
+    all 6 pieces -- content/metadata and hybrid storage and eval
+    accuracy are live (no LLM call); extraction and conflict-
+    resolution examples needed a real Gemini call each, run live and
+    committed, producing an honest mix (extraction correctly skipped 2
+    of 5 non-memory-worthy excerpts; conflict resolution correctly told
+    2 real contradictions apart from 1 real restatement). "AI Memory"
+    learning goal gained an explicit new success criterion for this
+    deeper structure and closed it in the same batch. Context/memory
+    diagram's docstring updated to point to the new sections rather
+    than redrawing an already-dense flowchart. 14 new tests (1058 total,
+    was 1044).
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline

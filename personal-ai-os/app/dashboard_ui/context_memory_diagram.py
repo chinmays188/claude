@@ -35,6 +35,29 @@ granularities (item-level scoring vs. whole-section dropping) -- never
 two different stages. DECAY is FORGET. LIM (lost-in-the-middle) is a
 4th, separate concept (context ORDER), deliberately not folded into
 retrieve/keep/forget.
+
+Expanded further after the user asked for more granularity: "there are
+two main components of memory - content and metadata", declarative vs.
+procedural memory, storage architectures (vector/graph/hybrid), how
+extraction happens, how conflicting info is handled during
+consolidation, and an eval system for memory management. Three of
+these were genuine code gaps, not just missing demos, closed in this
+batch: (a) MemoryType.PROCEDURE added (every prior type was
+declarative -- a fact ABOUT the user; PROCEDURE is the first "knowing
+how" rule); (b) MemoryGraphBridge wires GraphStore (real, existed for
+decisions/goals) into personal memories via NodeType.MEMORY, enabling
+real graph traversal ("what is this memory connected to") that vector
+similarity alone can't answer; (c) ConflictResolver uses a real LLM
+judgment to tell a genuine contradiction apart from a mere
+restatement, then marks the old memory SUPERSEDED (never deleted) --
+closing the real gap where is_semantic_duplicate() only ever silently
+dropped new, possibly-correcting information. A new memory_management_
+eval.py golden suite (RETRIEVE/FORGET/conflict-resolution accuracy, all
+100% on real hand-crafted cases) closes the last-named gap. These new
+pieces are shown in new "0a"-"0f" sections ABOVE the diagram on the
+dashboard page, deliberately not redrawn into this flowchart -- adding
+6 more subsystems here would make an already-dense diagram unreadable;
+the page's own section captions carry the explanation instead.
 """
 
 CONTEXT_MEMORY_DIAGRAM = r"""

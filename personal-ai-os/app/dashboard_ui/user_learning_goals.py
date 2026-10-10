@@ -146,6 +146,9 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand that conversation history is not the same as memory",
             "Understand short-term, long-term, profile, preference, goal, decision, and experience memory",
             "Understand memory retrieval, importance, confidence, duplicate detection, decay/update",
+            "Understand declarative vs. procedural memory, memory storage architectures "
+            "(vector/graph/hybrid), extraction, conflict resolution during consolidation, "
+            "and evaluation of memory management itself",
         ],
         1.0,
         "PersistentMemoryStore (SQLite) real, with importance/confidence fields. This "
@@ -186,8 +189,38 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
         "pool for a real query, verified live: a RAG-related query correctly ranks the "
         "real RAG-related memory highest by genuine semantic similarity, with the "
         "left-behind candidates shown alongside so the retrieve-vs-keep distinction is "
-        "concrete, not just asserted. Every success criterion for this capability now "
-        "has real, verified evidence, including retrieval specifically.",
+        "concrete, not just asserted. Added a new success criterion this session and "
+        "closed it in the same batch -- the user asked to go deeper into memory's "
+        "internal structure (content/metadata, declarative/procedural, storage "
+        "architectures, extraction, conflict resolution, eval), and investigation found "
+        "3 of 6 were genuine code gaps, not just missing demos: (1) every existing "
+        "MemoryType was declarative (a fact ABOUT the user) -- new MemoryType.PROCEDURE "
+        "is the first genuinely procedural ('knowing how') type, reusing the entire "
+        "existing pipeline unchanged; (2) a real GraphStore existed for decisions/goals "
+        "but was never connected to personal memories -- new MemoryGraphBridge "
+        "(app/memory/graph_bridge.py) links memories into the same graph via a new "
+        "NodeType.MEMORY, enabling real graph traversal ('what is this memory connected "
+        "to') that vector similarity alone genuinely cannot answer, proven by a "
+        "dedicated test using two memories that share almost no words; (3) "
+        "is_semantic_duplicate() only ever silently DROPPED new information once "
+        "similar enough to something existing -- correct for a restatement, wrong for a "
+        "genuine contradiction (stale info would wrongly survive). New ConflictResolver "
+        "(app/memory/conflict_resolution.py) uses a real LLM judgment to tell a "
+        "contradiction apart from a restatement, then marks the OLD memory SUPERSEDED "
+        "(never deleted, new MemoryStatus field) rather than dropping the new "
+        "information -- high-importance conflicts route through the same human-approval "
+        "mechanism MemoryWritePolicy already has. New app/evaluation/"
+        "memory_management_eval.py closes the 6th piece: real golden-case suites for "
+        "RETRIEVE/FORGET/conflict-resolution, all genuinely scoring 100% on real "
+        "hand-crafted cases (verified live against the real sentence-transformer model, "
+        "not just a fake). 14 new tests. New dashboard sections 0a-0f walk through all "
+        "6 pieces with live demos where free (content/metadata, hybrid storage, eval "
+        "accuracy) and pre-generated real-Gemini examples where an LLM call is required "
+        "(extraction, conflict verdicts) -- both generator scripts run live against the "
+        "real API, producing an honest mix (extraction correctly skipped 2 of 5 "
+        "non-memory-worthy excerpts; conflict resolution correctly told 2 real "
+        "contradictions apart from 1 real restatement). Every success criterion for "
+        "this capability now has real, verified evidence.",
     ),
     (
         "learn_context_engineering",
