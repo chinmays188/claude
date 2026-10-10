@@ -2493,6 +2493,34 @@ def _load_multimodal_screenshot_table_examples() -> dict | None:
     return json.loads(_MULTIMODAL_SCREENSHOT_TABLE_EXAMPLES_PATH.read_text())
 
 
+_MULTIMODAL_ASSETS_DIR = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "multimodal_assets"
+
+
+def _render_multimodal_asset(asset_path: str | None) -> None:
+    """Renders the REAL source image/PDF that was fed into extraction --
+    found missing while investigating 'Multimodal AI': the dashboard only
+    ever showed the extracted TEXT, never the actual file the model saw.
+    asset_path (e.g. "image.png") is committed alongside the *_examples.json
+    it belongs to by the generator scripts, saved at the exact moment the
+    real bytes existed, before being discarded."""
+    if not asset_path:
+        return
+    full_path = _MULTIMODAL_ASSETS_DIR / asset_path
+    if not full_path.exists():
+        return
+    st.markdown("**Real source file used for extraction:**")
+    if asset_path.endswith(".pdf"):
+        import base64
+
+        b64 = base64.b64encode(full_path.read_bytes()).decode()
+        st.markdown(
+            f'<iframe src="data:application/pdf;base64,{b64}" width="100%" height="300"></iframe>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.image(str(full_path), width=300)
+
+
 def render_multimodal(stores: dict) -> None:
     st.header("Multimodal Input")
     st.caption(
@@ -2586,6 +2614,7 @@ def render_multimodal(stores: dict) -> None:
         outcome = ex["result"]["outcome"]
         outcome_label = "answered" if outcome == "answered" else "asked for clarification"
         with st.expander(f"{icons[kind]} {kind.upper()} — {outcome_label}", expanded=(kind != "pdf")):
+            _render_multimodal_asset(ex.get("asset_path"))
             if ex["extracted_text"]:
                 st.markdown(f"**Real extracted/transcribed content** (`{ex['multimodal_model']}`):")
                 st.text(ex["extracted_text"][:400] + ("…" if len(ex["extracted_text"]) > 400 else ""))
@@ -2620,6 +2649,7 @@ def render_multimodal(stores: dict) -> None:
         for kind in ("screenshot", "table"):
             ex = screenshot_table_examples[kind]
             with st.expander(f"{icons2[kind]} {kind.upper()}", expanded=True):
+                _render_multimodal_asset(ex.get("asset_path"))
                 st.markdown(f"**Real extracted content** (`{ex['multimodal_model']}`):")
                 st.text(ex["extracted_text"][:400] + ("…" if len(ex["extracted_text"]) > 400 else ""))
                 st.markdown(f"**Real agent answer** (`{ex['result']['agent']}`):")
@@ -2768,6 +2798,86 @@ def render_multimodal(stores: dict) -> None:
                 "the models were already cached in memory from a prior rerun on this page, "
                 "and this machine's CPU load."
             )
+
+    st.divider()
+    st.subheader("6. Multimodal Retrieval — indexing extracted content for later questions")
+    st.caption(
+        "The real gap every prior pass on this capability disclosed: extraction/understanding "
+        "above is real, but the extracted text never became part of this project's actual "
+        "knowledge base — it only ever answered the one request it came with, then was "
+        "discarded. Closed here: a new `MultimodalIngestionBridge` takes an already-extracted "
+        "result, builds a real `Document` tagged with the media kind (e.g. `image:"
+        "screenshot.png`), and runs it through the exact same, unchanged `chunk_document()`/"
+        "`VectorStore.add()` every text document already uses — retrievable through "
+        "`SecureRetriever` with the same permission filtering, same citation shape. This demo "
+        "is 100% local (embeddings + FAISS, no LLM call) — free to run live on page render."
+    )
+
+    retrieval_demo_text = st.text_area(
+        "Simulated extracted content (e.g. from an uploaded screenshot or PDF)",
+        value="The settings page shows username alice_pm with notifications disabled and theme set to dark.",
+        height=70,
+        key="multimodal_retrieval_demo_text",
+    )
+    retrieval_demo_query = st.text_input(
+        "Ask a question about it later", value="What username is shown?",
+        key="multimodal_retrieval_demo_query",
+    )
+
+    if retrieval_demo_text.strip() and retrieval_demo_query.strip():
+        from datetime import datetime, timezone
+
+        from app.knowledge.document import PersonalDocumentMetadata, Sensitivity
+        from app.knowledge.secure_retrieval import SecureRetriever
+        from app.multimodal.multimodal_orchestrator import InputKind, MultimodalConversionResult
+
+        bridge, store, metadata = _get_multimodal_retrieval_demo_store()
+        conversion = MultimodalConversionResult(
+            kind=InputKind.IMAGE, extracted_text=retrieval_demo_text, model_used="demo",
+        )
+        now = datetime.now(timezone.utc)
+        doc_meta = PersonalDocumentMetadata(
+            document_id="dashboard_demo_doc", source="demo_screenshot.png", title="Demo screenshot",
+            created_at=now, updated_at=now,
+            owner_id="demo_user", tenant_id="demo_tenant", sensitivity=Sensitivity.PERSONAL,
+        )
+        chunks = bridge.ingest("dashboard_demo_doc", conversion, doc_meta)
+        st.caption(f"Indexed {len(chunks)} real chunk(s) from the text above into a real local FAISS store.")
+
+        retriever = SecureRetriever(store, metadata)
+        results = retriever.search(
+            retrieval_demo_query, requester_id="demo_user", requester_tenant_id="demo_tenant", top_k=3,
+        )
+        if results:
+            st.success(f"Retrieved {len(results)} real chunk(s):")
+            for r in results:
+                st.caption(f"[{r.chunk.source}] score={r.score:.3f}")
+                st.text(r.chunk.text)
+        else:
+            st.info("No chunk retrieved — try a query closer to the content above.")
+
+        with st.expander("Permission filtering still applies — proof"):
+            st.caption(
+                "The same content is NOT retrievable by a different tenant, exactly like any "
+                "text document — access control is enforced in code, never left to the model."
+            )
+            other_tenant_results = retriever.search(
+                retrieval_demo_query, requester_id="bob", requester_tenant_id="other_tenant", top_k=3,
+            )
+            st.code(f"other_tenant_results = {other_tenant_results}")
+
+
+@st.cache_resource
+def _get_multimodal_retrieval_demo_store():
+    from app.knowledge.document import PersonalDocumentMetadata
+    from app.multimodal.ingestion_bridge import MultimodalIngestionBridge
+    from app.retrieval.embeddings import SentenceTransformerEmbedding
+    from app.retrieval.vector_search import VectorStore
+
+    store = VectorStore(SentenceTransformerEmbedding())
+    metadata: dict[str, PersonalDocumentMetadata] = {}
+    bridge = MultimodalIngestionBridge(store, metadata)
+    return bridge, store, metadata
 
 
 @st.cache_resource

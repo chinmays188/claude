@@ -25,6 +25,7 @@ from app.providers.gemini_provider import GeminiProvider
 from scripts.trace_multimodal import _MINIMAL_PDF, _generate_real_test_audio, _generate_real_test_image
 
 OUT_PATH = Path(__file__).resolve().parent.parent / "app" / "dashboard_ui" / "multimodal_examples.json"
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "app" / "dashboard_ui" / "multimodal_assets"
 
 
 def _result_to_dict(result) -> dict:
@@ -33,14 +34,31 @@ def _result_to_dict(result) -> dict:
     return {"outcome": "answered", "output": result.output, "agent": result.agent, "tool_calls": result.tool_calls}
 
 
-def run_example(kind: str, orchestrator: MultimodalOrchestrator, multimodal_input: MultimodalInput) -> dict:
+def run_example(
+    kind: str, orchestrator: MultimodalOrchestrator, multimodal_input: MultimodalInput,
+    asset_filename: str | None = None,
+) -> dict:
+    """asset_filename, when given, saves multimodal_input.media_bytes to
+    ASSETS_DIR so the dashboard can render the REAL file that was fed into
+    extraction -- found missing while investigating the 'Multimodal AI'
+    gap further: the dashboard only ever showed the extracted TEXT, never
+    the source image/PDF itself, even though the bytes already exist
+    right here before being discarded."""
     result = orchestrator.handle(multimodal_input)
     conversion = orchestrator.last_conversion
+
+    asset_path = None
+    if asset_filename and multimodal_input.media_bytes:
+        ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+        (ASSETS_DIR / asset_filename).write_bytes(multimodal_input.media_bytes)
+        asset_path = asset_filename
+
     return {
         "kind": kind,
         "extracted_text": conversion.extracted_text if conversion else None,
         "multimodal_model": conversion.model_used if conversion else None,
         "result": _result_to_dict(result),
+        "asset_path": asset_path,
     }
 
 
@@ -64,12 +82,14 @@ def main() -> None:
             kind=InputKind.IMAGE, media_bytes=image_bytes, mime_type="image/png",
             user_prompt="Is this good or bad news?",
         ),
+        asset_filename="image.png",
     )
     print(f"[image] {examples['image']['result']['outcome']}")
 
     examples["pdf"] = run_example(
         "pdf", orchestrator,
         MultimodalInput(kind=InputKind.PDF, media_bytes=_MINIMAL_PDF, mime_type="application/pdf"),
+        asset_filename="pdf.pdf",
     )
     print(f"[pdf] {examples['pdf']['result']['outcome']}")
 

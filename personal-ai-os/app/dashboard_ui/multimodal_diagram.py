@@ -13,6 +13,15 @@ correct, but was never called from anywhere. Voice input existed only
 as the browser's own free Web Speech API, which transcribes client-side
 and sends already-transcribed TEXT to the backend -- nothing server-side
 ever did real speech-to-text on an actual audio file.
+
+Updated to close this capability's last disclosed gap: extracted
+content never became part of the real knowledge base -- it answered
+one request, then was discarded. New MultimodalIngestionBridge
+(app/multimodal/ingestion_bridge.py) runs a real MultimodalConversionResult
+through the exact same, unchanged chunk_document()/VectorStore.add()
+every text document uses, retrievable through SecureRetriever with the
+same permission filtering -- pure composition over already-tested RAG
+infrastructure, no new storage layer.
 """
 
 MULTIMODAL_DIAGRAM = r"""
@@ -50,4 +59,13 @@ flowchart TB
 
     FREEDISCLOSURE["Why this is genuinely free:\nGemini's native multimodal input\n(image/PDF/audio bytes directly in\ngenerate_content()) uses the SAME\nfree-tier API key + quota this whole\nproject already runs on -- no\nDeepgram/AssemblyAI/ElevenLabs/\nWhisper API key, no new billing"]
     UNDERSTAND -.-> FREEDISCLOSURE
+
+    subgraph RETRIEVAL["Multimodal Retrieval -- the gap this capability named, now closed"]
+        direction TB
+        BRIDGE["MultimodalIngestionBridge --\nbuilds a real Document tagged by\nmedia kind (e.g. image:screenshot.png),\nsame PersonalDocumentMetadata fields\nevery text document requires"]
+        CHUNKIT["chunk_document() / VectorStore.add() --\nthe EXACT SAME, unchanged RAG\ninfrastructure every text document uses"]
+        RETRIEVE["SecureRetriever.search() --\nsame permission filtering,\nsame citation shape, proven: a\ndifferent tenant genuinely cannot\nretrieve another tenant's content"]
+        BRIDGE --> CHUNKIT --> RETRIEVE
+    end
+    COMBINE -.->|"a caller can ALSO choose to\nindex the extracted result,\nnot just answer once"| BRIDGE
 """

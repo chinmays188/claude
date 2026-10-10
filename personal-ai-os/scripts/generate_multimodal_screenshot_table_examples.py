@@ -26,6 +26,7 @@ from app.providers.gemini_provider import GeminiProvider
 from scripts.trace_multimodal import _generate_real_test_screenshot, _generate_real_test_table_image
 
 OUT_PATH = Path(__file__).resolve().parent.parent / "app" / "dashboard_ui" / "multimodal_screenshot_table_examples.json"
+ASSETS_DIR = Path(__file__).resolve().parent.parent / "app" / "dashboard_ui" / "multimodal_assets"
 
 
 def _result_to_dict(result) -> dict:
@@ -34,14 +35,28 @@ def _result_to_dict(result) -> dict:
     return {"outcome": "answered", "output": result.output, "agent": result.agent, "tool_calls": result.tool_calls}
 
 
-def run_example(kind: str, orchestrator: MultimodalOrchestrator, multimodal_input: MultimodalInput) -> dict:
+def run_example(
+    kind: str, orchestrator: MultimodalOrchestrator, multimodal_input: MultimodalInput,
+    asset_filename: str | None = None,
+) -> dict:
+    """asset_filename, when given, saves the real source image bytes to
+    ASSETS_DIR so the dashboard can render the actual screenshot/table
+    image that was fed into extraction, not just the extracted text."""
     result = orchestrator.handle(multimodal_input)
     conversion = orchestrator.last_conversion
+
+    asset_path = None
+    if asset_filename and multimodal_input.media_bytes:
+        ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+        (ASSETS_DIR / asset_filename).write_bytes(multimodal_input.media_bytes)
+        asset_path = asset_filename
+
     return {
         "kind": kind,
         "extracted_text": conversion.extracted_text if conversion else None,
         "multimodal_model": conversion.model_used if conversion else None,
         "result": _result_to_dict(result),
+        "asset_path": asset_path,
     }
 
 
@@ -61,6 +76,7 @@ def main() -> None:
             kind=InputKind.IMAGE, media_bytes=screenshot_bytes, mime_type="image/png",
             user_prompt="What username is shown, and are notifications enabled or disabled?",
         ),
+        asset_filename="screenshot.png",
     )
     print(f"[screenshot] extracted: {examples['screenshot']['extracted_text'][:150]!r}")
     print(f"[screenshot] {examples['screenshot']['result']}")
@@ -73,6 +89,7 @@ def main() -> None:
             kind=InputKind.IMAGE, media_bytes=table_bytes, mime_type="image/png",
             user_prompt="Which quarter had negative growth, and what was its revenue?",
         ),
+        asset_filename="table.png",
     )
     print(f"[table] extracted: {examples['table']['extracted_text'][:150]!r}")
     print(f"[table] {examples['table']['result']}")
