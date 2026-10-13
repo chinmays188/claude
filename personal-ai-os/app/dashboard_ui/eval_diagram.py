@@ -33,6 +33,19 @@ clean pass with no visibility into how it got there. New
 app/evaluation/outcome_trajectory_quality.py scores all 3
 independently (pure composition over the existing, unchanged
 GoldenCaseResult + JudgeScore) -- see section 13.
+
+Updated once more after the user named 5 real eval dataset types:
+"golden dataset, synthetic dataset, production data, historical
+failures, edge cases." New app/evaluation/dataset_registry.py
+classifies every real file this project has (2 existing adversarial
+cases were only ever distinguished by an "_adversarial" filename
+suffix -- now explicitly tagged EDGE_CASE) and closes the real
+HISTORICAL_FAILURE gap: trace_to_golden_case() promotes a real failed
+trace (app/dashboard_ui/failure_traces.json) into a re-runnable
+GoldenCase, verified live by actually re-running all 3 promoted cases
+against the real Orchestrator. PRODUCTION is documented as a
+deliberate non-goal (this project uses only synthetic data everywhere,
+by standing decision) -- see section 14.
 """
 
 EVAL_DIAGRAM = r"""

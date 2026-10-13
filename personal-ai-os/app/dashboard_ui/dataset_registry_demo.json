@@ -1,0 +1,28 @@
+{
+  "promotions": [
+    {
+      "case_id": "promoted_historical_failure_0",
+      "input": "Use the calculator tool to compute 1 divided by 0, then tell me what happened.",
+      "promoted_expected_agent": "research_agent",
+      "re_run_passed": true,
+      "re_run_reason": "All expectations met.",
+      "re_run_actual_agent": "research_agent"
+    },
+    {
+      "case_id": "promoted_historical_failure_1",
+      "input": "What is Kubernetes and how does container orchestration work?",
+      "promoted_expected_agent": "research_agent",
+      "re_run_passed": true,
+      "re_run_reason": "All expectations met.",
+      "re_run_actual_agent": "research_agent"
+    },
+    {
+      "case_id": "promoted_historical_failure_2",
+      "input": "Keep dividing by zero.",
+      "promoted_expected_agent": null,
+      "re_run_passed": true,
+      "re_run_reason": "Clarification requested as expected.",
+      "re_run_actual_agent": null
+    }
+  ]
+}

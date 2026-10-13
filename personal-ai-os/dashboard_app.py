@@ -2464,6 +2464,75 @@ def render_evals(stores: dict) -> None:
                     if q:
                         st.caption(f"Groundedness: {q['groundedness']:.2f}, citation: {q['citation_quality']:.2f}")
 
+    st.divider()
+    st.subheader("14. Dataset types — golden, synthetic, edge cases, historical failures, production")
+    st.caption(
+        "Per the user's ask: 'these are datasets to be used in eval - golden dataset, "
+        "synthetic dataset, production data, historical failures, edge cases.' New "
+        "`app/evaluation/dataset_registry.py` classifies every real file this project "
+        "actually has under `evals/` — 100% LIVE, no LLM call."
+    )
+
+    from app.evaluation.dataset_registry import (
+        classify_golden_cases,
+        classify_synthetic_cases,
+        production_dataset_non_goal_note,
+    )
+
+    golden_entries = classify_golden_cases()
+    synthetic_entries = classify_synthetic_cases()
+    golden_only = [e for e in golden_entries if e.dataset_type.value == "golden"]
+    edge_cases = [e for e in golden_entries if e.dataset_type.value == "edge_case"]
+
+    dtype_col1, dtype_col2, dtype_col3 = st.columns(3)
+    with dtype_col1:
+        st.metric("GOLDEN cases", len(golden_only), help="evals/golden/basic_routing.json")
+    with dtype_col2:
+        st.metric("SYNTHETIC cases", len(synthetic_entries), help="evals/{career,pm,finance,learning,cross_domain}/*.json")
+    with dtype_col3:
+        st.metric("EDGE_CASE cases", len(edge_cases), help="Previously only distinguished by an '_adversarial' filename suffix")
+
+    with st.expander("EDGE_CASE — real gap closed: these were only ever a filename convention"):
+        for e in edge_cases:
+            st.caption(f"`{e.case_id}` — {e.note}")
+
+    st.warning(f"**PRODUCTION** — {production_dataset_non_goal_note()}")
+
+    st.markdown("**HISTORICAL_FAILURE — promoting a real past failure into a re-runnable case**")
+    st.caption(
+        "Found missing: `app/observability/error_analysis.py` computes live failure rates "
+        "from stored traces, but nothing ever converted a real failed trace BACK into a "
+        "reusable eval case. New `trace_to_golden_case()` closes this — promotes one of "
+        "this project's own 3 real, committed failure traces (tool failure, retrieval "
+        "failure, budget-exhausted) into a `GoldenCase`, then genuinely RE-RUNS it against "
+        "the real, live Orchestrator (pre-generated below, needs a real Gemini call)."
+    )
+    st.info(
+        "**Real, found limitation while building this:** a trace's own top-level `agent` "
+        "field is set by whatever SCRIPT generated it (e.g. `\"trace_request\"`), not the "
+        "real dispatched agent — the real value lives in the `orchestrator_run` span's "
+        "metadata instead, and one of this project's own 3 real traces even has a literal "
+        "placeholder bug there (`\"agent\"` as a string) that must be treated as 'don't "
+        "know', never silently promoted as if it were real."
+    )
+
+    registry_demo = _load_dataset_registry_demo()
+    if registry_demo is None:
+        st.warning("No demo found — run `python scripts/generate_dataset_registry_demo.py` first.")
+    else:
+        for p in registry_demo["promotions"]:
+            icon = "✅" if p["re_run_passed"] else "❌"
+            with st.expander(f"{icon} {p['case_id']}", expanded=False):
+                st.markdown(f"**Original input:** {p['input']}")
+                st.markdown(f"**Promoted expected_agent:** `{p['promoted_expected_agent']}`")
+                st.markdown(f"**Re-run against the live Orchestrator:** {p['re_run_reason']}")
+                if p["promoted_expected_agent"] is None:
+                    st.caption(
+                        "expected_agent is None — the real span metadata had no recoverable "
+                        "agent (either missing, or the known placeholder bug) — this case is "
+                        "input-only replay material, not yet a strict pass/fail check."
+                    )
+
 
 _CAREER_EVAL_HARNESS_RUN_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "career_eval_harness_run.json"
 
@@ -2540,6 +2609,19 @@ def _load_outcome_trajectory_quality_demo() -> dict | None:
     if not _OUTCOME_TRAJECTORY_QUALITY_DEMO_PATH.exists():
         return None
     return json.loads(_OUTCOME_TRAJECTORY_QUALITY_DEMO_PATH.read_text())
+
+
+_DATASET_REGISTRY_DEMO_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "dataset_registry_demo.json"
+
+
+def _load_dataset_registry_demo() -> dict | None:
+    """Loads scripts/generate_dataset_registry_demo.py's committed,
+    real output -- promoting a real failure trace and re-running it
+    needs a real Gemini call, so this is pre-generated, not run on
+    page render."""
+    if not _DATASET_REGISTRY_DEMO_PATH.exists():
+        return None
+    return json.loads(_DATASET_REGISTRY_DEMO_PATH.read_text())
 
 
 _GOVERNANCE_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "governance_examples.json"

@@ -986,6 +986,42 @@ HISTORY:
     "AI Evaluation" learning goal (gained 2 new success criteria,
     closed both) updated. 26 new tests (1084 total, was 1058).
 
+37. Updated after the user named 5 real eval dataset types: "golden
+    dataset, synthetic dataset, production data, historical failures,
+    edge cases." Checked every real file under evals/ before writing
+    anything. GOLDEN and SYNTHETIC were already real. EDGE_CASE was a
+    real, found gap in TRACKING, not existence: 2 adversarial cases
+    already lived inside evals/golden/basic_routing.json, but were
+    only ever distinguished by an "_adversarial" filename suffix, never
+    a tracked dataset type. HISTORICAL_FAILURE was a real code gap:
+    app/observability/error_analysis.py computes live failure rates
+    from stored traces, and app/dashboard_ui/failure_traces.json
+    already holds 3 real, committed failure-mode traces -- but nothing
+    ever converted a real failed trace BACK into a reusable eval case.
+    New app/evaluation/dataset_registry.py closes both: classifies
+    every real existing case (golden -> GOLDEN/EDGE_CASE by id,
+    evals/{domain}/*.json -> SYNTHETIC) and adds trace_to_golden_case(),
+    verified live end to end -- all 3 real failure traces promoted into
+    GoldenCases and successfully RE-RUN against the real, live
+    Orchestrator. A real, found limitation surfaced while building
+    this: Trace.agent (the top-level field) is set by whatever script
+    generated the trace, not the real dispatched agent -- the real
+    value lives in the orchestrator_run span's metadata instead, and
+    one of this project's own 3 real traces even has a literal
+    placeholder bug there ("agent" as a string, a real bug in
+    scripts/trace_request.py's own instrumentation) -- correctly
+    handled by falling back to an honest None rather than silently
+    promoting a fake value. PRODUCTION is documented as a deliberate
+    non-goal, not a gap: this project has a standing decision to use
+    only synthetic data everywhere (no real personal/financial/career
+    data anywhere in the repo), and a real production dataset would
+    contradict it -- HISTORICAL_FAILURE traces (from this project's OWN
+    synthetic runs, not real user data) are named as the closest honest
+    substitute. New dashboard section 14 on the Evals page; eval
+    diagram and "AI Evaluation" learning goal (gained a 3rd new success
+    criterion this arc, closed it) updated. 7 new tests (1091 total,
+    was 1084).
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
