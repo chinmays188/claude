@@ -1,0 +1,33 @@
+{
+  "n_cases": 7,
+  "n_runs_per_sample": 3,
+  "sample_a": {
+    "successes": 18,
+    "n": 21,
+    "ci_lower": 0.6536350585077049,
+    "ci_upper": 0.950190782017865,
+    "point_estimate": 0.8571428571428571
+  },
+  "sample_b": {
+    "successes": 18,
+    "n": 21,
+    "ci_lower": 0.6536350585077049,
+    "ci_upper": 0.950190782017865,
+    "point_estimate": 0.8571428571428571
+  },
+  "self_comparison": {
+    "verdict": "INCONCLUSIVE",
+    "delta_point_estimate": 0.0,
+    "delta_lower": -0.2096965630937171,
+    "delta_upper": 0.2096965630937171
+  },
+  "simulated_regression": {
+    "simulated_successes": 8,
+    "simulated_n": 21,
+    "verdict": "REGRESSION",
+    "delta_point_estimate": -0.47619047619047616,
+    "delta_lower": -0.7186663373934216,
+    "delta_upper": -0.2337146149875308,
+    "note": "The regressed sample is SIMULATED (artificially halved success count) -- this project's real code has no actual regression to demonstrate against live."
+  }
+}

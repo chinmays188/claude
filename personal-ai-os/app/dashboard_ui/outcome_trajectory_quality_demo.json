@@ -1,0 +1,171 @@
+{
+  "results": [
+    {
+      "case_id": "research_001",
+      "outcome": {
+        "passed": true,
+        "reason": "All expectations met."
+      },
+      "trajectory": {
+        "passed": true,
+        "reason": "Agent and tool path matched expectations.",
+        "actual_agent": "research_agent",
+        "actual_tools": [],
+        "actual_stop_reason": "task_completed"
+      },
+      "quality": {
+        "correctness": 1.0,
+        "completeness": 1.0,
+        "groundedness": 1.0,
+        "citation_quality": 1.0,
+        "instruction_following": 1.0,
+        "overall": 1.0
+      },
+      "outcome_trajectory_agree": true
+    },
+    {
+      "case_id": "research_002",
+      "outcome": {
+        "passed": true,
+        "reason": "All expectations met."
+      },
+      "trajectory": {
+        "passed": true,
+        "reason": "Agent and tool path matched expectations.",
+        "actual_agent": "research_agent",
+        "actual_tools": [
+          "calculator"
+        ],
+        "actual_stop_reason": "task_completed"
+      },
+      "quality": {
+        "correctness": 1.0,
+        "completeness": 1.0,
+        "groundedness": 1.0,
+        "citation_quality": 1.0,
+        "instruction_following": 1.0,
+        "overall": 1.0
+      },
+      "outcome_trajectory_agree": true
+    },
+    {
+      "case_id": "analysis_001",
+      "outcome": {
+        "passed": true,
+        "reason": "All expectations met."
+      },
+      "trajectory": {
+        "passed": true,
+        "reason": "Agent and tool path matched expectations.",
+        "actual_agent": "analyst_agent",
+        "actual_tools": [],
+        "actual_stop_reason": "task_completed"
+      },
+      "quality": {
+        "correctness": 1.0,
+        "completeness": 1.0,
+        "groundedness": 1.0,
+        "citation_quality": 1.0,
+        "instruction_following": 1.0,
+        "overall": 1.0
+      },
+      "outcome_trajectory_agree": true
+    },
+    {
+      "case_id": "planning_001",
+      "outcome": {
+        "passed": true,
+        "reason": "All expectations met."
+      },
+      "trajectory": {
+        "passed": true,
+        "reason": "Agent and tool path matched expectations.",
+        "actual_agent": "planner_agent",
+        "actual_tools": [],
+        "actual_stop_reason": "task_completed"
+      },
+      "quality": {
+        "correctness": 1.0,
+        "completeness": 1.0,
+        "groundedness": 1.0,
+        "citation_quality": 1.0,
+        "instruction_following": 1.0,
+        "overall": 1.0
+      },
+      "outcome_trajectory_agree": true
+    },
+    {
+      "case_id": "ambiguous_001",
+      "outcome": {
+        "passed": true,
+        "reason": "Clarification requested as expected."
+      },
+      "trajectory": {
+        "passed": true,
+        "reason": "Agent and tool path matched expectations.",
+        "actual_agent": "unknown",
+        "actual_tools": [],
+        "actual_stop_reason": "task_completed"
+      },
+      "quality": {
+        "correctness": 1.0,
+        "completeness": 1.0,
+        "groundedness": 1.0,
+        "citation_quality": 1.0,
+        "instruction_following": 1.0,
+        "overall": 1.0
+      },
+      "outcome_trajectory_agree": true
+    },
+    {
+      "case_id": "research_003_adversarial",
+      "outcome": {
+        "passed": false,
+        "reason": "Expected tool(s) ['retrieve'] were not called."
+      },
+      "trajectory": {
+        "passed": false,
+        "reason": "Expected tool(s) ['retrieve'] were not called.",
+        "actual_agent": "research_agent",
+        "actual_tools": [],
+        "actual_stop_reason": "task_completed"
+      },
+      "quality": {
+        "correctness": 1.0,
+        "completeness": 1.0,
+        "groundedness": 1.0,
+        "citation_quality": 1.0,
+        "instruction_following": 0.5,
+        "overall": 0.9
+      },
+      "outcome_trajectory_agree": true
+    },
+    {
+      "case_id": "analysis_002_adversarial",
+      "outcome": {
+        "passed": true,
+        "reason": "All expectations met."
+      },
+      "trajectory": {
+        "passed": true,
+        "reason": "Agent and tool path matched expectations.",
+        "actual_agent": "analyst_agent",
+        "actual_tools": [
+          "calculator"
+        ],
+        "actual_stop_reason": "task_completed"
+      },
+      "quality": {
+        "correctness": 1.0,
+        "completeness": 1.0,
+        "groundedness": 1.0,
+        "citation_quality": 1.0,
+        "instruction_following": 1.0,
+        "overall": 1.0
+      },
+      "outcome_trajectory_agree": true
+    }
+  ],
+  "disagreement_count": 0,
+  "total_count": 7
+}

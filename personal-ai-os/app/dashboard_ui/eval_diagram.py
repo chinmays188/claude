@@ -14,6 +14,25 @@ run_golden_case() (deterministic) and app/evaluation/llm_judge.py's
 judge_response() (LLM-as-judge) both existed, real, tested, but had
 never been run end-to-end against the real, live Orchestrator over the
 real golden dataset until scripts/generate_eval_harness_run.py.
+
+Updated after the user shared a real eval-methodology excerpt on
+statistical rigor: every pass rate on this page was from exactly ONE
+run, and MetricSnapshot/compare()/gate_release() treated any nonzero
+single-run delta as a real regression or improvement, with no regard
+for LLM stochasticity (confirmed real in this project). New
+app/evaluation/confidence.py (Wilson score interval + a real
+significance test on a pass-rate delta) and gate_release_significance()
+close this -- see section 12 on this page.
+
+Updated again after the user asked to "divide our entire evals into
+outcome, trajectory and quality for each evaluation." Found this
+project's evals blurred two of the three: run_golden_case()'s
+deterministic check scored the final agent/tools in ONE boolean, so a
+case reaching the right final answer via the WRONG path showed as a
+clean pass with no visibility into how it got there. New
+app/evaluation/outcome_trajectory_quality.py scores all 3
+independently (pure composition over the existing, unchanged
+GoldenCaseResult + JudgeScore) -- see section 13.
 """
 
 EVAL_DIAGRAM = r"""

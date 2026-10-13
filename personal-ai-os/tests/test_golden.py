@@ -1,5 +1,5 @@
 from app.agents.orchestrator import Orchestrator
-from app.evaluation.golden import GoldenCase, pass_rate, run_golden_case, run_golden_set
+from app.evaluation.golden import GoldenCase, pass_rate, run_golden_case, run_golden_set, run_golden_set_multi
 from app.providers.base import LLMProvider
 
 
@@ -110,3 +110,25 @@ def test_pass_rate_computation():
 
 def test_pass_rate_empty_results():
     assert pass_rate([]) == 0.0
+
+
+def test_run_golden_set_multi_sums_successes_and_n_across_runs():
+    """2 runs x 1 case, scripted to pass both times -- real counts must
+    reflect BOTH runs (n=2), not just the last one."""
+    llm = ScriptedProvider(
+        [
+            '{"domains": [], "confidence": 0.9}',
+            '{"task_type": "research", "confidence": 0.9}',
+            '{"action": "final_answer", "answer": "answer"}',
+            '{"domains": [], "confidence": 0.9}',
+            '{"task_type": "research", "confidence": 0.9}',
+            '{"action": "final_answer", "answer": "answer"}',
+        ]
+    )
+    orchestrator = Orchestrator(llm)
+    cases = [GoldenCase(id="r1", input="Explain RAG.", expected_agent="research_agent")]
+
+    successes, n = run_golden_set_multi(orchestrator, cases, n_runs=2)
+
+    assert n == 2
+    assert successes == 2

@@ -67,3 +67,23 @@ def pass_rate(results: list[GoldenCaseResult]) -> float:
     if not results:
         return 0.0
     return sum(1 for r in results if r.passed) / len(results)
+
+
+def run_golden_set_multi(orchestrator: Orchestrator, cases: list[GoldenCase], n_runs: int) -> tuple[int, int]:
+    """Real multi-run execution, found missing per the user's shared
+    eval-methodology excerpt: 'multiple eval runs are an operational
+    necessity when measuring uncertainty.' Runs the FULL golden set
+    n_runs times against the real, live orchestrator (each run is a
+    genuinely separate real LLM call per case, not a cached replay --
+    this project's own routing/classification calls are confirmed not
+    perfectly deterministic even at temperature=0.0) and returns
+    (total_successes, total_n) -- a (successes, trials) pair ready for
+    app/evaluation/confidence.py's wilson_interval()/compare_pass_rates(),
+    which need real counts, not just a single pre-computed rate."""
+    total_successes = 0
+    total_n = 0
+    for _ in range(n_runs):
+        results = run_golden_set(orchestrator, cases)
+        total_successes += sum(1 for r in results if r.passed)
+        total_n += len(results)
+    return total_successes, total_n

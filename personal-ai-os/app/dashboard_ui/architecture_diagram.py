@@ -936,6 +936,56 @@ HISTORY:
     than redrawing an already-dense flowchart. 14 new tests (1058 total,
     was 1044).
 
+36. Updated across two related follow-ups: the user shared a real
+    eval-methodology excerpt on statistical rigor ("Due to LLM
+    stochasticity, agent performance evals must measure uncertainty
+    and report confidence intervals... the performance delta CI must
+    be statistically significant. An interval is inconclusive if it
+    contains 0"), then separately asked to "divide our entire evals
+    into outcome, trajectory and quality for each evaluation." Both
+    found real gaps in this project's own eval machinery, not just
+    missing demos. (a) Every pass rate this project ever reported
+    (sections 1-11 of the Evals page) came from exactly ONE run --
+    app/evaluation/regression.py's compare() (which gates real
+    releases via gate_release()) treated ANY nonzero single-run delta
+    as a real regression or improvement, with zero regard for this
+    project's own confirmed LLM stochasticity. New
+    app/evaluation/confidence.py: a real Wilson score interval (the
+    correct method for a bounded proportion from a finite golden set,
+    not a normal-approximation interval that can exceed [0,1]) and
+    compare_pass_rates(), a genuine 3-way verdict (IMPROVEMENT/
+    REGRESSION/INCONCLUSIVE) -- new gate_release_significance() wires
+    this into real release gating, kept additive alongside the
+    original gate_release() (still correct for point-value metrics
+    with no sampling distribution, e.g. real dollar cost). Verified
+    live: running the real 7-case golden set 3x per sample against the
+    live Gemini API, sample A and B (SAME unchanged code) came back
+    IDENTICAL (18/21 both times) and correctly verdict INCONCLUSIVE --
+    real proof two honest re-runs of unchanged code are never mistaken
+    for a real improvement; a simulated regression correctly verdicts
+    REGRESSION. A real rate-limit (429) was hit live generating this
+    evidence -- fixed with a real retry-with-backoff plus inter-case
+    pauses, not a code bug. (b) run_golden_case()'s deterministic check
+    scored the final agent/tools in ONE boolean -- a case reaching the
+    right final answer via the WRONG path showed as a clean pass, with
+    zero visibility into how it got there. New
+    app/evaluation/outcome_trajectory_quality.py scores OUTCOME (final
+    result correctness), TRAJECTORY (right agent/tools/healthy stop
+    reason, independent of the final answer), and QUALITY (JudgeScore's
+    existing 6 dimensions, now explicitly grouped) independently via
+    pure composition over the existing, unchanged GoldenCaseResult +
+    JudgeScore. A dedicated test proves the real, previously-hidden
+    case (outcome=pass, trajectory=fail) is now visible. Re-scored this
+    project's own real 7-case harness run through the new split: an
+    honest 0/7 real disagreements, reported as a genuinely clean result
+    rather than manufactured to look more dramatic -- a real bug was
+    found and fixed while building this (outcome_trajectory_agree is a
+    @property, silently dropped by model_dump(), fixed by computing it
+    explicitly before serializing, now covered by a regression test).
+    New dashboard sections 12-13 on the Evals page; eval diagram and
+    "AI Evaluation" learning goal (gained 2 new success criteria,
+    closed both) updated. 26 new tests (1084 total, was 1058).
+
 One thing drawn here is still a real gap/simplification, not a modeling
 choice, and is labeled as such directly in the diagram: Chief of Staff's
 "listening" is a pull-based batch pipeline
