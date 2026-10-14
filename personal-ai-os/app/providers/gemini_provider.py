@@ -1,3 +1,5 @@
+import time
+
 from pydantic import BaseModel
 
 from google import genai
@@ -28,6 +30,23 @@ class GenerationUsage(BaseModel):
 
     input_tokens: int
     output_tokens: int
+
+
+class StreamingLatency(BaseModel):
+    """Real TTFT (time to first token) vs. total generation latency --
+    found missing while investigating 'LLM Fundamentals' and 'AI Cost &
+    Latency Engineering' (both independently disclosed the same gap:
+    'no TTFT/streaming measurement exists anywhere'). These are two
+    genuinely different real numbers a caller cares about differently:
+    TTFT is what makes an interactive UI feel responsive (the user sees
+    SOMETHING quickly); total latency is what the real end-to-end cost/
+    completion-time budget actually is. Measured with time.monotonic()
+    around the real streaming SDK call, not estimated."""
+
+    ttft_ms: float
+    total_latency_ms: float
+    chunk_count: int
+    text: str
 
 
 class GeminiProvider(LLMProvider):
@@ -77,6 +96,36 @@ class GeminiProvider(LLMProvider):
                 )
             )
         return response.text
+
+    def generate_streaming(self, prompt: str) -> StreamingLatency:
+        """Real streaming call, separate from generate() (which stays
+        non-streaming -- every existing caller assumes generate() returns
+        a plain str, so this is additive, not a replacement). Measures
+        the REAL wall-clock gap between making the call and the first
+        chunk arriving (TTFT) vs. the full stream completing (total
+        latency) -- the two numbers both named-missing gaps asked for,
+        from one real call, not simulated."""
+        start = time.monotonic()
+        first_chunk_at: float | None = None
+        chunks: list[str] = []
+
+        stream = self._client.models.generate_content_stream(
+            model=self._model, contents=prompt, config=self._generation_config,
+        )
+        for chunk in stream:
+            if first_chunk_at is None:
+                first_chunk_at = time.monotonic()
+            if chunk.text:
+                chunks.append(chunk.text)
+
+        end = time.monotonic()
+        ttft_ms = (first_chunk_at - start) * 1000 if first_chunk_at is not None else 0.0
+        total_latency_ms = (end - start) * 1000
+
+        return StreamingLatency(
+            ttft_ms=ttft_ms, total_latency_ms=total_latency_ms,
+            chunk_count=len(chunks), text="".join(chunks),
+        )
 
     @property
     def model_name(self) -> str:

@@ -1,0 +1,18 @@
+[
+  {
+    "label": "short_factual",
+    "prompt": "What is the capital of France?",
+    "ttft_ms": 20424.711833009496,
+    "total_latency_ms": 20438.49337499705,
+    "chunk_count": 2,
+    "text": "The capital of France is Paris."
+  },
+  {
+    "label": "longer_explanation",
+    "prompt": "Explain in a few sentences why retrieval-augmented generation is useful.",
+    "ttft_ms": 14712.48570800526,
+    "total_latency_ms": 14910.844875004841,
+    "chunk_count": 4,
+    "text": "Retrieval-augmented generation (RAG) is useful because it bridges the gap between a language model\u2019s static training data and real-time, domain-specific information. By fetching relevant external documents and feeding them into the model alongside the prompt, RAG drastically reduces \"hallucinations\" (made-up facts), ensures answers are up-to-date, and allows AI systems to securely cite proprietary or private data without needing costly retraining."
+  }
+]

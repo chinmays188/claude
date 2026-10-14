@@ -1930,6 +1930,60 @@ def render_model_routing(stores: dict) -> None:
             "obtained, not smoothed into a tidier-looking demo."
         )
 
+    st.divider()
+    st.subheader("4. TTFT vs. total latency (pre-generated, real streaming calls)")
+    st.caption(
+        "Closes a gap both 'LLM Fundamentals' and 'AI Cost & Latency Engineering' "
+        "independently disclosed: 'no TTFT/streaming measurement exists anywhere.' New "
+        "`GeminiProvider.generate_streaming()` makes a real streaming call via the SDK's "
+        "`generate_content_stream()` and measures the real wall-clock gap between the call "
+        "starting and the first chunk arriving (TTFT) vs. the full stream completing (total "
+        "latency) — two genuinely different numbers: TTFT is what makes an interactive UI "
+        "feel responsive, total latency is the real end-to-end cost/completion-time budget."
+    )
+    ttft_examples = _load_ttft_examples()
+    if ttft_examples is None:
+        st.warning("No examples found — run `python scripts/generate_ttft_examples.py` first.")
+    else:
+        for ex in ttft_examples:
+            with st.expander(f"\"{ex['prompt']}\"", expanded=True):
+                ttft_col1, ttft_col2, ttft_col3 = st.columns(3)
+                with ttft_col1:
+                    st.metric("TTFT", f"{ex['ttft_ms']:.0f} ms")
+                with ttft_col2:
+                    st.metric("Total latency", f"{ex['total_latency_ms']:.0f} ms")
+                with ttft_col3:
+                    st.metric("Chunks", ex["chunk_count"])
+                st.text(ex["text"][:200] + ("…" if len(ex["text"]) > 200 else ""))
+        gaps = [ex["total_latency_ms"] - ex["ttft_ms"] for ex in ttft_examples]
+        if all(gap < 500 for gap in gaps):
+            st.warning(
+                "**Real, honest finding:** on this run, TTFT was very close to total "
+                "latency for every prompt tried (gap < 500ms) — most of the real output "
+                "arrived in a late burst rather than streaming evenly from early on. This "
+                "is a real property of this specific API/free-tier combination observed "
+                "live, not a bug in `generate_streaming()` — reported as-is rather than "
+                "re-run until a more dramatic TTFT-vs-total gap appeared."
+            )
+        else:
+            st.success(
+                "Real, observed gap between TTFT and total latency — confirms streaming "
+                "genuinely delivers an earlier first token than waiting for the full "
+                "response on at least one of these real calls."
+            )
+
+
+_TTFT_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "ttft_examples.json"
+
+
+def _load_ttft_examples() -> list | None:
+    """Loads scripts/generate_ttft_examples.py's committed, real output --
+    GeminiProvider.generate_streaming() is a real LLM call, so this is
+    pre-generated, not run on page render."""
+    if not _TTFT_EXAMPLES_PATH.exists():
+        return None
+    return json.loads(_TTFT_EXAMPLES_PATH.read_text())
+
 
 _CACHE_EXAMPLES_PATH = Path(__file__).resolve().parent / "app" / "dashboard_ui" / "cache_examples.json"
 

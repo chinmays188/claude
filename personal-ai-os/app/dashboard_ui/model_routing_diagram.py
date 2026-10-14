@@ -22,6 +22,12 @@ now tries this real local tier FIRST via FallbackProvider(ollama,
 cheap_gemini), degrading to the existing cheap Gemini tier if Ollama
 isn't running -- the same resilience pattern already proven for the
 COMPLEX/strong tier below.
+
+Section 4 on this page (TTFT vs. total latency) closes a separate,
+long-disclosed gap ("LLM Fundamentals" and "AI Cost & Latency
+Engineering" both named it) via GeminiProvider.generate_streaming() --
+not drawn into this flowchart since it's a latency measurement, not a
+routing decision between tiers.
 """
 
 MODEL_ROUTING_DIAGRAM = r"""
