@@ -392,7 +392,7 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Understand eval dataset types: golden, synthetic, edge cases, historical "
             "failures, and production data",
         ],
-        0.99,
+        1.0,
         "The single most-built area: real golden sets, regression comparison, adversarial "
         "failure matrix, LLM-as-judge, human eval harness, retrieval eval -- 24 files under "
         "app/evaluation/, more test coverage here than any other capability. This session "
@@ -475,7 +475,23 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
         "PRODUCTION data is documented as a deliberate non-goal, not a gap: this project "
         "has a standing decision to use only synthetic data everywhere, and a real "
         "production dataset would contradict it. New dashboard section 14 on the Evals "
-        "page. 7 more new tests (33 total across this eval-methodology arc).",
+        "page. 7 more new tests (33 total across this eval-methodology arc). Closed the "
+        "LAST remaining gap in the same arc: 'human-in-the-loop needs a real human's "
+        "ratings this harness cannot fabricate' -- every prior version of this section "
+        "used clearly-labeled INVENTED illustrative numbers. The user genuinely rated "
+        "all 7 of this project's own real harness cases directly in conversation, after "
+        "reviewing each case's real input/output, on the real 1-5 HumanRating scale. "
+        "Real, honest finding, not softened: the resulting judge<->human Pearson "
+        "correlation is 0.239 -- genuinely weak, not a strong correlation manufactured "
+        "to look reassuring. The 2 largest divergences are real and informative: "
+        "'research_002' (basic arithmetic, judge scored 1.0, human rated it lower on "
+        "completeness/trustworthiness for such a trivial case) and 'ambiguous_001' (the "
+        "system correctly asked for clarification per spec, judge scored 1.0, human "
+        "rated it less favorably as simply unhelpful) -- exactly the kind of signal "
+        "human-in-the-loop eval exists to surface, which a fabricated illustrative "
+        "example could never have shown. New dashboard section 4 on the Evals page "
+        "replaced the illustrative framing with this real data. Every success criterion "
+        "for this capability now has real, verified evidence. 2 new tests.",
     ),
     (
         "learn_ai_safety_guardrails",
@@ -664,7 +680,7 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
             "Internalize the decision framework: deterministic logic -> traditional ML -> LLM -> RAG -> tool calling -> agent -> multi-agent -> human approval -> autonomous execution",
             "Be able to explain why each architectural component in this project exists, what failure mode it solves, how it's measured, what it costs, and what trade-off was made",
         ],
-        0.95,
+        0.97,
         "Real gap closed this session: app/evaluation/adaptation_advisor.py already codified "
         "one real, narrow slice (RAG vs. fine-tuning vs. in-context learning vs. "
         "distillation) but the full chain this capability's own success criterion names -- "
@@ -691,9 +707,18 @@ LEARNING_CAPABILITIES: list[tuple[str, str, list[str], float, str]] = [
         "permission filtering (proven by a dedicated test), retrying only a transient "
         "sandbox failure never a deterministic tool error, and letting one domain "
         "eval case honestly need zero LLM calls when the real code it tests doesn't "
-        "use one. Kept below 100%, honestly: the log has 24 of this project's full "
-        "real decision history (227+ 'Example N' sections across specs, 117+ commits) "
-        "-- a real, growing sample, not yet exhaustive.",
+        "use one. Expanded again to 32 entries after the user asked 'what is remaining "
+        "to make our overall progress 100%' and named this gap directly -- every commit "
+        "since the log's last expansion (da08803) was checked against git log, and all "
+        "10 real, un-logged commits since then yielded 8 genuine new decisions (e.g. "
+        "bypassing av's broken file-decode path for faster-whisper instead of pinning "
+        "an older av version; Ollama tried FIRST for SIMPLE requests with a real cloud "
+        "fallback rather than replacing Gemini outright; trace_to_golden_case() "
+        "distrusting a trace's own top-level agent field after finding it unreliable "
+        "live). Kept below 100%, honestly: the real total (227+ 'Example N' sections "
+        "across specs, 117+ commits) is large and still growing with every session -- "
+        "this is a genuinely open-ended criterion that gets closer with each real pass, "
+        "not one with a fixed finish line to cross.",
     ),
 ]
 

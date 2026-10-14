@@ -1,0 +1,86 @@
+{
+  "ratings": [
+    {
+      "case_id": "research_001",
+      "correctness": 5,
+      "relevance": 5,
+      "completeness": 5,
+      "trustworthiness": 5,
+      "usefulness": 5,
+      "citation_quality": 5
+    },
+    {
+      "case_id": "research_002",
+      "correctness": 1,
+      "relevance": 2,
+      "completeness": 3,
+      "trustworthiness": 4,
+      "usefulness": 5,
+      "citation_quality": 5
+    },
+    {
+      "case_id": "analysis_001",
+      "correctness": 3,
+      "relevance": 4,
+      "completeness": 5,
+      "trustworthiness": 1,
+      "usefulness": 3,
+      "citation_quality": 5
+    },
+    {
+      "case_id": "planning_001",
+      "correctness": 5,
+      "relevance": 5,
+      "completeness": 5,
+      "trustworthiness": 5,
+      "usefulness": 5,
+      "citation_quality": 2
+    },
+    {
+      "case_id": "ambiguous_001",
+      "correctness": 1,
+      "relevance": 1,
+      "completeness": 1,
+      "trustworthiness": 1,
+      "usefulness": 3,
+      "citation_quality": 2
+    },
+    {
+      "case_id": "research_003_adversarial",
+      "correctness": 3,
+      "relevance": 3,
+      "completeness": 5,
+      "trustworthiness": 2,
+      "usefulness": 1,
+      "citation_quality": 2
+    },
+    {
+      "case_id": "analysis_002_adversarial",
+      "correctness": 1,
+      "relevance": 2,
+      "completeness": 3,
+      "trustworthiness": 4,
+      "usefulness": 5,
+      "citation_quality": 1
+    }
+  ],
+  "judge_scores": [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    0.9,
+    1.0
+  ],
+  "human_scores": [
+    5.0,
+    3.3333333333333335,
+    3.5,
+    4.5,
+    1.5,
+    2.6666666666666665,
+    2.6666666666666665
+  ],
+  "correlation": 0.23939782946951924
+}

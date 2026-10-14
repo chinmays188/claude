@@ -405,6 +405,158 @@ DECISION_LOG: list[LoggedDecision] = [
                         "actually does.",
         source="c7ecf16",
     ),
+    LoggedDecision(
+        decision_id="local_voice_bypasses_av_decode_path",
+        title="Pass a raw numpy array to faster-whisper instead of a file path",
+        tier=DecisionTier.TOOL_CALLING,
+        what_was_chosen="app/voice_local/transcriber.py loads the WAV into a float32 numpy "
+                         "array (via a new, dependency-free audio_io.py loader) and passes "
+                         "THAT to WhisperModel.transcribe() -- its own signature explicitly "
+                         "supports audio: str | BinaryIO | numpy.ndarray.",
+        what_was_rejected="Pinning av to an older version (18.1.0, confirmed to have a real "
+                           "cp311-abi3 wheel compatible with this project's Python 3.14) to "
+                           "keep faster-whisper's default file-path decode path working.",
+        real_rationale="faster-whisper's file-path path internally calls av.open(..., "
+                        "metadata_errors=...), but the only av version with real Python 3.14 "
+                        "wheels (19.0.1) removed that kwarg -- a genuine version-compatibility "
+                        "bug between two very recent packages. Passing a real array sidesteps "
+                        "av's decode path entirely and is more version-proof going forward "
+                        "than pinning an older, less-tested av release for a brand-new Python "
+                        "version.",
+        source="2742a02",
+    ),
+    LoggedDecision(
+        decision_id="ollama_tried_before_cheap_gemini_not_instead_of",
+        title="Local Ollama tier tried FIRST for SIMPLE requests, not as a full replacement",
+        tier=DecisionTier.SINGLE_LLM_CALL,
+        what_was_chosen="RoutingLLMProvider gained an optional local_provider: SIMPLE "
+                         "requests try the real local Ollama model first via "
+                         "FallbackProvider(ollama, cheap_gemini), degrading to the existing "
+                         "cheap Gemini tier if Ollama isn't running.",
+        what_was_rejected="Replacing the cheap Gemini tier outright with Ollama for SIMPLE "
+                           "requests, with no cloud fallback.",
+        real_rationale="A local model with no real fallback would make the whole SIMPLE path "
+                        "depend on Ollama actually running on this specific machine -- a real "
+                        "fragility for a free, free-tier-friendly dashboard demo. The existing "
+                        "strong-tier fallback pattern (FallbackProvider wrapping a less "
+                        "reliable option) was already proven -- reusing it here, rather than "
+                        "inventing a new all-or-nothing local/cloud switch, keeps the same "
+                        "resilience guarantee.",
+        source="16863f3",
+    ),
+    LoggedDecision(
+        decision_id="multimodal_retrieval_bridge_not_new_vector_store",
+        title="MultimodalIngestionBridge reuses the existing VectorStore, not a new index",
+        tier=DecisionTier.RAG,
+        what_was_chosen="New MultimodalIngestionBridge builds a real Document from "
+                         "extracted multimodal text and runs it through the exact same, "
+                         "UNCHANGED chunk_document()/VectorStore.add() every text document "
+                         "already uses -- retrievable through SecureRetriever with the same "
+                         "permission filtering.",
+        what_was_rejected="Building a separate, multimodal-specific vector index/retrieval "
+                           "path, since image/PDF/audio content might seem to need different "
+                           "handling than plain text.",
+        real_rationale="Once Gemini extracts TEXT from an image/PDF/audio file, that text has "
+                        "the exact same real shape as any other document's text -- there is "
+                        "no genuine reason for it to skip the existing, already-tested "
+                        "chunking/embedding/permission-filtering pipeline. A new, parallel "
+                        "retrieval path would duplicate real, working infrastructure for no "
+                        "real benefit, and risk the two paths drifting apart over time.",
+        source="73f49be",
+    ),
+    LoggedDecision(
+        decision_id="procedural_memory_as_enum_value_not_new_model",
+        title="MemoryType.PROCEDURE as one enum value, not a separate ProceduralMemoryRecord",
+        tier=DecisionTier.DETERMINISTIC_LOGIC,
+        what_was_chosen="Added MemoryType.PROCEDURE to the existing MemoryRecord's type "
+                         "enum -- reuses the entire existing store/retrieval/decay/"
+                         "write-policy pipeline unchanged.",
+        what_was_rejected="A structurally separate ProceduralMemoryRecord model + a separate "
+                           "store, since 'knowing how' (a condition -> action rule) arguably "
+                           "has a different real shape than a declarative fact.",
+        real_rationale="At this project's actual scale, a separate model/store would double "
+                        "the real maintenance surface (two schemas, two migration paths, two "
+                        "sets of tests) for a distinction that's really about what the "
+                        "CONTENT means, not how it needs to be stored, retrieved, or decayed. "
+                        "The existing MemoryRecord pipeline already handles arbitrary text "
+                        "content correctly regardless of its semantic type.",
+        source="14b0978",
+    ),
+    LoggedDecision(
+        decision_id="conflict_resolution_supersedes_never_deletes",
+        title="ConflictResolver marks the old memory SUPERSEDED, never deletes it",
+        tier=DecisionTier.SINGLE_LLM_CALL,
+        what_was_chosen="A genuine contradiction (judged by a real LLM call) marks the OLD "
+                         "memory's new MemoryStatus field as SUPERSEDED and records "
+                         "superseded_by -- the record stays in the store, just no longer "
+                         "treated as current.",
+        what_was_rejected="Deleting the old, contradicted memory outright once a new one is "
+                           "confirmed to replace it.",
+        real_rationale="This project's broader never-destroy-on-write discipline (memory "
+                        "decay flags for human review rather than deleting; undo marks an "
+                        "action undone rather than erasing its audit record) applies "
+                        "identically here -- a superseded memory is still real history (what "
+                        "did the user used to think/want), and deleting it would make that "
+                        "history unrecoverable for no real operational benefit.",
+        source="14b0978",
+    ),
+    LoggedDecision(
+        decision_id="significance_gate_additive_not_replacing_gate_release",
+        title="gate_release_significance() added alongside gate_release(), not replacing it",
+        tier=DecisionTier.SINGLE_LLM_CALL,
+        what_was_chosen="A new, separate gate_release_significance() function requires a "
+                         "statistically significant pass-rate delta (Wilson-interval-based) "
+                         "before calling something a regression or improvement -- the "
+                         "original gate_release() (a plain point comparison) is left "
+                         "completely unchanged.",
+        what_was_rejected="Modifying gate_release() itself to always require statistical "
+                           "significance, for every metric type.",
+        real_rationale="gate_release()'s point comparison is still the CORRECT tool for a "
+                        "real metric with no sampling distribution at all (e.g. real dollar "
+                        "cost, a single fixed latency reading) -- there's no 'significance' "
+                        "concept to apply to a value that isn't a sampled proportion. Forcing "
+                        "every metric through a significance test would be a category error, "
+                        "not a rigor improvement.",
+        source="6cb2876",
+    ),
+    LoggedDecision(
+        decision_id="trace_to_golden_case_distrusts_top_level_agent_field",
+        title="trace_to_golden_case() reads the span metadata, never the top-level Trace.agent",
+        tier=DecisionTier.DETERMINISTIC_LOGIC,
+        what_was_chosen="Looks for the real dispatched agent inside the orchestrator_run "
+                         "span's metadata first, falling back to an honest expected_agent=None "
+                         "(not a guess) when that's missing or holds the known 'agent' "
+                         "placeholder-bug value.",
+        what_was_rejected="Using Trace.agent (the top-level field) directly as the promoted "
+                           "case's expected_agent, since it's the simpler, more obvious field "
+                           "to read.",
+        real_rationale="Found live while building this against this project's own 3 real "
+                        "committed failure traces: Trace.agent is set by whatever SCRIPT "
+                        "generated the trace (e.g. 'trace_request'), not the real dispatched "
+                        "agent -- and one real trace even has a literal placeholder string "
+                        "('agent') recorded there, a genuine bug in a different script's own "
+                        "instrumentation. Trusting that field directly would have silently "
+                        "promoted fabricated expectations into a 'real' regression test.",
+        source="3d73ec3",
+    ),
+    LoggedDecision(
+        decision_id="streaming_added_not_retrofitted_into_generate",
+        title="generate_streaming() as a new method, not a streaming flag on generate()",
+        tier=DecisionTier.SINGLE_LLM_CALL,
+        what_was_chosen="A separate GeminiProvider.generate_streaming() method returns a "
+                         "distinct StreamingLatency result (text + ttft_ms + total_latency_ms "
+                         "+ chunk_count) -- the existing generate() stays exactly as it was, "
+                         "still returning a plain str.",
+        what_was_rejected="Adding a stream: bool parameter to the existing generate() that "
+                           "changes its return type/shape when set.",
+        real_rationale="Every real caller of generate() across this entire project (agents, "
+                        "DomainRouter, RepairableGenerator, every test's ScriptedProvider) "
+                        "assumes it returns a plain str -- changing its return shape "
+                        "conditionally would be a real breaking-change risk for a feature "
+                        "none of those callers asked for. A new, additive method has zero "
+                        "chance of breaking anything already working.",
+        source="e05465b",
+    ),
 ]
 
 

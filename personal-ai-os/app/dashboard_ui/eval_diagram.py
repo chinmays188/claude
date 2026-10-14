@@ -46,6 +46,14 @@ GoldenCase, verified live by actually re-running all 3 promoted cases
 against the real Orchestrator. PRODUCTION is documented as a
 deliberate non-goal (this project uses only synthetic data everywhere,
 by standing decision) -- see section 14.
+
+Updated once more after the user asked "what is remaining to make our
+overall progress 100%" and the honest answer named human-in-the-loop
+eval as the one gap no harness can close alone. The user genuinely
+rated all 7 real harness cases directly in conversation -- section 4's
+HUMANEVAL box now shows a real, honest correlation (0.239, genuinely
+weak) computed from real paired (judge, human) scores, replacing the
+prior clearly-labeled-but-invented illustrative example.
 """
 
 EVAL_DIAGRAM = r"""
@@ -70,7 +78,7 @@ flowchart TB
     DET --> SNAPSHOT
     JUDGE --> SNAPSHOT
 
-    HUMANEVAL["HUMAN-IN-THE-LOOP eval\napp/evaluation/human_eval.py's HumanRating\n(1-5 scale, 6 dimensions) +\njudge_human_correlation() --\nneeds a REAL human's ratings,\nnot fabricatable by this harness"]
+    HUMANEVAL["HUMAN-IN-THE-LOOP eval\napp/evaluation/human_eval.py's HumanRating\n(1-5 scale, 6 dimensions) +\njudge_human_correlation() --\nreal correlation (0.239) from the\nuser's OWN real ratings of all 7\nreal harness cases"]
     SNAPSHOT -.->|"a real human could rate\nthe same cases, then correlate"| HUMANEVAL
 
     RESULTS["app/dashboard_ui/eval_harness_run.json\n(committed, real -- pass rate,\njudge scores, real per-call token usage)"]
