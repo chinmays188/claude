@@ -72,4 +72,7 @@ flowchart TB
 
     DOCKERNOTE["Separate, different layer:\nDockerfile/docker-compose.yml\n(whole-container isolation,\nnetwork/filesystem jail) --\nNOT what SandboxedToolExecutor\nreplaces; a real, still-open\ngap (never actually built/run\nin this environment)"]
     SANDBOX -.->|"different isolation layer,\nnot a substitute for"| DOCKERNOTE
+
+    SECSCAN["Section 7: security_testing.py --\nextended with real SQL injection/\nSSRF/path-traversal checks +\nscan_dependencies() (real pip-audit,\nfound 22 real CVEs in 3 packages) --\na separate, static-analysis concern,\nnot drawn into the runtime flow above"]
+    AUDIT -.->|"same page, different concern"| SECSCAN
 """

@@ -1,0 +1,163 @@
+{
+  "code_findings": [
+    {
+      "check_name": "dangerous_call",
+      "file_path": "/Users/chinmay/claude.md/Project/personal-ai-os/app/memory/persistent_store.py:47",
+      "detail": "SQL f-string found -- SQL injection risk (use parameterized queries)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dangerous_call",
+      "file_path": "/Users/chinmay/claude.md/Project/personal-ai-os/app/platform/security_testing.py:20",
+      "detail": "eval() call found -- arbitrary code execution risk",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dangerous_call",
+      "file_path": "/Users/chinmay/claude.md/Project/personal-ai-os/app/platform/security_testing.py:21",
+      "detail": "exec() call found -- arbitrary code execution risk",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dangerous_call",
+      "file_path": "/Users/chinmay/claude.md/Project/personal-ai-os/app/actions/audit_log.py:44",
+      "detail": "SQL f-string found -- SQL injection risk (use parameterized queries)",
+      "severity": "HIGH"
+    }
+  ],
+  "dependency_findings": [
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pip==26.0)",
+      "detail": "PYSEC-2026-2875: pip handles concatenated tar and ZIP files as ZIP files regardless of filename or whether a file is both a tar and ZIP file. This behavior could result in confusing installation behavior, such as inst (fix: 26.1)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pip==26.0)",
+      "detail": "PYSEC-2026-2876: pip prior to version 26.1 would run self-update check functionality after installing wheel files which required importing well-known Python modules names. These module imports were intentionally defer (fix: 26.1)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pip==26.0)",
+      "detail": "PYSEC-2026-196: pip would treat console_scripts and gui_scripts as paths instead of file names without sanitizing the resolved absolute path to the installation directory, leading to entry points being installed outs (fix: 26.1.2)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pip==26.0)",
+      "detail": "PYSEC-2026-196: pip would treat console_scripts and gui_scripts as paths instead of file names without sanitizing the resolved absolute path to the installation directory, leading to entry points being installed outs (fix: 26.1.2)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pip==26.0)",
+      "detail": "PYSEC-2026-2875: pip handles concatenated tar and ZIP files as ZIP files regardless of filename or whether a file is both a tar and ZIP file. This behavior could result in confusing installation behavior, such as inst (fix: 26.1)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pip==26.0)",
+      "detail": "PYSEC-2026-2876: pip prior to version 26.1 would run self-update check functionality after installing wheel files which required importing well-known Python modules names. These module imports were intentionally defer (fix: 26.1)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pip==26.0)",
+      "detail": "PYSEC-2026-3721: pip would incorrectly handle doubly-encoded package URLs from indexes allowing for files to be installed to arbitrary locations on disk even when installing wheels.     This vulnerability requires dow (fix: 26.2)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pip==26.0)",
+      "detail": "PYSEC-2026-3721: pip would incorrectly handle doubly-encoded package URLs from indexes allowing for files to be installed to arbitrary locations on disk even when installing wheels.  This vulnerability requires downlo (fix: 26.2.0)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pypdf==6.15.0)",
+      "detail": "PYSEC-2026-3910: ### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes and large memory consumption. This requires accessing the outlines of a document with either lots of en (fix: 6.16.1)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pypdf==6.15.0)",
+      "detail": "PYSEC-2026-3911: ### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes and large memory consumption. This requires extracting the text of a page with lots of XForm objects, w (fix: 6.16.1)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pypdf==6.15.0)",
+      "detail": "PYSEC-2026-3913: ### Impact  An attacker who uses this vulnerability can craft a PDF which leads to an infinite loop. This requires a (usually writing) code path where `TreeObject.insert_child` is involved.  ### Patch (fix: 6.16.0)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pypdf==6.15.0)",
+      "detail": "PYSEC-2026-4153: ### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes. This requires reading a PDF document with long indirect object headers, not terminated by whitespace.  (fix: 6.18.0)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pypdf==6.15.0)",
+      "detail": "PYSEC-2026-4154: ### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory consumption. This requires parsing the `/ToUnicode` entry of a font with unusually large values, for exa (fix: 6.18.1)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pypdf==6.15.0)",
+      "detail": "PYSEC-2026-4160: ### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory consumption. This requires accessing the page labels of a document with large alphabetical labels.  ###  (fix: 6.19.0)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pypdf==6.15.0)",
+      "detail": "PYSEC-2026-4159: ### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes. This requires accessing the embedded files through the dictionary-based API.  ### Patches  This has be (fix: 6.19.0)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pypdf==6.15.0)",
+      "detail": "PYSEC-2026-4156: ### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes. This requires a partially malformed `/FlateDecode` stream, where the byte-by-byte decompression is use (fix: 6.18.1)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pypdf==6.15.0)",
+      "detail": "PYSEC-2026-4155: ### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory consumption. This requires parsing the `/Widths` entry of a TrueType or Type1 fonts with unusually large (fix: 6.18.1)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pypdf==6.15.0)",
+      "detail": "PYSEC-2026-4158: ### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory consumption. This requires accessing the page labels of a document with large Roman numerals.  ### Patch (fix: 6.17.0)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (pypdf==6.15.0)",
+      "detail": "PYSEC-2026-4157: ### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes. This requires updating form field values with flattening enabled, which triggers appearance stream gen (fix: 6.19.0)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (urllib3==2.7.0)",
+      "detail": "PYSEC-2026-4177: ## Impact  urllib3's [streaming API](https://urllib3.readthedocs.io/en/2.7.0/advanced-usage.html#streaming-and-i-o) is designed for efficiently handling large HTTP responses by reading the content in  (fix: 2.8.0)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (urllib3==2.7.0)",
+      "detail": "PYSEC-2026-4176: ### Impact  urllib3's streaming API is designed for the efficient handling of large HTTP responses by reading content in chunks instead of loading the entire response body into memory at once.  urllib (fix: 2.8.0)",
+      "severity": "HIGH"
+    },
+    {
+      "check_name": "dependency_vulnerability",
+      "file_path": "requirements.txt (urllib3==2.7.0)",
+      "detail": "PYSEC-2026-4175: ## Impact  urllib3 supports configuring TLS independently for an HTTPS proxy and the target server.  `proxy_ssl_context`, `proxy_assert_hostname`, and `proxy_assert_fingerprint` configure the TLS conn (fix: 2.8.0)",
+      "severity": "HIGH"
+    }
+  ],
+  "dependency_scan_failed": false
+}

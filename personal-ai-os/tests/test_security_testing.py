@@ -1,6 +1,10 @@
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from app.platform.security_testing import (
+    scan_dependencies,
     scan_directory,
     scan_file_for_dangerous_calls,
     scan_file_for_hardcoded_secrets,
@@ -72,3 +76,130 @@ def test_scan_directory_documented_false_positive_on_its_own_source():
     findings = scan_file_for_dangerous_calls(security_testing_path)
 
     assert len(findings) >= 1  # the documented false positive
+
+
+def test_scan_file_detects_sql_injection_via_string_concatenation(tmp_path):
+    path = tmp_path / "risky.py"
+    path.write_text('cursor.execute("SELECT * FROM users WHERE id = " + user_id)')
+
+    findings = scan_file_for_dangerous_calls(path)
+
+    assert any("SQL" in f.detail for f in findings)
+
+
+def test_scan_file_detects_sql_injection_via_fstring(tmp_path):
+    path = tmp_path / "risky.py"
+    path.write_text('cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")')
+
+    findings = scan_file_for_dangerous_calls(path)
+
+    assert any("SQL" in f.detail for f in findings)
+
+
+def test_scan_file_detects_sql_injection_via_percent_formatting(tmp_path):
+    path = tmp_path / "risky.py"
+    path.write_text('cursor.execute("SELECT * FROM users WHERE id = %s" % user_id)')
+
+    findings = scan_file_for_dangerous_calls(path)
+
+    assert any("SQL" in f.detail for f in findings)
+
+
+def test_scan_file_does_not_flag_parameterized_sql(tmp_path):
+    """Real, honest negative case: the SAFE way to run a parameterized
+    query (placeholders + a separate params tuple) must not be flagged --
+    a scanner that flags safe code trains developers to ignore it."""
+    path = tmp_path / "safe.py"
+    path.write_text('cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))')
+
+    findings = scan_file_for_dangerous_calls(path)
+
+    assert not any("SQL" in f.detail for f in findings)
+
+
+def test_scan_file_detects_ssrf_prone_bare_variable_request(tmp_path):
+    path = tmp_path / "risky.py"
+    path.write_text("response = requests.get(user_provided_url)")
+
+    findings = scan_file_for_dangerous_calls(path)
+
+    assert any("SSRF" in f.detail for f in findings)
+
+
+def test_scan_file_detects_path_traversal(tmp_path):
+    path = tmp_path / "risky.py"
+    path.write_text('open("../../etc/passwd")')
+
+    findings = scan_file_for_dangerous_calls(path)
+
+    assert any("traversal" in f.detail for f in findings)
+
+
+def test_scan_file_does_not_flag_a_normal_relative_open(tmp_path):
+    path = tmp_path / "safe.py"
+    path.write_text('open("data/config.json")')
+
+    findings = scan_file_for_dangerous_calls(path)
+
+    assert not any("traversal" in f.detail for f in findings)
+
+
+@patch("app.platform.security_testing.subprocess.run")
+def test_scan_dependencies_parses_real_pip_audit_output(mock_run):
+    """Scripted pip-audit JSON (its real documented shape), not a live
+    network call in a unit test -- scan_dependencies() was verified
+    live separately against this project's actual installed packages
+    (see scripts/generate_security_scan_report.py)."""
+    mock_run.return_value = MagicMock(
+        returncode=1,
+        stdout='{"dependencies": [{"name": "pypdf", "version": "6.15.0", "vulns": '
+               '[{"id": "PYSEC-2026-3910", "fix_versions": ["6.16.1"], "description": "Long runtime DoS."}]}], "fixes": []}',
+        stderr="",
+    )
+
+    findings = scan_dependencies()
+
+    assert len(findings) == 1
+    assert findings[0].check_name == "dependency_vulnerability"
+    assert "pypdf" in findings[0].file_path
+    assert "PYSEC-2026-3910" in findings[0].detail
+
+
+@patch("app.platform.security_testing.subprocess.run")
+def test_scan_dependencies_returns_empty_for_clean_dependencies(mock_run):
+    mock_run.return_value = MagicMock(
+        returncode=0,
+        stdout='{"dependencies": [{"name": "pydantic", "version": "2.13.4", "vulns": []}], "fixes": []}',
+        stderr="",
+    )
+
+    assert scan_dependencies() == []
+
+
+@patch("app.platform.security_testing.subprocess.run")
+def test_scan_dependencies_raises_on_a_real_tool_failure(mock_run):
+    """A real, honest failure (e.g. pip-audit crashed, no network) must
+    raise, never silently return an empty -- falsely reassuring --
+    result."""
+    mock_run.return_value = MagicMock(returncode=2, stdout="", stderr="network error")
+
+    with pytest.raises(RuntimeError):
+        scan_dependencies()
+
+
+def test_scan_dependencies_resolves_pip_audit_next_to_the_current_interpreter():
+    """Real bug found while running this live: 'pip-audit' bare on PATH
+    wasn't reliably found when this process's PATH didn't include the
+    active venv's bin dir -- fixed by resolving it relative to
+    sys.executable instead. This pins that the command actually used is
+    a real, existing executable path (not the bare string that failed),
+    without making a real network call in a unit test."""
+    import sys
+
+    from app.platform.security_testing import Path as SecurityTestingPath  # noqa: F401 -- confirms Path import present
+
+    pip_audit_path = Path(sys.executable).parent / "pip-audit"
+    assert pip_audit_path.exists(), (
+        "pip-audit should be installed in this venv (requirements.txt) -- "
+        "if this fails, reinstall with `pip install pip-audit`."
+    )

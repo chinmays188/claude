@@ -15,3 +15,4 @@ streamlit
 mcp
 faster-whisper
 silero-vad
+pip-audit
